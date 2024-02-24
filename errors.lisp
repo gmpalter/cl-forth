@@ -1,59 +1,91 @@
-Code Reserved for Code Reserved for
--1 ABORT
--2 ABORT"
--3 stack overflow
--4 stack underflow
--5 return stack overflow
--6 return stack underflow
--7 do-loops nested too deeply during execution
--8 dictionary overflow
--9 invalid memory address
--10 division by zero
--11 result out of range
--12 argument type mismatch
--13 undefined word
--14 interpreting a compile-only word
--15 invalid FORGET
--16 attempt to use zero-length string as a name
--17 pictured numeric output string overflow
--18 parsed string overflow
--19 definition name too long
--20 write to a read-only location
--21 unsupported operation
--22 control structure mismatch
--23 address alignment exception
--24 invalid numeric argument
--25 return stack imbalance
--26 loop parameters unavailable
--27 invalid recursion
--28 user interrupt
--29 compiler nesting
--30 obsolescent feature
--31 >BODY used on non-CREATEd definition
--32 invalid name argument (e.g., TO xxx)
--33 block read exception
--34 block write exception
--35 invalid block number
--36 invalid file position
--37 file I/O exception
--38 non-existent file
--39 unexpected end of file
--40 invalid BASE for floating point conversion
--41 loss of precision
--42 floating-point divide by zero
--43 floating-point result out of range
--44 floating-point stack overflow
--45 floating-point stack underflow
--46 floating-point invalid argument
--47 compilation word list deleted
--48 invalid POSTPONE
--49 search-order overflow
--50 search-order underflow
--51 compilation word list changed
--52 control-flow stack overflow
--53 exception stack overflow
--54 floating-point underflow
--55 floating-point unidentified fault
--56 QUIT
--57 exception in sending or receiving a character
--58 [IF], [ELSE], or [THEN] exception
+(in-package #:forth)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+(defvar *forth-errors-map* (make-hash-table))
+)
+
+(defmacro define-forth-errors (&body body)
+  (dolist (error body)
+    (destructuring-bind (key code default-phrase)
+        error
+      (setf (gethash key *forth-errors-map*) (list code default-phrase)))))
+
+(define-forth-errors
+  (:abort -1 "ABORT")
+  (:abort\" -2 "ABORT\"")
+  (:stack-overflow -3 "Stack overflow")
+  (:stack-underflow -4 "Stack underflow")
+  (:return-stack-overflow -5 "Return stack overflow")
+  (:return-stack-underflow -6 "Return stack underflow")
+  (:do-loops-nesting -7 "DO-loops nested too deeply during execution")
+  (:dictionary-overflow -8 "Dictionary overflow")
+  (:invalid-memory -9 "Invalid memory address")
+  (:divide-by-zero -10 "Division by zero")
+  (:out-of-range -11 "Result out of range")
+  (:type-mismatch -12 "Argument type mismatch")
+  (:undefined-word -13 "Undefined word")
+  (:compile-only-word -14 "Interpreting a compile-only word")
+  (:invalid-forget -15 "Invalid FORGET")
+  (:zero-length-name -16 "Attempt to use zero-length string as a name")
+  (:pictured-output-overflow -17 "Pictured numeric output string overflow")
+  (:parse-string-overflow -18 "Parsed string overflow")
+  (:name-too-long -19 "Definition name too long")
+  (:write-to-read-only-memory -20 "Write to a read-only location")
+  (:unsuppored-operation -21 "Unsupported operation")
+  (:control-mismatch -22 "Control structure mismatch")
+  (:aligment-exception -23 "Address alignment exception")
+  (:invalid-numeric-argument -24 "Invalid numeric argument")
+  (:return-stack-imbalance -25 "Return stack imbalance")
+  (:no-loop-parameters -26 "Loop parameters unavailable")
+  (:invalid-recursion -27 "Invalid recursion")
+  (:user-interrupt -28 "User interrupt")
+  (:recursive-compile -29 "Compiler nesting")
+  (:obsolete-feature -30 "Obsolescent feature")
+  (:invalid->body -31 ">BODY used on non-CREATEd definition")
+  (:invalid-name-argument -32 "Invalid name argument")
+  (:block-read-exception -33 "Block read exception")
+  (:block-write-exception -34 "Block write exception")
+  (:invalid-block-number -35 "Invalid block number")
+  (:invalid-file-position -36 "Invalid file position")
+  (:file-i/o-exception -37 "File I/O exception")
+  (:file-not-found -38 "Non-existent file")
+  (:unexpected-eof -39 "Unexpected end of file")
+  (:invalid-floating-base -40 "Invalid BASE for floating point conversion")
+  (:loss-of-precision -41 "Loss of precision")
+  (:floating-divide-by-zero -42 "Floating-point divide by zero")
+  (:floating-out-of-range -43 "Floating-point result out of range")
+  (:float-stack-overflow -44 "Floating-point stack overflow")
+  (:float-stack-underflow -45 "Floating-point stack underflow")
+  (:float-invalid-argument -46 "Floating-point invalid argument")
+  (:compilation-word-list-deleted -47 "Compilation word list deleted")
+  (:invalid-postpone -48 "Invalid POSTPONE")
+  (:search-order-overflow -49 "Search-order overflow")
+  (:search-order-underflow -50 "Search-order underflow")
+  (:compilation-word-list-changed -51 "Compilation word list changed")
+  (:control-flow-stack-overflow -52 "Control-flow stack overflow")
+  (:exception-stack-overflow -53 "Exception stack overflow")
+  (:float-underflow -54 "Floating-point underflow")
+  (:float-unknown-fault -55 "Floating-point unidentified fault")
+  (:quit -56 "QUIT")
+  (:send/receive-char-exception -57 "Exception in sending or receiving a character")
+  (:if/then/else-exception -58 "[If], [ELSE], or [THEN] exception")
+  (:unknown-slot -101 "Unknown slot")
+  (:control-flow-stack-underflow -102 "Control-flow stack empty")
+  (:unknown-word-list -103 "Unknown word list")
+  )
+
+(define-condition forth-error (error)
+  ((key :initarg :key :reader forth-error-key)
+   (code :initarg :code :reader forth-error-code)                                                 
+   (phrase :initarg :phrase :reader forth-error-phrase))
+  (:report (lambda (fe stream)
+             (format stream "Forth error ~D: ~A" (forth-error-code fe) (forth-error-phrase fe)))))
+
+(defun forth-error (key &optional phrase &rest phrase-arguments)
+  (let ((entry (gethash key *forth-errors-map*))
+        (phrase (and phrase (apply #'format nil phrase phrase-arguments))))
+    (if entry
+        (destructuring-bind (code default-phrase) entry
+          (error 'forth-error :key key :code code :phrase (or phrase default-phrase)))
+        (error 'forth-error :key :bad-error-key :code -999 :phrase (format nil "Unrecognized error key ~S" key)))))
+

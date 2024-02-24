@@ -31,7 +31,7 @@
              (let ((value (parse-integer (delete #\. thing :test #'char-equal) :radix base)))
                (if (<= +most-negative-double-cell+ value +most-positive-double-cell+)
                    (values :double value)
-                   (forth-error "Value too large for a double integer" -11)))
+                   (forth-error :out-of-range "Value too large for a double integer")))
            (parse-error ()
              (values nil nil))))
         (t
@@ -40,7 +40,7 @@
              (let ((value (parse-integer thing :radix base)))
                (if (<= +most-negative-single-cell+ value +most-positive-single-cell+)
                    (values :single value)
-                   (forth-error "Value too large for an integer" -11)))
+                   (forth-error :out-of-range "Value too large for an integer")))
            (parse-error ()
              (values nil nil))))))
 

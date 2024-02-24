@@ -30,11 +30,6 @@
   "Ignore all text on the rest of the line"
   (flush-input files))
 
-(define-word comment (:word "{")
-  "Ignore all text up to and including the next right brace"
-  "Useful for large comment blocks that contain parentheses (e.g., to show stack behavior)"
-  (word files #\}))
-
 
 ;;; 2.1.2 Data Stack Manipulation
 
@@ -75,7 +70,7 @@
   "Place a copy of the Nth stack item onto the top of the data stack"
   (let ((n (stack-pop data-stack)))
     (when (minusp n)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Pick count can't be negative"))
     (stack-pick data-stack n)))
 
 (define-word stack-rot (:word "ROT")
@@ -140,11 +135,11 @@
     (stack-push data-stack x2)))
 
 (define-word copy-two-from-return-stack (:word "2R@")
-  ("S: - x1 x2 ) (R: x1 x2 - x1 x2 )"
+  "(S: - x1 x2 ) (R: x1 x2 - x1 x2 )"
   "Place a copy of the top two items on the return stack onto the data stack"
   (stack-underflow-check return-stack 2)
   (stack-push data-stack (stack-cell return-stack 1))
-  (stack-push data-stack (stack-cell return-stack 0))))
+  (stack-push data-stack (stack-cell return-stack 0)))
 
 (define-word move-to-return-stack (:word ">R")
   "(S: x - ) (R: - x )"
@@ -190,7 +185,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (stack-push data-stack (cell-signed (truncate n1 n2))))))
 
 (define-word multiply-divide (:word "*/")
@@ -206,7 +201,7 @@
         (n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n3)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate (* n1 n2) n3)
           (stack-push data-stack (cell-signed remainder))
@@ -217,7 +212,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate n1 n2)
           (stack-push data-stack (cell-signed remainder))
@@ -252,7 +247,7 @@
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Shift count can't be negative"))
     ;; The Forth standard defines LSHIFT as a logical left shift.
     ;; By treating the number as unsigned, we'll get the proper result.
     (stack-push data-stack (cell-signed (ash (cell-unsigned x1) u)))))
@@ -262,7 +257,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (stack-push data-stack (cell-signed (mod n1 n2))))))
 
 (define-word ash-right (:word "RSHIFT")
@@ -270,7 +265,7 @@
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Shift count can't be negative"))
     ;; The Forth standard defines RSHIFT as a logical right shift.
     ;; By treating the number as unsigned, we'll get the proper result.
     (stack-push data-stack (cell-signed (ash (cell-unsigned x1) (- u))))))
@@ -284,7 +279,7 @@
   (let ((n1 (stack-pop data-stack))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (floor d n1)
           (stack-push data-stack (cell-signed remainder))
@@ -309,7 +304,7 @@
   (let ((n1 (stack-pop data-stack))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate d n1)
           (stack-push data-stack (cell-signed remainder))
@@ -325,7 +320,7 @@
                  (double-components d)
                (double-cell-unsigned low high))))
     (if (zerop u1)
-        (forth-error "Division by zero" -10)
+        (forth-error :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate ud u1)
           (stack-push data-stack (cell-unsigned remainder))
@@ -405,7 +400,7 @@
   "Allocate a cell in data space and create a dictionary entry for <name> which returns the address of that cell"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -416,7 +411,7 @@
   "Allocate two cells in data space and create a dictionary entry for <name> which returns the address of the first cell"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -427,7 +422,7 @@
   "Allocate a byte in data space and create a dictionary entry for <name> which returns the address of that byte"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (let* ((address (allocate-memory memory 1))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
@@ -441,7 +436,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 
@@ -455,7 +450,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop-double data-stack)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 
@@ -470,7 +465,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-cell-at-parameter :parameters (list address :value))))
@@ -505,7 +500,7 @@
   "Allocate U bytes of data space beginning at the next available location"
   (let ((count (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Byte count to ALLOT can't be negative"))
     (allocate-memory memory count)))
 
 (define-word create-buffer (:word "BUFFER:")
@@ -513,7 +508,7 @@
   "Reserve N bytes of memory and create a dictionary entry for <name> that returns the address of the first byte"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -551,7 +546,7 @@
   "Create a dictionary entry for <name> that returns the address of the next available location in data space"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (let* ((address (data-space-high-water-mark memory))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
@@ -596,7 +591,7 @@
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Count to BLANK can't be negative"))
     ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
     (memory-fill memory address count +forth-char-space+)))
 
@@ -625,7 +620,7 @@
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Count to ERASE can't be negative"))
     (memory-fill memory address count 0)))
 
 (define-word fill-memory (:word "FILL")
@@ -635,7 +630,7 @@
         (count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Count to FILL can't be negative"))
     (memory-fill memory address count byte)))
 
 (define-word move-memory (:word "MOVE")
@@ -645,7 +640,7 @@
         (destination (stack-pop data-stack))
         (source (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error "Invalid numeric argument" -24))
+      (forth-error :invalid-numeric-argument "Count to MOVE can't be negative"))
     (memory-copy memory source destination count)))
 
 (define-word to (:word "TO")
@@ -655,11 +650,11 @@
          (word (lookup word-lists name))
          (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error "Attempt to use zero-length string as a name" -16))
+      (forth-error :zero-length-name))
     (when (null word)
-      (forth-error "Undefined word" -13))
+      (forth-error :undefined-word "~A is not defined" name))
     (unless (eq (second (word-parameters word)) :value)
-      (forth-error "Invalid name argument" -32))
+      (forth-error :invalid-name-argument "~A was not created by VALUE"))
     (setf (memory-cell memory (first (word-parameters word))) value)))
 
 

@@ -2,12 +2,15 @@
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
-   (data-stack :initform (make-instance 'stack :initial-size 1024 :underflow-phrase "Stack empty" :underflow-code -4))
-   (return-stack :initform (make-instance 'stack :initial-size 128 :underflow-phrase "Return stack empty" :underflow-code -6))
+   (data-stack :initform (make-instance 'stack :initial-size 1024
+                                               :underflow-key :stack-underflow :overflow-key :stack-overflow))
+   (return-stack :initform (make-instance 'stack :initial-size 128
+                                                 :underflow-key :return-stack-underflow :overflow-key :return-stack-overflow))
    (control-flow-stack :initform (make-instance 'stack :initial-size 128
-                                                       :underflow-phrase "Control-flow stack empty" :underflow-code -102))
+                                                       :underflow-key :control-flow-stack-underflow
+                                                       :overflow-key :control-flow-stack-overflow))
    (float-stack :initform (make-instance 'stack :initial-size 32
-                                                :underflow-phrase "Floating-point stack empty" :underflow-code -45))
+                                                :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
    (base :initform 10)
@@ -33,15 +36,6 @@
      (with-forth-system (,fs)
        ,@body)))
 
-(define-condition forth-error (error)
-  ((phrase :initarg :phrase :reader forth-error-phrase)
-   (code :initarg :code :reader forth-error-code))
-  (:report (lambda (fe stream)
-             (format stream "Forth error ~D: ~A" (forth-error-code fe) (forth-error-phrase fe)))))
-
-(defun forth-error (phrase code)
-  (error 'forth-error :phrase phrase :code code))
-
 (define-forth-method reset-interpreter (fs)
   (stack-reset data-stack)
   (stack-reset return-stack)
@@ -58,8 +52,11 @@
       (handler-case
           (interpreter fs)
         (forth-error (e)
-          (write-line (forth-error-phrase e))
+          (unless (eq (forth-error-key e) :quit)
+            (write-line (forth-error-phrase e)))
           (reset-interpreter fs))))))
+
+;;;---*** TODO: Rethink INTERPRETER vs. COMPILER methods
 
 (define-forth-method interpreter (fs)
   (loop with first = t
@@ -68,8 +65,8 @@
              do (let* ((thing (word files #\Space))
                        (word (lookup word-lists thing)))
                   (cond (word
-                         (cond ((word-precedence word)
-                                (forth-error "Interpreting compile-only word" -14))
+                         (cond ((word-compile-only? word)
+                                (forth-error :compile-only-word))
                                (t
                                 (forth-call fs word))))
                         (t
@@ -83,7 +80,7 @@
                              (:float
                               (stack-push float-stack value))
                              (otherwise
-                              (forth-error "Unknown word" -13)))))))
+                              (forth-error :undefined-word "~A is not defined" thing)))))))
              finally
                 (when (and (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
@@ -94,13 +91,13 @@
 
 (define-forth-method compiler (fs)
   (when pending-definition
-    (forth-error "Compiler nesting" -29))
+    (forth-error :recursive-compile))
   (loop
     do (loop while (input-available-p files)
              do (let* ((thing (word files #\Space))
                        (word (lookup word-lists thing)))
                   (cond (word
-                         (cond ((word-precedence word)
+                         (cond ((word-immediate? word)
                                 (forth-call fs word))
                                (t
                                 (push `(forth-call fs ,word) forms))))
@@ -115,9 +112,9 @@
                              (:float
                               (push `(stack-push float-stack ,value) forms))
                              (otherwise
-                              (forth-error "Unknown word" -13))))))))
+                              (forth-error :undefined-word "~A is not defined" thing))))))))
        (unless (refill files)
-         (forth-error "Incomplete definition" -39))))
+         (forth-error :unexpected-eof "Incomplete definition"))))
 
 (defun forth-call (fs word)
   (with-forth-system (fs)

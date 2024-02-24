@@ -2,20 +2,20 @@
 
 (defclass stack ()
   ((cells :accessor stack-cells)
-   (underflow-phrase :accessor stack-underflow-phrase :initarg :underflow-phrase :initform nil)
-   (underflow-code :accessor stack-underflow-code :initarg :underflow-code :initform nil)))
+   (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
+   (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)))
 
 (defmethod initialize-instance :after ((st stack) &key initial-size &allow-other-keys)
-  (with-slots (cells underflow-phrase underflow-code) st
+  (with-slots (cells underflow-key overflow-key) st
     (setf cells (make-array initial-size :adjustable t :fill-pointer 0))
-    (assert (stringp underflow-phrase) ((stack-underflow-phrase st)) "Value of ~S must be a string" :underflow-phrase)
-    (assert (integerp underflow-code) ((stack-underflow-code st)) "Value of ~S must be an integer" :underflow-code)))
+    (assert (keywordp underflow-key) ((stack-underflow-key st)) "Value of ~S must be a keyword" :underflow-key)
+    (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)))
 
 (declaim (inline stack-underflow-check))
 (defun stack-underflow-check (st &optional (minimum-depth 1))
-  (with-slots (cells underflow-phrase underflow-code) st
+  (with-slots (cells underflow-key) st
     (when (< (fill-pointer cells) minimum-depth)
-      (forth-error underflow-phrase underflow-code))))
+      (forth-error underflow-key))))
   
 (declaim (inline stack-cell))
 ;;; INDEX is zero-based index of element from top of stack

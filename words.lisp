@@ -9,7 +9,7 @@
   (with-slots (words) dict
     (let ((old (gethash (word-name word) words)))
       (when (and old (not override))
-        (format t "Overriding previous definition of ~A " (word-name word))
+        (format t "~A isn't unique. " (word-name word))
         (setf (word-previous word) old))
       (setf (gethash (word-name word) words) word))))
 
@@ -53,7 +53,7 @@
           (:create
            (setf (gethash name all-word-lists) (make-instance 'dictionary :name name)))
           (:error
-           (forth-error "Unknown word list" -103))
+           (forth-error :unknown-word-list "Word list ~A does not exist" name))
           (otherwise nil)))))
 
 (defmethod lookup ((wls word-lists) thing)
@@ -78,13 +78,15 @@
 (defclass word ()
   ((name :accessor word-name :initarg :name)
    (previous :accessor word-previous :initarg :previous :initform nil)
-   (precedence :accessor word-precedence :initarg :precedence :initform nil)
-   (smudge :accessor word-smudge :initarg :smudge :initform nil)
+   (smudge? :accessor word-smudge? :initarg :smudge? :initform nil)
+   (immediate? :accessor word-immediate? :initarg :immediate? :initform nil)
+   (compile-only? :accessor word-compile-only? :initarg :compile-only? :initform nil)
    (code :accessor word-code :initarg :code :initform nil)
    (parameters :accessor word-parameters :initarg :parameters :initform nil))
   )
 
-(defmacro define-word (name (&key (word-list "Forth") ((:word forth-name) (symbol-name name)) precedence) &body body)
+(defmacro define-word (name (&key (word-list "Forth") ((:word forth-name) (symbol-name name)) immediate? compile-only?)
+                       &body body)
   (let* ((word (gensym))
          (body (loop with forms = (copy-list body)
                      while (stringp (car forms))
@@ -97,21 +99,23 @@
     `(eval-when (:load-toplevel :execute)
        (let ((,word (make-instance 'word
                                    :name ,forth-name
-                                   :precedence ,precedence
+                                   :immediate? ,immediate?
+                                   :compile-only? ,compile-only?
                                    :code (compile nil ,thunk))))
          (setf (gethash ,forth-name *predefined-words*) (cons ,word-list ,word))))))
 
-(defmacro define-state-word (slot &key (word-list "Forth") ((:word forth-name) (symbol-name slot)) precedence)
+(defmacro define-state-word (slot &key (word-list "Forth") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
   (let ((description (format nil "Place the address of ~A on the stack" forth-name)))
-    `(define-word ,slot (:word-list ,word-list :word ,forth-name :precedence ,precedence)
+    `(define-word ,slot (:word-list ,word-list :word ,forth-name :immediate? ,immediate? :compile-only? ,compile-only?)
        "( - a-addr )"
        ,description
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
-(defun make-word (name code &key precedence smudge parameters)
+(defun make-word (name code &key smudge? immediate? compile-only? parameters)
   (make-instance 'word :name name
                        :code code
-                       :precedence precedence
-                       :smudge smudge
+                       :smudge? smudge?
+                       :immediate? immediate?
+                       :compile-only? compile-only?
                        :parameters (copy-list parameters)))
 

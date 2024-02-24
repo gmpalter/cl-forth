@@ -5,6 +5,7 @@
   :version "0.9"
   :serial t
   :components ((:file "packages")
+               (:file "errors")
                (:file "numbers")
                (:file "strings")
                (:file "memory")

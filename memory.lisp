@@ -63,7 +63,7 @@
   (with-slots (all-spaces) memory
     (or (loop for space across all-spaces
                 thereis (and (typep space 'state-space) (state-slot-address space slot)))
-        (forth-error "Unknown slot" -101))))
+        (forth-error :unknown-slot))))
 
 ;;;
 
@@ -285,16 +285,16 @@
 (defmethod space-fill ((sp data-space) address count byte)
   (with-slots (data high-water-mark) sp
     (unless (<= (+ address count) high-water-mark)
-      (forth-error "Invalid memory address" -9))
+      (forth-error :invalid-memory))
     (fill data byte :start address :end (+ address count))))
 
 (defmethod space-copy ((ssp data-space) source-address (dsp data-space) destination-address count)
   (with-slots ((source-data data) (source-high-water-mark high-water-mark)) ssp
     (with-slots ((destination-data data) (destination-high-water-mark high-water-mark)) dsp
       (unless (<= (+ source-address count) source-high-water-mark)
-        (forth-error "Invalid memory address" -9))
+        (forth-error :invalid-memory))
       (unless (<= (+ destination-address count) destination-high-water-mark)
-        (forth-error "Invalid memory address" -9))
+        (forth-error :invalid-memory))
       (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                             :start2 source-address :end2 (+ source-address count)))))
 
