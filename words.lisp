@@ -56,21 +56,22 @@
            (forth-error :unknown-word-list "Word list ~A does not exist" name))
           (otherwise nil)))))
 
-(defmethod lookup ((wls word-lists) thing)
+(defmethod lookup ((wls word-lists) token)
   (with-slots (search-order) wls
     (loop for dictionary in search-order
-          thereis (gethash thing (dictionary-words dictionary)))))
+            thereis (let ((word (gethash token (dictionary-words dictionary))))
+                      (and word (not (word-smudge? word)) word)))))
 
-;;;also
-;;;assembler??
-;;;definitions
-;;;editor??
-;;;forth
-;;;only
-;;;order
-;;;previous
-;;;vocabulary
-;;;words
+;;; ALSO
+;;; ASSEMBLER ??
+;;; DEFINITIONS
+;;; EDITOR ??
+;;; FORTH
+;;; ONLY
+;;; ORDER
+;;; PREVIOUS
+;;; VOCABULARY
+;;; WORDS
 
 
 ;;;

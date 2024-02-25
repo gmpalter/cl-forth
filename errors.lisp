@@ -74,6 +74,7 @@
   (:unknown-word-list -103 "Unknown word list")
   (:source-stack-overflow -104 "Input source stack overflow")
   (:source-stack-underflow -105 "Input source stack underflow")
+  (:not-compiling -106 "Not compiling a definition")
   )
 
 (define-condition forth-error (error)

@@ -583,7 +583,7 @@
 (define-word read-cell (:word "@")
   "( a-addr - x )"
   "Push the contents of the cell at the address A-ADDR onto the data stack"
-  (stack-push-double data-stack (memory-cell memory (stack-pop data-stack))))
+  (stack-push data-stack (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
 (define-word write-blanks (:word "BLANK")
   "( c-addr u - )"
@@ -673,9 +673,45 @@
     (format t "~VR " base value)))
 
 
+;;; 6.2.2 Colon Definitions
+
+(define-word start-definition (:word ":")
+  ": <name>"
+  ""
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-error :zero-length-name))
+    (unless (null (lookup word-lists name))
+      (format t "~A is not unique. " name))
+    (begin-compilation fs)
+    (setf (word-name compiling-word) name)))
+
+;;; :NONAME
+
+(define-word finish-definition (:word ";" :immediate? t :compile-only? t)
+  ""
+  (finish-compilation fs)
+  (align-memory memory))
+
+;;; RECURSE
+
+
 ;;; 6.3.1 The Forth Compiler
 
+;;; COMPILE,
+
 (define-state-word state)
+
+(define-word interpret (:word "[" :immediate? t :compile-only? t)
+  "Temporarily switch from compiling a definition to interpreting words"
+  (setf compiling-paused? t)
+  (setf (state fs) :interpreting))
+
+(define-word compile (:word "]")
+  "Switch back to compiling a definition after using ']'"
+  (unless (shiftf compiling-paused? nil)
+    (forth-error :not-compiling "Can't resume compiling when nothing's being compiled"))
+  (setf (state fs) :compiling))
 
 
 ;;; 6.6.2 Managing Word Lists

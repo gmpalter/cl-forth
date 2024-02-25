@@ -14,7 +14,9 @@
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
    (base :initform 10)
-   state)
+   state
+   (compiling-word :initform nil)
+   (compiling-paused? :initform nil))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key &allow-other-keys)
@@ -40,7 +42,7 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack float-stack
-                word-lists files base state)
+                word-lists files base state compiling-word compiling-paused?)
        ,fs
      ,@body))
 
@@ -56,6 +58,8 @@
   (stack-reset float-stack)
   (reset-input files)
   (setf (state fs) :interpreting)
+  (setf compiling-word nil)
+  (setf compiling-paused? nil)
   )
 
 (define-forth-method toplevel (fs)
@@ -96,21 +100,21 @@
                        (:float
                         (stack-push float-stack value))))
                     (:compiling
-                     #+not-yet
                      (case type
                        (:word
                         (cond ((word-immediate? value)
                                (forth-call fs value))
                               ((word-inlineable? value)
-                               (setf forms (append (word-inline-forms value) forms)))
+                               (setf (word-inline-forms compiling-word)
+                                     (append (word-inline-forms value) (word-inline-forms compiling-word))))
                               (t
-                               (push `(forth-call fs ,value) forms))))
+                               (push `(forth-call fs ,value) (word-inline-forms compiling-word)))))
                        (:single
-                        (push `(stack-push data-stack ,value) forms))
+                        (push `(stack-push data-stack ,value) (word-inline-forms compiling-word)))
                        (:double
-                        (push `(stack-push-double data-stack ,value) forms))
+                        (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word)))
                        (:float
-                        (push `(stack-push float-stack ,value) forms))))))
+                        (push `(stack-push float-stack ,value) (word-inline-forms compiling-word)))))))
              finally
                 (when (and (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
@@ -120,10 +124,28 @@
              (source-pop files)))))
 
 (define-forth-method begin-compilation (fs)
-  )
+  (unless (eq (state fs) :interpreting)
+    (forth-error :recursive-compile))
+  (setf compiling-word (make-word nil nil :smudge? t)
+        compiling-paused? nil)
+  (setf (state fs) :compiling))
 
 (define-forth-method finish-compilation (fs)
-  )
+  (unless (eq (state fs) :compiling)
+    (forth-error :not-compiling))
+  (let ((thunk `(lambda (fs &rest parameters)
+                  (declare (ignorable parameters))
+                  (with-forth-system (fs)
+                    ,@(reverse (word-inline-forms compiling-word))))))
+    (setf (word-code compiling-word) (compile nil thunk)))
+  (setf (word-inline-forms compiling-word) nil)
+  ;; :NONAME creates a word without a name and places its "execution token" on the data stack
+  (unless (null (word-name compiling-word))
+    (setf (word-smudge? compiling-word) nil)
+    (add-word (word-lists-compilation-word-list word-lists) compiling-word))
+  ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
+  (setf compiling-paused? nil)
+  (setf (state fs) :interpreting))
 
 (defun forth-call (fs word)
   (with-forth-system (fs)
