@@ -7,14 +7,22 @@
    (next-source-id :initform 1)
    (source-id-map :initform (make-hash-table))
    (input-stack :initform nil)
+   (source-stack :initform (make-instance 'stack :initial-size 16
+                                                 :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    )
   )
 
+(defstruct saved-source
+  (id 0)
+  (>in 0)
+  (buffer ""))
+
 (defmethod reset-input ((f files))
-  (with-slots (source-id >in buffer) f
+  (with-slots (source-id >in buffer source-stack) f
     (setf source-id 0
           >in 0
-          buffer "")))
+          buffer "")
+    (stack-reset source-stack)))
 
 (defmethod terminal-input-p ((f files))
   (with-slots (source-id) f
@@ -105,3 +113,21 @@
             (t
              (fillup (gethash source-id source-id-map)))))))
 
+(defmethod source-push ((f files) &key file-id evaluate)
+  (assert (not (and file-id evaluate)) () "Pass ~S or ~S but not both to ~S" :file-id :evaluate 'source-push)
+  (with-slots (source-id >in buffer source-stack) f
+    (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer)))
+      (stack-push source-stack ss)
+      ;; SOURCE-ID for EVALUATE is always -1
+      (setf source-id (or file-id -1)
+            >in 0
+            buffer (or evaluate "")))))
+
+(defmethod source-pop ((f files))
+  (with-slots (source-id >in buffer source-stack) f
+    (when (plusp source-id)
+      (close-file f source-id))
+    (let ((ss (stack-pop source-stack)))
+      (setf source-id (saved-source-id ss)
+            >in (saved-source->in ss)
+            buffer (saved-source-buffer ss)))))

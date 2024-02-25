@@ -81,11 +81,14 @@
    (smudge? :accessor word-smudge? :initarg :smudge? :initform nil)
    (immediate? :accessor word-immediate? :initarg :immediate? :initform nil)
    (compile-only? :accessor word-compile-only? :initarg :compile-only? :initform nil)
+   (inlineable? :accessor word-inlineable? :initarg :inlineable? :initform nil)
    (code :accessor word-code :initarg :code :initform nil)
+   (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
    (parameters :accessor word-parameters :initarg :parameters :initform nil))
   )
 
-(defmacro define-word (name (&key (word-list "Forth") ((:word forth-name) (symbol-name name)) immediate? compile-only?)
+(defmacro define-word (name (&key (word-list "Forth") ((:word forth-name) (symbol-name name))
+                                  immediate? compile-only? (inlineable? t))
                        &body body)
   (let* ((word (gensym))
          (body (loop with forms = (copy-list body)
@@ -101,7 +104,10 @@
                                    :name ,forth-name
                                    :immediate? ,immediate?
                                    :compile-only? ,compile-only?
-                                   :code (compile nil ,thunk))))
+                                   :inlineable? ,inlineable?
+                                   :code (compile nil ,thunk)
+                                   :inline-forms ',(when inlineable?
+                                                     (copy-tree body)))))
          (setf (gethash ,forth-name *predefined-words*) (cons ,word-list ,word))))))
 
 (defmacro define-state-word (slot &key (word-list "Forth") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)

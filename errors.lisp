@@ -72,6 +72,8 @@
   (:unknown-slot -101 "Unknown slot")
   (:control-flow-stack-underflow -102 "Control-flow stack empty")
   (:unknown-word-list -103 "Unknown word list")
+  (:source-stack-overflow -104 "Input source stack overflow")
+  (:source-stack-underflow -105 "Input source stack underflow")
   )
 
 (define-condition forth-error (error)
