@@ -239,7 +239,9 @@
   (with-slots (prefix high-water-mark data extension) sp
     (let ((address (make-address prefix high-water-mark)))
       (unless (<= (+ high-water-mark n-bytes) (length data))
-        (let ((new (make-array (+ (length data) extension) :element-type '(unsigned-byte 8) :initial-element 0)))
+        (let* ((new-size (+ high-water-mark n-bytes extension))
+               ;; Grow the space by an additional 10% beyond what was requested
+               (new (make-array new-size :element-type '(unsigned-byte 8) :initial-element 0)))
           (replace new data :end1 (length data))
           (setf data new)))
       (incf high-water-mark n-bytes)
