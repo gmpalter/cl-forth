@@ -55,6 +55,12 @@
       (double-cell-signed (stack-cell st 0) (stack-cell st 1))
     (decf (fill-pointer (stack-cells st)) 2)))
 
+(defmethod stack-pop-double-unsigned ((st stack))
+  (stack-underflow-check st 2)
+  (prog1
+      (double-cell-unsigned (stack-cell st 0) (stack-cell st 1))
+    (decf (fill-pointer (stack-cells st)) 2)))
+
 (defmethod stack-depth ((st stack))
   (fill-pointer (stack-cells st)))
 

@@ -16,6 +16,12 @@
           (dotimes (i depth)
             (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))
 
+(define-word print-tos (:word "?")
+  "( a-addr - )"
+  "Display the contents of the memory address A-ADDR as a signed integer in the current base"
+  (let ((value (cell-signed (memory-cell memory (stack-pop data-stack)))))
+    (format t "~VR " base value)))
+
 ;;; DUMP
 ;;; WORDS
 

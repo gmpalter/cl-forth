@@ -105,11 +105,6 @@
   "Copy cell pair X1 X2 to the top of the data stack"
   (stack-2over data-stack))
 
-(define-word stack-2rot (:word "2ROT")
-  "( x1 x2 x3 x4 x5 x6 - x3 x4 x5 x6 x1 x2 )"
-  "Rotate the top three cell pairs on the data stack, bringing the pair X1 X2 to the top"
-  (stack-2rot data-stack))
-
 (define-word stack-2swap (:word "2SWAP")
   "( x1 x2 x3 x4 - x3 x4 x1 x2 )"
   "Exchange the top two cell pairs on the data stack"
@@ -156,6 +151,11 @@
   "Place a copy of the top item on the return stack onto the data stack"
   (stack-underflow-check return-stack)
   (stack-push data-stack (stack-cell return-stack 0)))
+
+
+;;; 2.1.4 Programmer Conveniences
+
+;;; ENVIRONMENT?
 
 
 ;;; 2.2.1 Arithmetic and Shift Operations
@@ -406,17 +406,6 @@
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 
-(define-word 2variable (:word "2VARIABLE")
-  "2VARIABLE <name>"
-  "Allocate two cells in data space and create a dictionary entry for <name> which returns the address of the first cell"
-  (let ((name (word files #\Space)))
-    (when (null name)
-      (forth-error :zero-length-name))
-    (align-memory memory)
-    (let* ((address (allocate-memory memory (* 2 +cell-size+)))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
-
 (define-word cvariable (:word "CVARIABLE")
   "CVARIABLE <name>"
   "Allocate a byte in data space and create a dictionary entry for <name> which returns the address of that byte"
@@ -438,20 +427,6 @@
     (when (null name)
       (forth-error :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
-
-(defun push-parameter-as-double-cell (fs &rest parameters)
-  (with-forth-system (fs)
-    (stack-push-double data-stack (first parameters))))
-
-(define-word 2constant (:word "2CONSTANT")
-  "2CONSTANT <name>" "( x1 x2 - )"
-  "Create a dictionary entry for <name> which pushes the signed double integer X1,X2 on the data stack"
-  (let ((name (word files #\Space))
-        (value (stack-pop-double data-stack)))
-    (when (null name)
-      (forth-error :zero-length-name))
-    (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 
 (defun push-cell-at-parameter (fs &rest parameters)
@@ -660,36 +635,115 @@
 
 ;;; 3.6.2 Numeric Output
 
+;;; 3.6.2.1 Standard Numeric Output Words
+
 (define-word print-tos (:word ".")
   "( n - )"
-  "Display the top cell of the data stack as a signed integer"
+  "Display the top cell of the data stack as a signed integer in the current base"
   (let ((value (cell-signed (stack-pop data-stack))))
     (format t "~VR " base value)))
 
+;;; .R
+
 (define-word print-tos-unsigned (:word "U.")
   "( u - )"
-  "Display the top cell of the data stack as an unsigned integer"
+  "Display the top cell of the data stack as an unsigned integer in the current base"
   (let ((value (cell-unsigned (stack-pop data-stack))))
     (format t "~VR " base value)))
+
+;;; U.R
+
+
+;;; 4.2 Comparison and Testing Operations
+
+(define-word minusp (:word "0<")
+  " ( n - flag )"
+  "Return true if N is less than zero"
+  (stack-push data-stack (if (minusp (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word not-zerop (:word "0<>")
+  " ( n - flag )"
+  "Return true if N is not equal to zero"
+  (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +false+ +true+)))
+
+(define-word zerop (:word "0=")
+  " ( n - flag )"
+  "Return true if N is equal to zero"
+  (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word plusp (:word "0>")
+  " ( n - flag )"
+  "Return true if N is greater than zero"
+  (stack-push data-stack (if (plusp (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word less-than (:word "<")
+  " ( n1 n2 - flag )"
+  "Return true if N1 is less than N2"
+  ;; As the first value popped off the stack is N2, we'll reverse the sense of the test to get the proper answer
+  (stack-push data-stack (if (>= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word not-equal (:word "<>")
+  " ( n1 n2 - flag )"
+  "Return true if N1 is not equal to N2"
+  (stack-push data-stack (if (/= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word equal (:word "=")
+  " ( n1 n2 - flag )"
+  "Return true if N1 is equal to N2"
+  (stack-push data-stack (if (= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word greater-than (:word ">")
+  " ( n1 n2 - flag )"
+  "Return true if N1 is greater than N2"
+  ;; As the first value popped off the stack is N2, we'll reverse the sense of the test to get the proper answer
+  (stack-push data-stack (if (< (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word false (:word "FALSE")
+  "( - flag )"
+  "Return a FLAG that is false"
+  (stack-push data-stack +false+))
+
+(define-word not (:word "NOT")
+  "( n - flag )"
+  "Identical to 0=, used for program clarity to reverse the results of a previous test"
+  (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word true (:word "TRUE")
+  "( - flag )"
+  "Return a FLAG that is true"
+  (stack-push data-stack +true+))
+
+(define-word less-than-unsigned (:word "U<")
+  " ( u1 u2 - flag )"
+  "Return true if U1 is less than U2"
+  ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
+  (stack-push data-stack (if (>= (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack)))
+                             +true+ +false+)))
+
+(define-word greater-than-unsigned (:word "U>")
+  " ( u1 u2 - flag )"
+  "Return true if U1 is greater than U2"
+  ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
+  (stack-push data-stack (if (< (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack))) +true+ +false+)))
 
 
 ;;; 6.2.2 Colon Definitions
 
-(define-word start-definition (:word ":")
+;; Mark this word as IMMEDIATE so we can catch recursive compilation, probably the result of a missing ";"
+(define-word start-definition (:word ":" :immediate? t)
   ": <name>"
-  ""
+  "Create a definition for <name>. Enter compilation state and start compiling the definition."
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-error :zero-length-name))
     (unless (null (lookup word-lists name))
       (format t "~A is not unique. " name))
-    (begin-compilation fs)
-    (setf (word-name compiling-word) name)))
+    (begin-compilation fs name)))
 
 ;;; :NONAME
 
 (define-word finish-definition (:word ";" :immediate? t :compile-only? t)
-  ""
+  "Complete the current definition and make it available for use. Align the data space pointer to a cell boundary"
   (finish-compilation fs)
   (align-memory memory))
 
@@ -712,6 +766,11 @@
   (unless (shiftf compiling-paused? nil)
     (forth-error :not-compiling "Can't resume compiling when nothing's being compiled"))
   (setf (state fs) :compiling))
+
+
+;;; 6.3.2 Literals and Constants
+
+;;; LITERAL
 
 
 ;;; 6.6.2 Managing Word Lists

@@ -34,6 +34,6 @@
 
 ;;; Words not defined in either Standard Forth or SwiftForth
 
-(define-word break ()
+(define-word break (:immediate? t)
   "Enter a Lisp debug break loop"
   (break "Debug Break"))

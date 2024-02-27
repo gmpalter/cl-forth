@@ -123,11 +123,14 @@
              (throw 'bye nil)
              (source-pop files)))))
 
-(define-forth-method begin-compilation (fs)
+(define-forth-method begin-compilation (fs &optional name)
   (unless (eq (state fs) :interpreting)
     (forth-error :recursive-compile))
-  (setf compiling-word (make-word nil nil :smudge? t)
+  (setf compiling-word (make-word name nil :smudge? t)
         compiling-paused? nil)
+  ;; :NONAME creates a word without a name and places its "execution token" on the data stack
+  (when name
+    (add-word (word-lists-compilation-word-list word-lists) compiling-word))
   (setf (state fs) :compiling))
 
 (define-forth-method finish-compilation (fs)
@@ -139,10 +142,7 @@
                     ,@(reverse (word-inline-forms compiling-word))))))
     (setf (word-code compiling-word) (compile nil thunk)))
   (setf (word-inline-forms compiling-word) nil)
-  ;; :NONAME creates a word without a name and places its "execution token" on the data stack
-  (unless (null (word-name compiling-word))
-    (setf (word-smudge? compiling-word) nil)
-    (add-word (word-lists-compilation-word-list word-lists) compiling-word))
+  (setf (word-smudge? compiling-word) nil)
   ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
   (setf compiling-paused? nil)
   (setf (state fs) :interpreting))

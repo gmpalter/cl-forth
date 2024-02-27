@@ -1,6 +1,6 @@
 (in-package #:forth)
 
-(defconstant +true+ 1)
+(defconstant +true+ -1)
 (defconstant +false+ 0)
 
 (defconstant +most-positive-single-cell+ (1- (dpb 1 (byte 1 63) 0)))
