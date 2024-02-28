@@ -568,7 +568,7 @@
         (address (stack-pop data-stack)))
     (unless (plusp count)
       (forth-error :invalid-numeric-argument "Count to BLANK can't be negative"))
-n    ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
+    ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
     (memory-fill memory address count +forth-char-space+)))
 
 (define-word write-char (:word "C!")
