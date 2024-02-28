@@ -21,5 +21,40 @@
   "Display the contents of the memory address A-ADDR as a signed integer in the current base"
   (format t "~VR " base (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
-;;; DUMP
-;;; WORDS
+(define-word dump-memory (:word "DUMP" :inlineable? nil)
+  "( a-addr +n - )"
+  "Display the contents of N bytes at A-ADDR in data space"
+  (let* ((count (stack-pop data-stack))
+         (address (stack-pop data-stack))
+         (end-address (+ address count)))
+    (loop while (plusp count)
+          ;; Addresses in MEMORY are 56 bits
+          do (format t "~&~14,'0X: " address)
+             (loop with byte-address = address
+                   ;; Four "cells" at a time
+                   for i from 0 below 4
+                   while (< byte-address end-address)
+                   do (loop with pseudo-cell = 0
+                            with top = (min (1- count) 7)
+                            for j downfrom top to 0
+                            do ;; Memory is little-endian
+                               (setf pseudo-cell (logior (ash pseudo-cell 8) (memory-byte memory (+ byte-address j))))
+                               (decf count)
+                            finally (format t "~V,'0X " (* 2 (- top j)) pseudo-cell))
+                   (incf byte-address +cell-size+))
+             (incf address (* 4 +cell-size+)))
+    (fresh-line)))
+
+(define-word show-words (:word "WORDS" :inlineable? nil)
+  "List all the definition names in the first word list of the search order"
+  (let* ((dictionary (first (word-lists-search-order word-lists)))
+         (words (dictionary-words dictionary))
+         (names nil))
+    (maphash #'(lambda (key word)
+                 (declare (ignore word))
+                 (push key names))
+             words)
+    (setf names (sort names #'string-lessp))
+    (dolist (name names)
+      (write-string name)
+      (write-char #\Space))))
