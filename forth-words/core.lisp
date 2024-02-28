@@ -408,11 +408,12 @@
 
 (define-word cvariable (:word "CVARIABLE")
   "CVARIABLE <name>"
-  "Allocate a byte in data space and create a dictionary entry for <name> which returns the address of that byte"
+  "Allocate space for a character (currently 1 byte) in data space and create a dictionary entry"
+  "for <name> which returns the address of that character"
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-error :zero-length-name))
-    (let* ((address (allocate-memory memory 1))
+    (let* ((address (allocate-memory memory +char-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 

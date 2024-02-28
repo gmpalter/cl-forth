@@ -27,20 +27,22 @@
 
 (defun native-into-forth-string (native-string forth-memory offset)
   (loop for i below (length native-string)
-        do (setf (aref forth-memory (+ offset i)) (forth-char (aref native-string i))))
+        do (setf (aref forth-memory (+ offset (* i +char-size+))) (forth-char (aref native-string i))))
   (length native-string))
 
 (defun native-into-forth-counted-string (native-string forth-memory offset)
   (unless (<= (length native-string) +longest-counted-string+)
     (forth-error :parse-string-overflow))
+  ;; Length of a counted string is always a single byte regardless of character size
   (setf (aref forth-memory offset) (length native-string))
-  (forth-string-into native-string forth-memory (1+ offset)))
+  (native-into-forth-string native-string forth-memory (1+ offset)))
 
 (defun forth-string-to-native (forth-memory offset length)
   (let ((string (make-string length)))
     (loop for i below length
-          do (setf (aref string i) (native-char (aref forth-memory (+ offset i)))))
+          do (setf (aref string i) (native-char (aref forth-memory (+ offset (* i +char-size+))))))
     string))
 
 (defun forth-counted-string-to-native (forth-memory offset)
-  (native-string forth-memory (1+ offset) (aref forth-memory offset)))
+  ;; Length of a counted string is always a single byte regardless of character size
+  (forth-string-to-native forth-memory (1+ offset) (aref forth-memory offset)))
