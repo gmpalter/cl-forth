@@ -901,8 +901,6 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-error :zero-length-name))
-    (unless (null (lookup word-lists name))
-      (format t "~A is not unique. " name))
     (begin-compilation fs name)))
 
 ;;; :NONAME
