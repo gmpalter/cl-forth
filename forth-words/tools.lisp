@@ -19,16 +19,7 @@
 (define-word print-tos (:word "?")
   "( a-addr - )"
   "Display the contents of the memory address A-ADDR as a signed integer in the current base"
-  (let ((value (cell-signed (memory-cell memory (stack-pop data-stack)))))
-    (format t "~VR " base value)))
+  (format t "~VR " base (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
 ;;; DUMP
 ;;; WORDS
-
-
-;;; 3.6.2 Numeric Output
-
-(define-word print-cell (:word "?")
-  "( a-addr - )"
-  "Displays the contents of the address in the current base as a signed integer"
-  (format t "~VR " base (cell-signed (memory-cell memory (stack-pop data-stack)))))
