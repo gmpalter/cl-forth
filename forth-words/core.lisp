@@ -672,7 +672,7 @@
 
 (define-word decode-counted-string (:word "COUNT")
   "( a-addr1 - a-addr2 u )"
-  "Return the size U of the counted string at A-ADDR2 and the address of its text"
+  "Return the size U of the counted string at A-ADDR1 and the address of its text"
   (let ((address (stack-pop data-stack)))
     ;; Length of a counted string is always a single byte regardless of character size
     (stack-push data-stack (1+ address))
