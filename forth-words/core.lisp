@@ -466,9 +466,10 @@
   "( addr - a-addr) "
   "Return A-ADDR, the first aligned address greater than or equal to ADDR"
   (let ((addr (stack-pop data-stack)))
-    (if (zerop (mod addr +cell-size+))
-        addr
-        (+ addr (- +cell-size+ (mod addr +cell-size+))))))
+    (stack-push data-stack
+                (if (zerop (mod addr +cell-size+))
+                    addr
+                    (+ addr (- +cell-size+ (mod addr +cell-size+)))))))
 
 (define-word allocate (:word "ALLOT")
   "( u - )"
@@ -567,7 +568,7 @@
         (address (stack-pop data-stack)))
     (unless (plusp count)
       (forth-error :invalid-numeric-argument "Count to BLANK can't be negative"))
-    ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
+n    ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
     (memory-fill memory address count +forth-char-space+)))
 
 (define-word write-char (:word "C!")
@@ -631,6 +632,125 @@
     (unless (eq (second (word-parameters word)) :value)
       (forth-error :invalid-name-argument "~A was not created by VALUE"))
     (setf (memory-cell memory (first (word-parameters word))) value)))
+
+
+;;; 3.1.1 Single Characters
+
+(define-word char (:word "CHAR")
+  "CHAR <c>" "( - char )"
+  "Parse the next word, usually a single character, and push the ASCII value of its first character onto the data stack"
+  (let ((char (word files #\Space)))
+    (when (null char)
+      (forth-error :zero-length-name))
+    (stack-push data-stack (forth-char (aref char 0)))))
+
+(define-word compile-char (:word "[CHAR]" :immediate? t :compile-only? t :inlineable? nil)
+  "[CHAR] <c>" "( - char )"
+  "When compiling a definition, parse the next word, usually a single character, and compile the ASCII value"
+  "of its first character as a literal which will be pushed onto the data stack when the definition is executed"
+  (let ((char (word files #\Space)))
+    (when (null char)
+      (forth-error :zero-length-name))
+    (push `(stack-push data-stack ,(forth-char (aref char 0))) (word-inline-forms compiling-word))))
+
+(define-word blank (:word "BL")
+  "( - char )"
+  "Push the character for a blank or space onto the data stack"
+  (stack-push data-stack +forth-char-space+))
+
+
+;;; 3.1.2 Scratch Storage for Strings
+
+;;; PAD
+(define-word pad (:word "PAD")
+  "( - a-addr )"
+  "Return the address of a temporary storage area usually used for processing strings"
+  (stack-push data-stack (pad-base-address memory)))
+
+
+;;; 3.1.3 Internal String Format
+
+(define-word decode-counted-string (:word "COUNT")
+  "( a-addr1 - a-addr2 u )"
+  "Return the size U of the counted string at A-ADDR2 and the address of its text"
+  (let ((address (stack-pop data-stack)))
+    ;; Length of a counted string is always a single byte regardless of character size
+    (stack-push data-stack (1+ address))
+    (stack-push data-stack (memory-byte memory address))))
+
+
+;;; 3.2 Strings in Definitions
+
+(define-word string (:word "S\"" :immediate? t :inlineable? nil)
+  "S\" <text>\"" "( - a-addr u )"
+  "If interpreted, place TEXT in a temporary buffer and return the address of length of the text"
+  "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
+  (let* ((text (word files #\"))
+         (text-size (* (length text) +char-size+)))
+    (case (state fs)
+      (:interpreting
+       (let ((address (temp-space-base-address memory)))
+         (ensure-temp-space-holds memory text-size)
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (stack-push data-stack address)
+           (stack-push data-stack text-size))))
+      (:compiling
+       (let ((address (allocate-memory memory text-size)))
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (push `(stack-push data-stack ,address) (word-inline-forms compiling-word))
+           (push `(stack-push data-stack ,text-size) (word-inline-forms compiling-word))))))))
+
+(define-word counted-string (:word "C\"" :immediate? t :compile-only? t :inlineable? nil)
+  "C\" <text>\"" "( - a-addr )"
+  "Compile TEXT as a counted string into the current definition. When executed, place its address on the data stack"
+  (let* ((text (word files #\"))
+         (text-size (* (length text) +char-size+))
+         ;; Length of a counted string is always a single byte regardless of character size
+         (address (allocate-memory memory (1+ text-size))))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (native-into-forth-counted-string text forth-memory offset)
+      (push `(stack-push data-stack ,address) (word-inline-forms compiling-word)))))
+
+(define-word type-string (:word ".\"" :immediate? t :compile-only? t :inlineable? nil)
+  ".\" <text>\""
+  "Type TEXT on the console. May only appear in definitions"
+  (let ((text (word files #\")))
+    (push `(write-string ,text) (word-inline-forms compiling-word))))
+
+
+;;; 3.3 Strings in Data Structures
+
+(define-word allocate-counted-string (:word ",\"")
+  ",\" <text>\""
+  "Compile TEXT as a counted string. User is responsible for keeping track of its address in data space"
+  (let* ((text (word files #\"))
+         (text-size (* (length text) +char-size+))
+         ;; Length of a counted string is always a single byte regardless of character size
+         (address (allocate-memory memory (1+ text-size))))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (native-into-forth-counted-string text forth-memory offset))))
+
+
+;;; 3.4 String Management Operations
+
+(define-word here (:word "HERE")
+  "( - a-addr )"
+  "Push the address of the next available memory location in data space onto the stack"
+  (stack-push data-stack (data-space-high-water-mark memory)))
+
+
+
+;;; 3.6.1 Input Number Conversion
+
+;;; >NUMBER
+;;; NUMBER
+;;; NUMBER?
 
 
 ;;; 3.6.2 Numeric Output
@@ -725,6 +845,50 @@
   "Return true if U1 is greater than U2"
   ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (< (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack))) +true+ +false+)))
+
+
+;;; 5.4.2 Terminal Output
+
+(define-word write-char (:word "EMIT")
+  " ( char - )"
+  "Type the character CHAR on the terminal"
+  (write-char (native-char (extract-char (stack-pop data-stack)))))
+
+
+(define-word write-string (:word "TYPE")
+  " ( a-addr u - )"
+  "Type the string at A-ADDR of length U on the terminal"
+  (let ((count (stack-pop data-stack))
+        (address (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-error :invalid-numeric-argument "Count to TYPE can't be negative"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (write-string (forth-string-to-native forth-memory offset count)))))
+
+
+;;; 5.4.3 Support of Special Terminal Features
+
+(define-word terpri (:word "CR")
+  "Cause subsequent output to the terminal to appear on a new line"
+  (terpri))
+
+(define-word space (:word "SPACE")
+  "Write a space to the terminal"
+  (write-char #\Space))
+
+(defconstant +spaces+ "                                ")
+
+(define-word spaces (:word "SPACES")
+  "( u - )"
+  "Write U spaces to the terminal"
+  (let ((count (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-error :invalid-numeric-argument "Count to SPACES can't be negative"))
+    (loop with n-spaces = (length +spaces+)
+          for n = count then (- n n-spaces)
+          while (plusp n)
+          do (write-string (subseq +spaces+ 0 (min n n-spaces))))))
 
 
 ;;; 6.2.2 Colon Definitions

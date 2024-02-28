@@ -17,11 +17,13 @@
 
 ;;;
 
+(defconstant +pad-and-temp-space-size+ 1024)
+
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :initial-element nil))
    (data-space :initform (make-instance 'data-space :initial-size (expt 2 20)))
-   (pad :initform (make-instance 'data-space :initial-size 1024))
-   (temp-space :initform (make-instance 'data-space :initial-size 1024)))
+   (pad :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
+   (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+)))
   )
 
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
@@ -31,6 +33,8 @@
       (setup (make-instance 'data-space :initial-size 0))
       (setup data-space)
       (setup pad)
+      ;; FILL, MOVE, ERASE, and BLANK all check the high water mark to decide if the operation is valid
+      (setf (space-high-water-mark pad) +pad-and-temp-space-size+)
       (setup temp-space))))
 
 (defmethod add-state-space ((memory memory) parent)
@@ -58,6 +62,11 @@
 (defmethod temp-space-base-address ((memory memory))
   (with-slots (temp-space) memory
     (make-address (space-prefix temp-space) 0)))
+
+(defmethod ensure-temp-space-holds ((memory memory) n-bytes)
+  (with-slots (temp-space) memory
+    (space-reset temp-space)
+    (space-allocate temp-space n-bytes)))
 
 (defmethod state-slot-address ((memory memory) slot)
   (with-slots (all-spaces) memory
@@ -193,6 +202,15 @@
            (destination-address (address-address destination)))
       (space-copy source-space source-address destination-space destination-address count))))
 
+;;;
+
+(defmethod memory-decode-address ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (space-decode-address space address))))
+
 
 ;;;
 
@@ -218,6 +236,7 @@
 (defgeneric space-fill (space address count byte))
 (defgeneric space-copy (source-space source-address destination-space destination-address count))
 
+(defgeneric space-decode-address (space address))
 
 ;;;
 
@@ -300,6 +319,10 @@
       (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                             :start2 source-address :end2 (+ source-address count)))))
 
+(defmethod space-decode-address ((sp data-space) address)
+  (with-slots (data) sp
+    (values data address)))
+
 
 ;;;
 
@@ -351,3 +374,19 @@
 (defmethod (setf byte-at) (value (sp state-space) address)
   (with-slots (parent slots) sp
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
+
+(defmethod space-fill ((sp state-space) address count byte)
+  (declare (ignore address count byte))
+  (error "Can't space-fill ~S" sp))
+
+(defmethod space-copy ((ssp state-space) source-address (dsp space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (error "Can't copy from ~S" ssp))
+
+(defmethod space-copy ((ssp space) source-address (dsp state-space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (error "Can't copy to ~S" ssp))
+
+(defmethod space-decode-address ((sp state-space) address)
+  (declare (ignore address))
+  (error "Can't decode addresses in ~S" sp))
