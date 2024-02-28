@@ -16,7 +16,10 @@
    (base :initform 10)
    state
    (compiling-word :initform nil)
-   (compiling-paused? :initform nil))
+   (compiling-paused? :initform nil)
+   (show-redefinition-warnings? :initform +true+)
+   (reset-redefinition-warnings? :initform nil)
+   (show-definition-code? :initform +false+))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key &allow-other-keys)
@@ -42,7 +45,9 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack float-stack
-                word-lists files base state compiling-word compiling-paused?)
+                word-lists files base state compiling-word compiling-paused?
+                show-redefinition-warnings? reset-redefinition-warnings?
+                show-definition-code?)
        ,fs
      ,@body))
 
@@ -130,7 +135,7 @@
         compiling-paused? nil)
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
   (when name
-    (add-word (word-lists-compilation-word-list word-lists) compiling-word))
+    (add-word (word-lists-compilation-word-list word-lists) compiling-word :override (zerop show-redefinition-warnings?)))
   (setf (state fs) :compiling))
 
 (define-forth-method finish-compilation (fs)
@@ -140,11 +145,15 @@
                   (declare (ignorable parameters))
                   (with-forth-system (fs)
                     ,@(reverse (word-inline-forms compiling-word))))))
+    (when (not (zerop show-definition-code?))
+      (format t "~&Code for ~A:~%  ~:W~%" (or (word-name compiling-word) "<execution token>") thunk))
     (setf (word-code compiling-word) (compile nil thunk)))
   (setf (word-inline-forms compiling-word) nil)
   (setf (word-smudge? compiling-word) nil)
   ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
   (setf compiling-paused? nil)
+  (when (shiftf reset-redefinition-warnings? nil)
+    (setf show-redefinition-warnings? +true+))
   (setf (state fs) :interpreting))
 
 (defun forth-call (fs word)

@@ -26,10 +26,25 @@
 
 ;;; 4.2.2 Detecting Name Conflicts
 
-;;; WARNING
-;;; ON
-;;; OFF
-;;; -?
+(define-word redefinition-warnings (:word "WARNING")
+  "( - addr )"
+  "Return the address of the flag that controls compiler redefinition warnings"
+  (stack-push data-stack (state-slot-address memory 'show-redefinition-warnings?)))
+
+(define-word set-flag (:word "ON")
+  "( addr - )"
+  "Set the flag at ADDR to true"
+  (setf (memory-byte memory (stack-pop data-stack)) +true+))
+
+(define-word clear-flag (:word "OFF")
+  "( addr - )"
+  "Set the flag at ADDR to false"
+  (setf (memory-byte memory (stack-pop data-stack)) +false+))
+
+(define-word suppress-one-redefinition-warning (:word "-?")
+  "Suppress redefinition warnings for the next definition only"
+  (setf show-redefinition-warnings? +false+
+        reset-redefinition-warnings? t))
 
 
 ;;; Words not defined in either Standard Forth or SwiftForth
@@ -37,3 +52,8 @@
 (define-word break (:immediate? t)
   "Enter a Lisp debug break loop"
   (break "Debug Break"))
+
+(define-word show-definition-code (:word "SHOW-CODE")
+  "( - addr )"
+  "Return the address of the flag that controls whether to show the code generated when a definition is defined"
+  (stack-push data-stack (state-slot-address memory 'show-definition-code?)))
