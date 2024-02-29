@@ -6,6 +6,10 @@
    (words :accessor dictionary-words :initform (make-hash-table :test #'equalp)))
   )
 
+(defmethod print-object ((dict dictionary) stream)
+  (print-unreadable-object (dict stream :type t :identity t)
+    (write-string (dictionary-name dict) stream)))
+
 (defmethod add-word ((dict dictionary) word &key override)
   (with-slots (words) dict
     (let ((old (gethash (word-name word) words)))
@@ -59,6 +63,11 @@
     (setf search-order (list forth))
     (setf compilation-word-list forth)
     (update-psuedo-state-variables wls)))
+
+(defmethod print-object ((wls word-lists) stream)
+  (with-slots (all-word-lists) wls
+    (print-unreadable-object (wls stream :type t :identity t)
+      (format stream "~D word list~:P" (hash-table-count all-word-lists)))))
 
 (defmethod update-psuedo-state-variables ((wls word-lists))
   (with-slots (search-order compilation-word-list context current) wls
@@ -131,6 +140,7 @@
           (replace-top-of-search-order wls word-list)
           (forth-exception :unknown-word-list "~14,'0X is not the address of a word list" psuedo-address)))))
 
+
 ;;;
 
 (defclass word ()
@@ -144,6 +154,10 @@
    (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
    (parameters :accessor word-parameters :initarg :parameters :initform nil))
   )
+
+(defmethod print-object ((word word) stream)
+  (print-unreadable-object (word stream :type t :identity t)
+    (write-string (or (word-name word) "<Anonymous>") stream)))
 
 (defmacro define-word (name (&key (word-list "FORTH") ((:word forth-name) (symbol-name name))
                                   immediate? compile-only? (inlineable? t))
@@ -182,4 +196,3 @@
                        :immediate? immediate?
                        :compile-only? compile-only?
                        :parameters (copy-list parameters)))
-

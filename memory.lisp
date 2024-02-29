@@ -37,6 +37,11 @@
       (setf (space-high-water-mark pad) +pad-and-temp-space-size+)
       (setup temp-space))))
 
+(defmethod print-object ((memory memory) stream)
+  (with-slots (all-spaces) memory
+    (print-unreadable-object (memory stream :type t :identity t)
+      (format stream "~D space~:P" (length all-spaces)))))
+
 (defmethod add-state-space ((memory memory) parent)
   (with-slots (all-spaces) memory
     (let ((space (make-instance 'state-space :parent parent)))
@@ -219,6 +224,11 @@
    (high-water-mark :accessor space-high-water-mark :initform 0))
   )
 
+(defmethod print-object ((sp space) stream)
+  (with-slots (prefix high-water-mark) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (format stream "prefix=~2,'0X, used=~D" prefix high-water-mark))))
+
 (defgeneric space-reset (space))
 
 (defgeneric space-allocate (space n-bytes))
@@ -249,6 +259,11 @@
   (with-slots (data extension) sp
     (setf data (make-array initial-size :element-type '(unsigned-byte 8) :initial-element 0))
     (setf extension (floor initial-size 10))))
+
+(defmethod print-object ((sp space) stream)
+  (with-slots (prefix data high-water-mark) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (format stream "prefix=~2,'0X, size=~D, used=~D" prefix (length data) high-water-mark))))
 
 (defmethod space-reset ((sp data-space))
   (setf (space-high-water-mark sp) 0)
@@ -334,6 +349,11 @@
 (defmethod initialize-instance :after ((sp state-space) &key &allow-other-keys)
   (with-slots (parent slots) sp
     (setf slots (map 'vector 'slot-definition-name (class-direct-slots (class-of parent))))))
+
+(defmethod print-object ((sp state-space) stream)
+  (with-slots (prefix parent) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (format stream "prefix=~2,'0X, parent=~S" prefix parent))))
 
 (defmethod space-reset ((sp state-space))
   nil)
