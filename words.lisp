@@ -14,6 +14,28 @@
         (setf (word-previous word) old))
       (setf (gethash (word-name word) words) word))))
 
+(defmethod show-words ((dict dictionary))
+  (let* ((words (dictionary-words dict))
+         (names nil))
+    (maphash #'(lambda (key word)
+                 (declare (ignore word))
+                 (push key names))
+             words)
+    (setf names (sort names #'string-lessp))
+    (format t "~&In word list ~A (~D word~:P):~%  " (dictionary-name dict) (hash-table-count words))
+    (loop with column = 2
+          for name in names
+          do (when (> (+ column (length name) 1) 120)
+               (terpri)
+               (write-string "  ")
+               (setf column 2))
+             (write-string name)
+             (write-char #\Space)
+             (incf column (1+ (length name)))
+          finally
+             (when (> column 2)
+               (terpri)))))
+
 
 ;;;
 

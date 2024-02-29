@@ -61,3 +61,9 @@
   "( - addr )"
   "Return the address of the flag that controls whether to show the code generated when a definition is defined"
   (stack-push data-stack (state-slot-address memory 'show-definition-code?)))
+
+(define-word show-all-words (:word "ALL-WORDS" :inlineable? nil)
+  "List all the definition names in all word lists of the search order"
+  (dolist (dictionary (word-lists-search-order word-lists))
+    (show-words dictionary)))
+

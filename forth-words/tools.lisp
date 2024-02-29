@@ -47,14 +47,4 @@
 
 (define-word show-words (:word "WORDS" :inlineable? nil)
   "List all the definition names in the first word list of the search order"
-  (let* ((dictionary (first (word-lists-search-order word-lists)))
-         (words (dictionary-words dictionary))
-         (names nil))
-    (maphash #'(lambda (key word)
-                 (declare (ignore word))
-                 (push key names))
-             words)
-    (setf names (sort names #'string-lessp))
-    (dolist (name names)
-      (write-string name)
-      (write-char #\Space))))
+  (show-words (first (word-lists-search-order word-lists))))
