@@ -260,7 +260,7 @@
     (setf data (make-array initial-size :element-type '(unsigned-byte 8) :initial-element 0))
     (setf extension (floor initial-size 10))))
 
-(defmethod print-object ((sp space) stream)
+(defmethod print-object ((sp data-space) stream)
   (with-slots (prefix data high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "prefix=~2,'0X, size=~D, used=~D" prefix (length data) high-water-mark))))
