@@ -662,7 +662,6 @@
 
 ;;; 3.1.2 Scratch Storage for Strings
 
-;;; PAD
 (define-word pad (:word "PAD")
   "( - a-addr )"
   "Return the address of a temporary storage area usually used for processing strings"
@@ -746,12 +745,75 @@
   (stack-push data-stack (data-space-high-water-mark memory)))
 
 
-
 ;;; 3.6.1 Input Number Conversion
 
-;;; >NUMBER
-;;; NUMBER
-;;; NUMBER?
+(define-word parse-number (:word ">NUMBER" :inlineable? nil)
+  "( ud1 c-addr u1 - ud2 c-addr u2 )"
+  "UD2 is the unsigned result of converting the characters within the string specified by C-ADDR1 U1 into digits,"
+  "using the number in BASE, and adding each into UD1 after multiplying UD1 by the number in BASE. Conversion continues"
+  "left-to-right until a character that is not convertible, including any '+' or '-', is encountered or the string is"
+  "entirely converted. C-ADDR2 is the location of the first unconverted character or the first character past the end"
+  "of the string if the string was entirely converted. U2 is the number of unconverted characters in the string."
+  (let ((length (cell-unsigned (stack-pop data-stack)))
+        (address (stack-pop data-stack))
+        (value (stack-pop-double-unsigned data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of string must be positive"))
+    (loop while (plusp length)
+          for char = (native-char (memory-char memory address))
+          for digit = (digit-char-p char base)
+          if digit
+            do (setf value (+ (* base value) digit))
+               (incf address +char-size+)
+               (decf length +char-size+)
+          else
+            do (loop-finish)
+          finally
+             (stack-push-double data-stack value)
+             (stack-push data-stack address)
+             (stack-push data-stack length))))
+
+(define-word simple-parse-number (:word "NUMBER" :inlineable? nil)
+  "( c-addr u - n | d )"
+  "Attempt to convert the string at C-ADDR of length U into an integer. If the string contains punctuation, return the"
+  "double integer D. If the string does not contain punctuation, return the single integer N. If the conversion fails, ABORT"
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of string must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (type value)
+          (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil)
+        (case type
+          (:double
+           (stack-push-double data-stack value))
+          (:single
+           (stack-push data-stack value))
+          (otherwise
+           (forth-exception :parse-integer-failure)))))))
+
+(define-word maybe-parse-number (:word "NUMBER?" :inlineable? nil)
+  "( c-addr u - 0 | n 1 | d 2 )"
+  "Similar to NUMBER above but does not abort. If conversion fails, push 0 onto the top of the data stack."
+  "If conversion suceeds, push the value and then push 1 if a single integer and 2 if a double integer."
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of string must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (type value)
+          (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil :signal-overflow? nil)
+        (case type
+          (:double
+           (stack-push-double data-stack value)
+           (stack-push data-stack 2))
+          (:single
+           (stack-push data-stack value)
+           (stack-push data-stack 1))
+          (otherwise
+           (stack-push data-stack 0)))))))
 
 
 ;;; 3.6.2 Numeric Output

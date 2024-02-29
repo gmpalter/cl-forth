@@ -15,8 +15,9 @@
 (defconstant +most-positive-double-cell+ (1- (dpb 1 (byte 1 127) 0)))
 (defconstant +most-negative-double-cell+ (- (dpb 1 (byte 1 127) 0)))
 
-(defun interpret-number (thing base)
-  (cond ((and (= base 10)
+(defun interpret-number (thing base &key (allow-floats? t) (signal-overflow? t))
+  (cond ((and allow-floats?
+              (= base 10)
               (let ((ch (aref thing 0)))
                 (or (digit-char-p ch)
                     (char-equal ch #\+)
@@ -35,18 +36,24 @@
          ;; If the string contains a period, try a double precision integer
          (handler-case
              (let ((value (parse-integer (delete #\. thing :test #'char-equal) :radix base)))
-               (if (<= +most-negative-double-cell+ value +most-positive-double-cell+)
-                   (values :double value)
-                   (forth-exception :out-of-range "Value too large for a double integer")))
+               (cond ((<= +most-negative-double-cell+ value +most-positive-double-cell+)
+                      (values :double value))
+                     (signal-overflow?
+                      (forth-exception :out-of-range "Value too large for a double integer"))
+                     (t
+                      (values nil nil))))
            (parse-error ()
              (values nil nil))))
         (t
          ;; Otherwise, try a single precision integer
          (handler-case
              (let ((value (parse-integer thing :radix base)))
-               (if (<= +most-negative-single-cell+ value +most-positive-single-cell+)
-                   (values :single value)
-                   (forth-exception :out-of-range "Value too large for an integer")))
+               (cond ((<= +most-negative-single-cell+ value +most-positive-single-cell+)
+                      (values :single value))
+                     (signal-overflow?
+                      (forth-exception :out-of-range "Value too large for an integer"))
+                     (t
+                      (values nil nil))))
            (parse-error ()
              (values nil nil))))))
 

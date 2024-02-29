@@ -69,6 +69,8 @@
   (:quit -56 "QUIT")
   (:send/receive-char-exception -57 "Exception in sending or receiving a character")
   (:if/then/else-exception -58 "[If], [ELSE], or [THEN] exception")
+  ;;
+  ;; CL-Forth specific exceptions
   (:unknown-slot -256 "Unknown slot")
   (:control-flow-stack-underflow -257 "Control-flow stack empty")
   (:unknown-word-list -258 "Unknown word list")
@@ -76,6 +78,7 @@
   (:source-stack-overflow -260 "Input source stack overflow")
   (:source-stack-underflow -261 "Input source stack underflow")
   (:not-compiling -262 "Not compiling a definition")
+  (:parse-integer-failure -263 "Conversion to an integer failed")
   )
 
 (define-condition forth-exception (error)
