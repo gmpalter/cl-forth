@@ -3,6 +3,12 @@
 (defconstant +true+ -1)
 (defconstant +false+ 0)
 
+(declaim (inline truep))
+(defun truep (x) (not (zerop x)))
+
+(declaim (inline falsep))
+(defun falsep (x) (zerop x))
+
 (defconstant +most-positive-single-cell+ (1- (dpb 1 (byte 1 63) 0)))
 (defconstant +most-negative-single-cell+ (- (dpb 1 (byte 1 63) 0)))
 

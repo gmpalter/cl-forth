@@ -136,7 +136,15 @@
   "Display the top two cells of the data stack as a signed double in the current base"
   (format t "~VR. " base (stack-pop-double data-stack)))
 
-;;; D.R
+(define-word print-double-tos-in-field (:word "D.R")
+  "( d +n - )"
+  "Display D right aligned in a field N characters wide. If the number of characters required to display D"
+  "is greater than N, all digits are displayed in a field as wide as necessary with no leading spaces"
+  (let ((width (stack-pop data-stack))
+        (value (stack-pop-double data-stack)))
+    (unless (plusp width)
+      (forth-exception :invalid-numeric-argument "Field width to D.R must be positive"))
+    (format t "~V,VR" base width value)))
 
 
 ;;; 4.2 Comparison and Testing Operations
@@ -172,4 +180,8 @@
 
 ;;; 6.3.2 Literals and Constants
 
-;;; 2LITERAL
+(define-word double-literal (:word "2LITERAL" :immediate? t :compile-only? t)
+  "( x1 x2 - )"
+  "Compile X1 and X2 into the current definition. When executed, push X1 and X2 onto the data stack"
+  (let ((value (stack-pop-double-unsigned data-stack)))
+    (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word))))

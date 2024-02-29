@@ -764,7 +764,15 @@
   (let ((value (cell-signed (stack-pop data-stack))))
     (format t "~VR " base value)))
 
-;;; .R
+(define-word print-tos-in-field (:word ".R")
+  "( n1 +n2 - )"
+  "Display N1 right aligned in a field N2 characters wide. If the number of characters required to display N1"
+  "is greater than N2, all digits are displayed in a field as wide as necessary with no leading spaces"
+  (let ((width (stack-pop data-stack))
+        (value (cell-signed (stack-pop data-stack))))
+    (unless (plusp width)
+      (forth-exception :invalid-numeric-argument "Field width to .R must be positive"))
+    (format t "~V,VR" base width value)))
 
 (define-word print-tos-unsigned (:word "U.")
   "( u - )"
@@ -772,7 +780,15 @@
   (let ((value (cell-unsigned (stack-pop data-stack))))
     (format t "~VR " base value)))
 
-;;; U.R
+(define-word print-tos-unsigned-in-field (:word "U.R")
+  "( u +n - )"
+  "Display U right aligned in a field N characters wide. If the number of characters required to display U"
+  "is greater than N, all digits are displayed in a field as wide as necessary with no leading spaces"
+  (let ((width (stack-pop data-stack))
+        (value (cell-unsigned (stack-pop data-stack))))
+    (unless (plusp width)
+      (forth-exception :invalid-numeric-argument "Field width to U.R must be positive"))
+    (format t "~V,VR" base width value)))
 
 
 ;;; 4.2 Comparison and Testing Operations
@@ -846,6 +862,25 @@
   "Return true if U1 is greater than U2"
   ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (< (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack))) +true+ +false+)))
+
+
+;;; 5.3 Exception Handling
+
+(define-word abort (:word "ABORT")
+  "(S: i*x - ) (R: j*x - )"
+  "Empty the data and return stacks, reset the input source to the console (SOURCE-ID 0), and restart the interpreter"
+  (forth-exception :abort))
+
+;;; Marked as IMMEDIATE so we can grab the message at compile-time and generate the correct code sequence
+(define-word abort-with-message (:word "ABORT\"" :immediate? t :compile-only? t)
+  "ABORT\" <message>\""
+  "(S: i*x x1 - | i*x ) (R: j*x - | j*x )"
+  "At compile time, parse MESSAGE from the input buffer. At runtime, if X1 is true (i.e., non-zero), display"
+  "the message and perform the actions of ABORT"
+  (let ((message (word files #\")))
+    (push `(when (truep (stack-pop data-stack))
+             (forth-exception :abort\" "~@[In ~A: ~]~A" ,(word-name compiling-word) ,message))
+          (word-inline-forms compiling-word))))
 
 
 ;;; 5.4.2 Terminal Output
@@ -933,7 +968,11 @@
 
 ;;; 6.3.2 Literals and Constants
 
-;;; LITERAL
+(define-word literal (:word "LITERAL" :immediate? t :compile-only? t)
+  "( x - )"
+  "Compile X into the current definition. When executed, push X onto the data stack"
+  (let ((value (stack-pop data-stack)))
+    (push `(stack-push data-stack ,value) (word-inline-forms compiling-word))))
 
 
 ;;; 6.6.2 Managing Word Lists
