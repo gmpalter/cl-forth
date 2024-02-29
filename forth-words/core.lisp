@@ -70,7 +70,7 @@
   "Place a copy of the Nth stack item onto the top of the data stack"
   (let ((n (stack-pop data-stack)))
     (when (minusp n)
-      (forth-error :invalid-numeric-argument "Pick count can't be negative"))
+      (forth-exception :invalid-numeric-argument "Pick count can't be negative"))
     (stack-pick data-stack n)))
 
 (define-word stack-rot (:word "ROT")
@@ -185,7 +185,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (stack-push data-stack (cell-signed (truncate n1 n2))))))
 
 (define-word multiply-divide (:word "*/")
@@ -201,7 +201,7 @@
         (n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n3)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate (* n1 n2) n3)
           (stack-push data-stack (cell-signed remainder))
@@ -212,7 +212,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate n1 n2)
           (stack-push data-stack (cell-signed remainder))
@@ -247,7 +247,7 @@
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
-      (forth-error :invalid-numeric-argument "Shift count can't be negative"))
+      (forth-exception :invalid-numeric-argument "Shift count can't be negative"))
     ;; The Forth standard defines LSHIFT as a logical left shift.
     ;; By treating the number as unsigned, we'll get the proper result.
     (stack-push data-stack (cell-signed (ash (cell-unsigned x1) u)))))
@@ -257,7 +257,7 @@
   (let ((n2 (stack-pop data-stack))
         (n1 (stack-pop data-stack)))
     (if (zerop n2)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (stack-push data-stack (cell-signed (mod n1 n2))))))
 
 (define-word ash-right (:word "RSHIFT")
@@ -265,7 +265,7 @@
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
-      (forth-error :invalid-numeric-argument "Shift count can't be negative"))
+      (forth-exception :invalid-numeric-argument "Shift count can't be negative"))
     ;; The Forth standard defines RSHIFT as a logical right shift.
     ;; By treating the number as unsigned, we'll get the proper result.
     (stack-push data-stack (cell-signed (ash (cell-unsigned x1) (- u))))))
@@ -279,7 +279,7 @@
   (let ((n1 (stack-pop data-stack))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (floor d n1)
           (stack-push data-stack (cell-signed remainder))
@@ -304,7 +304,7 @@
   (let ((n1 (stack-pop data-stack))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate d n1)
           (stack-push data-stack (cell-signed remainder))
@@ -320,7 +320,7 @@
                  (double-components d)
                (double-cell-unsigned low high))))
     (if (zerop u1)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
             (truncate ud u1)
           (stack-push data-stack (cell-unsigned remainder))
@@ -400,7 +400,7 @@
   "Allocate a cell in data space and create a dictionary entry for <name> which returns the address of that cell"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -412,7 +412,7 @@
   "for <name> which returns the address of that character"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
@@ -426,7 +426,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 
@@ -441,7 +441,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-cell-at-parameter :parameters (list address :value))))
@@ -477,7 +477,7 @@
   "Allocate U bytes of data space beginning at the next available location"
   (let ((count (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error :invalid-numeric-argument "Byte count to ALLOT can't be negative"))
+      (forth-exception :invalid-numeric-argument "Byte count to ALLOT can't be negative"))
     (allocate-memory memory count)))
 
 (define-word create-buffer (:word "BUFFER:")
@@ -485,7 +485,7 @@
   "Reserve N bytes of memory and create a dictionary entry for <name> that returns the address of the first byte"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -523,7 +523,7 @@
   "Create a dictionary entry for <name> that returns the address of the next available location in data space"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (let* ((address (data-space-high-water-mark memory))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
@@ -568,7 +568,7 @@
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error :invalid-numeric-argument "Count to BLANK can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to BLANK can't be negative"))
     ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
     (memory-fill memory address count +forth-char-space+)))
 
@@ -597,7 +597,7 @@
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error :invalid-numeric-argument "Count to ERASE can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to ERASE can't be negative"))
     (memory-fill memory address count 0)))
 
 (define-word fill-memory (:word "FILL")
@@ -607,7 +607,7 @@
         (count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error :invalid-numeric-argument "Count to FILL can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to FILL can't be negative"))
     (memory-fill memory address count byte)))
 
 (define-word move-memory (:word "MOVE")
@@ -617,7 +617,7 @@
         (destination (stack-pop data-stack))
         (source (stack-pop data-stack)))
     (unless (plusp count)
-      (forth-error :invalid-numeric-argument "Count to MOVE can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to MOVE can't be negative"))
     (memory-copy memory source destination count)))
 
 (define-word to (:word "TO")
@@ -627,11 +627,11 @@
          (word (lookup word-lists name))
          (value (stack-pop data-stack)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (when (null word)
-      (forth-error :undefined-word "~A is not defined" name))
+      (forth-exception :undefined-word "~A is not defined" name))
     (unless (eq (second (word-parameters word)) :value)
-      (forth-error :invalid-name-argument "~A was not created by VALUE"))
+      (forth-exception :invalid-name-argument "~A was not created by VALUE"))
     (setf (memory-cell memory (first (word-parameters word))) value)))
 
 
@@ -642,7 +642,7 @@
   "Parse the next word, usually a single character, and push the ASCII value of its first character onto the data stack"
   (let ((char (word files #\Space)))
     (when (null char)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (stack-push data-stack (forth-char (aref char 0)))))
 
 (define-word compile-char (:word "[CHAR]" :immediate? t :compile-only? t :inlineable? nil)
@@ -651,7 +651,7 @@
   "of its first character as a literal which will be pushed onto the data stack when the definition is executed"
   (let ((char (word files #\Space)))
     (when (null char)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (push `(stack-push data-stack ,(forth-char (aref char 0))) (word-inline-forms compiling-word))))
 
 (define-word blank (:word "BL")
@@ -862,7 +862,7 @@
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (when (minusp count)
-      (forth-error :invalid-numeric-argument "Count to TYPE can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to TYPE can't be negative"))
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (write-string (forth-string-to-native forth-memory offset count)))))
@@ -885,7 +885,7 @@
   "Write U spaces to the terminal"
   (let ((count (stack-pop data-stack)))
     (when (minusp count)
-      (forth-error :invalid-numeric-argument "Count to SPACES can't be negative"))
+      (forth-exception :invalid-numeric-argument "Count to SPACES can't be negative"))
     (loop with n-spaces = (length +spaces+)
           for n = count then (- n n-spaces)
           while (plusp n)
@@ -900,7 +900,7 @@
   "Create a definition for <name>. Enter compilation state and start compiling the definition."
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (begin-compilation fs name)))
 
 ;;; :NONAME
@@ -927,7 +927,7 @@
 (define-word compile (:word "]")
   "Switch back to compiling a definition after using ']'"
   (unless (shiftf compiling-paused? nil)
-    (forth-error :not-compiling "Can't resume compiling when nothing's being compiled"))
+    (forth-exception :not-compiling "Can't resume compiling when nothing's being compiled"))
   (setf (state fs) :compiling))
 
 
@@ -941,3 +941,17 @@
 (define-state-word context)
 
 (define-state-word current)
+
+(defun replace-top-of-search-order-with-parameter (fs &rest parameters)
+  (with-forth-system (fs)
+    (replace-top-of-search-order word-lists (first parameters))))
+
+(define-word create-word-list (:word "VOCABULARY")
+  "VOCABULARY <name>"
+  "Create an empty word list and define NAME to to replace the first word list in the sarch order with this new list"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let* ((dict (vocabulary word-lists name))
+           (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (list dict))))
+      (add-word (word-lists-compilation-word-list word-lists) word))))

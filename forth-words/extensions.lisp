@@ -24,6 +24,10 @@
 ;;; VERBOSE
 ;;; SILENT
 
+;;; 4.1.1 Dictionary Management
+
+;;; EMPTY
+
 ;;; 4.2.2 Detecting Name Conflicts
 
 (define-word redefinition-warnings (:word "WARNING")

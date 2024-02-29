@@ -32,7 +32,7 @@
 
 (defun native-into-forth-counted-string (native-string forth-memory offset)
   (unless (<= (length native-string) +longest-counted-string+)
-    (forth-error :parse-string-overflow))
+    (forth-exception :parse-string-overflow))
   ;; Length of a counted string is always a single byte regardless of character size
   (setf (aref forth-memory offset) (length native-string))
   (native-into-forth-string native-string forth-memory (1+ offset)))

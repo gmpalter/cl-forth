@@ -15,7 +15,7 @@
 (defun stack-underflow-check (st &optional (minimum-depth 1))
   (with-slots (cells underflow-key) st
     (when (< (fill-pointer cells) minimum-depth)
-      (forth-error underflow-key))))
+      (forth-exception underflow-key))))
   
 (declaim (inline stack-cell))
 ;;; INDEX is zero-based index of element from top of stack

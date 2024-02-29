@@ -5,7 +5,7 @@
   :version "0.9"
   :serial t
   :components ((:file "packages")
-               (:file "errors")
+               (:file "exceptions")
                (:file "numbers")
                (:file "strings")
                (:file "memory")
@@ -23,7 +23,7 @@
                                #+ignore (:file "float")
                                #+ignore (:file "strings")
                                #+ignore (:file "exceptions")
-                               #+ignore (:file "search")
+                               (:file "search")
                                #+ignore (:file "facility")
                                (:file "extensions")))
                ;;---*** TODO: Temporary

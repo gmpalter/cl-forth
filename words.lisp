@@ -2,6 +2,7 @@
 
 (defclass dictionary ()
   ((name :accessor dictionary-name :initarg :name)
+   (psuedo-address :accessor dictionary-psuedo-address :initarg :psuedo-address)
    (words :accessor dictionary-words :initform (make-hash-table :test #'equalp)))
   )
 
@@ -20,24 +21,27 @@
 
 (defclass word-lists ()
   ((all-word-lists :initform (make-hash-table :test #'equalp))
-   (forth :initform (make-instance 'dictionary :name "Forth"))
-   (search-order :accessor word-lists-search-order :initform nil)
-   (compilation-word-list :accessor word-lists-compilation-word-list :initform nil)
+   (forth :reader word-lists-forth-word-list :initform nil)
+   (search-order :reader  word-lists-search-order :initform nil)
+   (compilation-word-list :reader word-lists-compilation-word-list :initform nil)
+   (next-psuedo-address :initform (dpb #x55 (byte 8 48) 0))
+   (address-to-word-list-map :initform (make-hash-table))
    (context :initform 0)
    (current :initform 0))
   )
 
 (defmethod initialize-instance :after ((wls word-lists) &key &allow-other-keys)
   (with-slots (all-word-lists forth search-order compilation-word-list) wls
-    (setf (gethash "Forth" all-word-lists) forth)
+    (setf forth (word-list wls "FORTH" :if-not-found :create))
+    (setf (gethash "FORTH" all-word-lists) forth)
     (setf search-order (list forth))
     (setf compilation-word-list forth)
     (update-psuedo-state-variables wls)))
 
 (defmethod update-psuedo-state-variables ((wls word-lists))
   (with-slots (search-order compilation-word-list context current) wls
-    (setf context (%address-of (first search-order))
-          current (%address-of compilation-word-list))))
+    (setf context (dictionary-psuedo-address (first search-order))
+          current (dictionary-psuedo-address compilation-word-list))))
 
 (defmethod install-predefined-words ((wls word-lists))
   (maphash #'(lambda (forth-name wl-and-word)
@@ -47,13 +51,17 @@
            *predefined-words*))
 
 (defmethod word-list ((wls word-lists) name &key (if-not-found :error))
-  (with-slots (all-word-lists) wls
+  (with-slots (all-word-lists address-to-word-list-map next-psuedo-address) wls
     (or (gethash name all-word-lists)
         (case if-not-found
           (:create
-           (setf (gethash name all-word-lists) (make-instance 'dictionary :name name)))
+           (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address)))
+             (setf (gethash name all-word-lists) word-list
+                   (gethash next-psuedo-address address-to-word-list-map) word-list)
+             (incf next-psuedo-address +cell-size+)
+             word-list))
           (:error
-           (forth-error :unknown-word-list "Word list ~A does not exist" name))
+           (forth-exception :unknown-word-list "Word list ~A does not exist" name))
           (otherwise nil)))))
 
 (defmethod lookup ((wls word-lists) token)
@@ -62,17 +70,44 @@
             thereis (let ((word (gethash token (dictionary-words dictionary))))
                       (and word (not (word-smudge? word)) word)))))
 
-;;; ALSO
-;;; ASSEMBLER ??
-;;; DEFINITIONS
-;;; EDITOR ??
-;;; FORTH
-;;; ONLY
-;;; ORDER
-;;; PREVIOUS
-;;; VOCABULARY
-;;; WORDS
+(defmethod also ((wls word-lists))
+  (with-slots (search-order) wls
+    (push (first search-order) search-order)))
 
+(defmethod definitions ((wls word-lists))
+  (with-slots (search-order compilation-word-list) wls
+    (setf compilation-word-list (first search-order))
+    (update-psuedo-state-variables wls)))
+
+(defmethod only ((wls word-lists))
+  (with-slots (search-order forth) wls
+    (setf search-order (list forth))
+    (update-psuedo-state-variables wls)))
+
+(defmethod previous ((wls word-lists))
+  (with-slots (search-order) wls
+    (when (< (length search-order) 2)
+      (forth-exception :search-order-underflow))
+    (pop search-order)
+    (update-psuedo-state-variables wls)))
+
+(defmethod vocabulary ((wls word-lists) name)
+  (when (word-list wls name :if-not-found nil)
+    (forth-exception :duplicate-word-list "~A is the name of an existing word list" name))
+  ;; This will create the list as we already verified it doesn't exist
+  (word-list wls name :if-not-found :create))
+
+(defmethod replace-top-of-search-order ((wls word-lists) (dict dictionary))
+  (with-slots (search-order) wls
+    (setf (first search-order) dict)
+    (update-psuedo-state-variables wls)))
+
+(defmethod replace-top-of-search-order ((wls word-lists) (psuedo-address integer))
+  (with-slots (search-order address-to-word-list-map) wls
+    (let ((word-list (gethash psuedo-address address-to-word-list-map)))
+      (if word-list
+          (replace-top-of-search-order wls word-list)
+          (forth-exception :unknown-word-list "~14,'0X is not the address of a word list" psuedo-address)))))
 
 ;;;
 
@@ -88,7 +123,7 @@
    (parameters :accessor word-parameters :initarg :parameters :initform nil))
   )
 
-(defmacro define-word (name (&key (word-list "Forth") ((:word forth-name) (symbol-name name))
+(defmacro define-word (name (&key (word-list "FORTH") ((:word forth-name) (symbol-name name))
                                   immediate? compile-only? (inlineable? t))
                        &body body)
   (let* ((word (gensym))
@@ -111,7 +146,7 @@
                                                      (copy-tree body)))))
          (setf (gethash ,forth-name *predefined-words*) (cons ,word-list ,word))))))
 
-(defmacro define-state-word (slot &key (word-list "Forth") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
+(defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
   (let ((description (format nil "Place the address of ~A on the stack" forth-name)))
     `(define-word ,slot (:word-list ,word-list :word ,forth-name :immediate? ,immediate? :compile-only? ,compile-only?)
        "( - a-addr )"

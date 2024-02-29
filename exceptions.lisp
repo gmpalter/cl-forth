@@ -1,16 +1,16 @@
 (in-package #:forth)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-(defvar *forth-errors-map* (make-hash-table))
+(defvar *forth-exceptions-map* (make-hash-table))
 )
 
-(defmacro define-forth-errors (&body body)
-  (dolist (error body)
+(defmacro define-forth-exceptions (&body body)
+  (dolist (exception body)
     (destructuring-bind (key code default-phrase)
-        error
-      (setf (gethash key *forth-errors-map*) (list code default-phrase)))))
+        exception
+      (setf (gethash key *forth-exceptions-map*) (list code default-phrase)))))
 
-(define-forth-errors
+(define-forth-exceptions
   (:abort -1 "ABORT")
   (:abort\" -2 "ABORT\"")
   (:stack-overflow -3 "Stack overflow")
@@ -69,26 +69,27 @@
   (:quit -56 "QUIT")
   (:send/receive-char-exception -57 "Exception in sending or receiving a character")
   (:if/then/else-exception -58 "[If], [ELSE], or [THEN] exception")
-  (:unknown-slot -101 "Unknown slot")
-  (:control-flow-stack-underflow -102 "Control-flow stack empty")
-  (:unknown-word-list -103 "Unknown word list")
-  (:source-stack-overflow -104 "Input source stack overflow")
-  (:source-stack-underflow -105 "Input source stack underflow")
-  (:not-compiling -106 "Not compiling a definition")
+  (:unknown-slot -256 "Unknown slot")
+  (:control-flow-stack-underflow -257 "Control-flow stack empty")
+  (:unknown-word-list -258 "Unknown word list")
+  (:duplicate-word-list -259 "A word list by that name already exists")
+  (:source-stack-overflow -260 "Input source stack overflow")
+  (:source-stack-underflow -261 "Input source stack underflow")
+  (:not-compiling -262 "Not compiling a definition")
   )
 
-(define-condition forth-error (error)
-  ((key :initarg :key :reader forth-error-key)
-   (code :initarg :code :reader forth-error-code)                                                 
-   (phrase :initarg :phrase :reader forth-error-phrase))
+(define-condition forth-exception (error)
+  ((key :initarg :key :reader forth-exception-key)
+   (code :initarg :code :reader forth-exception-code)                                                 
+   (phrase :initarg :phrase :reader forth-exception-phrase))
   (:report (lambda (fe stream)
-             (format stream "Forth error ~D: ~A" (forth-error-code fe) (forth-error-phrase fe)))))
+             (format stream "Forth exception ~D: ~A" (forth-exception-code fe) (forth-exception-phrase fe)))))
 
-(defun forth-error (key &optional phrase &rest phrase-arguments)
-  (let ((entry (gethash key *forth-errors-map*))
+(defun forth-exception (key &optional phrase &rest phrase-arguments)
+  (let ((entry (gethash key *forth-exceptions-map*))
         (phrase (and phrase (apply #'format nil phrase phrase-arguments))))
     (if entry
         (destructuring-bind (code default-phrase) entry
-          (error 'forth-error :key key :code code :phrase (or phrase default-phrase)))
-        (error 'forth-error :key :bad-error-key :code -999 :phrase (format nil "Unrecognized error key ~S" key)))))
+          (error 'forth-exception :key key :code code :phrase (or phrase default-phrase)))
+        (error 'forth-exception :key :bad-exception-key :code -999 :phrase (format nil "Unrecognized exception key ~S" key)))))
 

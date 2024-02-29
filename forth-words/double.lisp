@@ -48,7 +48,7 @@
         (n1 (cell-signed (stack-pop data-stack)))
         (d1 (stack-pop-double data-stack)))
     (unless (plusp n2)
-      (forth-error :invalid-numeric-argument))
+      (forth-exception :invalid-numeric-argument))
     (stack-push-double data-stack (cell-signed (truncate (* d1 n1) n2)))))
 
 (define-word add-double-single (:word "M+")
@@ -69,7 +69,7 @@
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
-        (forth-error :divide-by-zero)
+        (forth-exception :divide-by-zero)
         (stack-push data-stack (cell-signed (truncate d n1))))))
 
 
@@ -103,7 +103,7 @@
   "Allocate two cells in data space and create a dictionary entry for <name> which returns the address of the first cell"
   (let ((name (word files #\Space)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
@@ -122,7 +122,7 @@
   (let ((name (word files #\Space))
         (value (stack-pop-double data-stack)))
     (when (null name)
-      (forth-error :zero-length-name))
+      (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
       (add-word (word-lists-compilation-word-list word-lists) word))))
 

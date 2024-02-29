@@ -73,9 +73,9 @@
     (loop
       (handler-case
           (interpreter/compiler fs)
-        (forth-error (e)
-          (unless (eq (forth-error-key e) :quit)
-            (write-line (forth-error-phrase e)))
+        (forth-exception (e)
+          (unless (eq (forth-exception-key e) :quit)
+            (write-line (forth-exception-phrase e)))
           (reset-interpreter/compiler fs))))))
 
 (define-forth-method interpreter/compiler (fs)
@@ -89,13 +89,13 @@
                           (values :word word)
                           (interpret-number token base)))
                   (when (null type)
-                    (forth-error :undefined-word "~A is not defined" token))
+                    (forth-exception :undefined-word "~A is not defined" token))
                   (case (state fs)
                     (:interpreting
                      (case type
                        (:word
                         (cond ((word-compile-only? value)
-                               (forth-error :compile-only-word))
+                               (forth-exception :compile-only-word))
                               (t
                                (forth-call fs value))))
                        (:single
@@ -130,7 +130,7 @@
 
 (define-forth-method begin-compilation (fs &optional name)
   (unless (eq (state fs) :interpreting)
-    (forth-error :recursive-compile))
+    (forth-exception :recursive-compile))
   (setf compiling-word (make-word name nil :smudge? t)
         compiling-paused? nil)
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
@@ -140,7 +140,7 @@
 
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)
-    (forth-error :not-compiling))
+    (forth-exception :not-compiling))
   (let ((thunk `(lambda (fs &rest parameters)
                   (declare (ignorable parameters))
                   (with-forth-system (fs)
