@@ -1007,7 +1007,9 @@
   (finish-compilation fs)
   (align-memory memory))
 
-;;; RECURSE
+(define-word recurse (:word "RECURSE" :immediate? t :compile-only? t :inlineable? nil)
+  "Append the execution behavior of the current definition to the current definition, so that it calls itself recursively"
+  (push `(forth-call fs ,compiling-word) (word-inline-forms compiling-word)))
 
 
 ;;; 6.3.1 The Forth Compiler
