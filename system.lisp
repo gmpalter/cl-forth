@@ -74,7 +74,7 @@
       (handler-case
           (interpreter/compiler fs)
         (forth-exception (e)
-          (unless (eq (forth-exception-key e) :quit)
+          (unless (member (forth-exception-key e) '(:abort :quit))
             (write-line (forth-exception-phrase e)))
           (reset-interpreter/compiler fs))))))
 
