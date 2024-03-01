@@ -42,6 +42,10 @@
     (print-unreadable-object (memory stream :type t :identity t)
       (format stream "~D space~:P" (length all-spaces)))))
 
+(defmethod add-space ((memory memory) space)
+  (with-slots (all-spaces) memory
+    (setf (space-prefix space) (vector-push-extend space all-spaces))))
+
 (defmethod add-state-space ((memory memory) parent)
   (with-slots (all-spaces) memory
     (let ((space (make-instance 'state-space :parent parent)))
@@ -287,35 +291,47 @@
       (incf high-water-mark (- +cell-size+ (mod high-water-mark +cell-size+))))))
 
 (defmethod cell-at ((sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (signed-byte 64)) data))
       (aref data (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-at) (value (sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (signed-byte 64)) data))
       (setf (aref data (ash address +byte-to-cell-shift+)) value))))
 
 (defmethod cell-unsigned-at ((sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (aref data (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-unsigned-at) (value (sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (setf (aref data (ash address +byte-to-cell-shift+)) value))))
 
 (defmethod byte-at ((sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (aref data address)))
 
 (defmethod (setf byte-at) (value (sp data-space) address)
-  (with-slots (data) sp
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
     (setf (aref data address) value)))
 
 (defmethod space-fill ((sp data-space) address count byte)
@@ -373,26 +389,38 @@
 
 (defmethod cell-at ((sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-at) (value (sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
 (defmethod cell-unsigned-at ((sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-unsigned-at) (value (sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
 (defmethod byte-at ((sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf byte-at) (value (sp state-space) address)
   (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
 (defmethod space-fill ((sp state-space) address count byte)

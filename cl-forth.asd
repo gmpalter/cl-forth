@@ -17,7 +17,7 @@
                   :serial nil
                   :components ((:file "core")
                                #+ignore (:file "memory")
-                               #+ignore (:file "files")
+                               (:file "files")
                                (:file "tools")
                                (:file "double")
                                #+ignore (:file "float")

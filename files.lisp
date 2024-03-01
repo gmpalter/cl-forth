@@ -1,5 +1,47 @@
 (in-package #:forth)
 
+(defclass source-data-space (data-space)
+  ((is-valid? :accessor source-data-space-is-valid? :initform nil))
+  (:default-initargs :initial-size (expt 2 20)))
+
+(defmethod update-source-data-space ((sp source-data-space) buffer)
+  (with-slots (data high-water-mark is-valid?) sp
+    (native-into-forth-string buffer data 0)
+    (setf high-water-mark (length buffer)
+          is-valid? t)))
+
+(defmethod space-reset ((sp source-data-space))
+  nil)
+
+(defmethod space-allocate ((sp source-data-space) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod space-align ((sp source-data-space))
+  nil)
+
+(defmethod (setf cell-at) (value (sp source-data-space) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod (setf cell-unsigned-at) (value (sp source-data-space) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod (setf byte-at) (value (sp source-data-space) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod space-fill ((sp source-data-space) address count byte)
+  (declare (ignore address count byte))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod space-copy ((ssp space) source-address (dsp source-data-space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (forth-exception :write-to-read-only-memory))
+
+;;;
+
 (defclass files ()
   ((source-id :initform 0)
    (>in)
@@ -9,7 +51,7 @@
    (input-stack :initform nil)
    (source-stack :initform (make-instance 'stack :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
-   )
+   (source-as-space :accessor files-source-as-space :initform (make-instance 'source-data-space)))
   )
 
 (defstruct saved-source
@@ -32,9 +74,15 @@
   (with-slots (>in buffer) f
     (< >in (length buffer))))
 
-(defmethod flush-input ((f files))
+(defmethod flush-input-line ((f files))
   (with-slots (>in buffer) f
     (setf >in (length buffer))))
+
+(defmethod flush-input-file ((f files))
+  (with-slots (source-id) f
+    (if (plusp source-id)
+        (source-pop f)
+        (flush-input-line f))))
 
 (defmethod word ((f files) delimiter)
   (with-slots (source-id >in buffer) f
@@ -100,8 +148,9 @@
                    (vector-push-extend #\Space parsed))))))
 
 (defmethod refill ((f files))
-  (with-slots (source-id >in buffer source-id-map) f
+  (with-slots (source-id >in buffer source-id-map source-as-space) f
     (flet ((fillup (stream)
+             (setf (source-data-space-is-valid? source-as-space) nil)
              (let ((line (read-line stream nil :eof)))
                (unless (eq line :eof)
                  (setf buffer line
@@ -115,13 +164,14 @@
 
 (defmethod source-push ((f files) &key file-id evaluate)
   (assert (not (and file-id evaluate)) () "Pass ~S or ~S but not both to ~S" :file-id :evaluate 'source-push)
-  (with-slots (source-id >in buffer source-stack) f
+  (with-slots (source-id >in buffer source-stack source-as-space) f
     (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer)))
       (stack-push source-stack ss)
       ;; SOURCE-ID for EVALUATE is always -1
       (setf source-id (or file-id -1)
             >in 0
-            buffer (or evaluate "")))))
+            buffer (or evaluate ""))
+      (setf (source-data-space-is-valid? source-as-space) nil))))
 
 (defmethod source-pop ((f files))
   (with-slots (source-id >in buffer source-stack) f
@@ -131,3 +181,9 @@
       (setf source-id (saved-source-id ss)
             >in (saved-source->in ss)
             buffer (saved-source-buffer ss)))))
+
+(defmethod access-source-buffer ((f files))
+  (with-slots (buffer source-as-space) f
+    (unless (source-data-space-is-valid? source-as-space)
+      (update-source-data-space source-as-space buffer))
+    (values (make-address (space-prefix source-as-space) 0) (space-high-water-mark source-as-space))))

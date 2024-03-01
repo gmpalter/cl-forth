@@ -27,6 +27,7 @@
     (add-state-space memory fs)
     (add-state-space memory word-lists)
     (add-state-space memory files)
+    (add-space memory (files-source-as-space files))
     (install-predefined-words word-lists)
     ))
   

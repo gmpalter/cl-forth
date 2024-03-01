@@ -17,7 +17,9 @@
   "Useful for large comment blocks that contain parentheses (e.g., documenting stack behavior)"
   (word files #\}))
 
-;;; \\
+(define-word rest-of-file-comment (:word "\\\\")
+  "Ignore all text in the rest of the file"
+  (flush-input-file files))
 
 ;;; 3.3 File-Related Debugging Aids
 

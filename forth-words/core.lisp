@@ -28,7 +28,7 @@
 
 (define-word rest-of-line-comment (:word "\\")
   "Ignore all text on the rest of the line"
-  (flush-input files))
+  (flush-input-line files))
 
 
 ;;; 2.1.2 Data Stack Manipulation
@@ -987,6 +987,45 @@
           for n = count then (- n n-spaces)
           while (plusp n)
           do (write-string (subseq +spaces+ 0 (min n n-spaces))))))
+
+
+;;; 6.1.1 Input Source Management
+
+(define-word evaluate-string (:word "EVALUATE")
+  "( i*x c-addr u – j*x )"
+  "Save the current input source specification. Store minus-one (-1) in SOURCE-ID. Make the string described by c-ADDR and U"
+  "both the input source and input buffer, set >IN to zero, and interpret. When the parse area is empty, restore the prior"
+  "input source specification. Other stack effects are due to the words EVALUATEd."
+  (let ((count (stack-pop data-stack))
+        (address (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-exception :invalid-numeric-argument "Count to EVALUATE can't be negative"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (let ((string (forth-string-to-native forth-memory offset count)))
+        (source-push files :evaluate string)))))
+
+(define-word reset-interpreter (:word "QUIT")
+  "(S: i*x - ) (R: j*x - )"
+  "Empty the data and return stacks, reset the input source to the terminal, restart the interpreter loop."
+  "Do not display a message."
+  (forth-exception :quit))
+
+(define-word refill (:word "REFILL")
+  "( - flag )"
+  "Attempt to fill the input buffer from the current input source, returning true if successful"
+  (stack-push data-stack (if (refill files) +true+ +false+)))
+
+;;; RESTORE-INPUT
+;;; SAVE-INPUT
+
+(define-word source (:word "SOURCE")
+  "( - c-addr u )"
+  "Return the address C-ADDR and size U of the input buffer"
+  (multiple-value-bind (address count)
+      (access-source-buffer files)
+    (stack-push data-stack address)
+    (stack-push data-stack count)))
 
 
 ;;; 6.2.2 Colon Definitions
