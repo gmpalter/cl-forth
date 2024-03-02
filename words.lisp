@@ -160,7 +160,7 @@
     (write-string (or (word-name word) "<Anonymous>") stream)))
 
 (defmacro define-word (name (&key (word-list "FORTH") ((:word forth-name) (symbol-name name))
-                                  immediate? compile-only? (inlineable? t))
+                                  immediate? compile-only? (inlineable? (not compile-only?)))
                        &body body)
   (let* ((word (gensym))
          (body (loop with forms = (copy-list body)

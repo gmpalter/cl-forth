@@ -645,7 +645,7 @@
       (forth-exception :zero-length-name))
     (stack-push data-stack (forth-char (aref char 0)))))
 
-(define-word compile-char (:word "[CHAR]" :immediate? t :compile-only? t :inlineable? nil)
+(define-word compile-char (:word "[CHAR]" :immediate? t :compile-only? t)
   "[CHAR] <c>" "( - char )"
   "When compiling a definition, parse the next word, usually a single character, and compile the ASCII value"
   "of its first character as a literal which will be pushed onto the data stack when the definition is executed"
@@ -704,7 +704,7 @@
            (push `(stack-push data-stack ,address) (word-inline-forms compiling-word))
            (push `(stack-push data-stack ,text-size) (word-inline-forms compiling-word))))))))
 
-(define-word counted-string (:word "C\"" :immediate? t :compile-only? t :inlineable? nil)
+(define-word counted-string (:word "C\"" :immediate? t :compile-only? t)
   "C\" <text>\"" "( - a-addr )"
   "Compile TEXT as a counted string into the current definition. When executed, place its address on the data stack"
   (let* ((text (word files #\"))
@@ -932,7 +932,7 @@
 
 ;;; 4.3 Conditionals
 
-(define-word if (:word "IF" :immediate? t :compile-only? t :inlineable? nil)
+(define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag - )"
   "If FLAG is zero, branch to the code immediately following an ELSE if one is present; if ELSE is ommitted, branch"
   "to the point following THEN. If FLAG is true, continue execution with the code immediately following the IF and"
@@ -941,12 +941,12 @@
     (stack-push control-flow-stack branch)
     (execute-branch fs branch '(falsep (stack-pop data-stack)))))
 
-(define-word then (:word "THEN" :immediate? t :compile-only? t :inlineable? nil)
+(define-word then (:word "THEN" :immediate? t :compile-only? t)
   "Mark the point at which the true and false portions of an IF structure merge"
   (let ((branch (stack-pop control-flow-stack)))
     (resolve-branch fs branch)))
 
-(define-word else (:word "ELSE" :immediate? t :compile-only? t :inlineable? nil)
+(define-word else (:word "ELSE" :immediate? t :compile-only? t)
   "Mark the end of the true part of a conditional structure, and commence the false part. May be ommitted if there"
   "are no words to be executed in the false case"
   (let ((branch (make-branch-reference)))
@@ -980,13 +980,13 @@
 
 ;;; 4.7 CASE Statement
 
-(define-word case (:word "CASE" :immediate? t :compile-only? t :inlineable? nil)
+(define-word case (:word "CASE" :immediate? t :compile-only? t)
   "Mark the start of a CASE ... OF ... ENDOF ... CASE structure"
   (let ((branch (make-branch-reference)))
     ;; This will be used to branch past the ENDCASE
     (stack-push control-flow-stack branch)))
 
-(define-word of (:word "OF" :immediate? t :compile-only? t :inlineable? nil)
+(define-word of (:word "OF" :immediate? t :compile-only? t)
   "( x1 x2 - | x1 )"
   "If the test value X2 is not equal to the case selector X1, discard X2 and branch forward to the code"
   "immediately following the next ENDOF; otherwise, discard both values and continue execution beyond the OF "
@@ -996,14 +996,14 @@
     (execute-branch fs branch '(not (= (stack-pop data-stack) (stack-cell data-stack 0))))
     (push `(stack-pop data-stack) (word-inline-forms compiling-word)))))
 
-(define-word endof (:word "ENDOF" :immediate? t :compile-only? t :inlineable? nil)
+(define-word endof (:word "ENDOF" :immediate? t :compile-only? t)
   "Unconditionally branch to immediately beyond the next ENDCASE"
   (let ((branch (stack-pop control-flow-stack)))
     ;; Branch past the ENDCASE
     (execute-branch fs (stack-cell control-flow-stack 0))
     (resolve-branch fs branch)))
 
-(define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t :inlineable? nil)
+(define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t)
   "( x - )"
   "Discard the top stack value X (presumably the case selector) and continue execution"
   (let ((branch (stack-pop control-flow-stack)))
@@ -1149,7 +1149,7 @@
   (finish-compilation fs)
   (align-memory memory))
 
-(define-word recurse (:word "RECURSE" :immediate? t :compile-only? t :inlineable? nil)
+(define-word recurse (:word "RECURSE" :immediate? t :compile-only? t)
   "Append the execution behavior of the current definition to the current definition, so that it calls itself recursively"
   (push `(forth-call fs ,compiling-word) (word-inline-forms compiling-word)))
 
