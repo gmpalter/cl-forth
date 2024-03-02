@@ -17,16 +17,16 @@
 
 ;;; 1.4.1 Comments
 
-(define-word comment (:word "(")
+(define-word comment (:word "(" :immediate? t)
   "Ignore all text up to and including the next close parenthesis"
   (word files #\)))
 
-(define-word displayed-comment (:word ".(")
+(define-word displayed-comment (:word ".(" :immediate? t)
   "Display without interpretation all text up to the next close parenthesis on the console"
   (let ((comment (word files #\))))
     (write-line comment)))
 
-(define-word rest-of-line-comment (:word "\\")
+(define-word rest-of-line-comment (:word "\\" :immediate? t)
   "Ignore all text on the rest of the line"
   (flush-input-line files))
 
@@ -932,9 +932,87 @@
 
 ;;; 4.3 Conditionals
 
-;;; IF
-;;; THEN
-;;; ELSE
+(define-word if (:word "IF" :immediate? t :compile-only? t :inlineable? nil)
+  "( flag - )"
+  "If FLAG is zero, branch to the code immediately following an ELSE if one is present; if ELSE is ommitted, branch"
+  "to the point following THEN. If FLAG is true, continue execution with the code immediately following the IF and"
+  "branch over any code following an ELSE to the point following THEN"
+  (let ((branch (make-branch-reference)))
+    (stack-push control-flow-stack branch)
+    (execute-branch fs branch '(falsep (stack-pop data-stack)))))
+
+(define-word then (:word "THEN" :immediate? t :compile-only? t :inlineable? nil)
+  "Mark the point at which the true and false portions of an IF structure merge"
+  (let ((branch (stack-pop control-flow-stack)))
+    (resolve-branch fs branch)))
+
+(define-word else (:word "ELSE" :immediate? t :compile-only? t :inlineable? nil)
+  "Mark the end of the true part of a conditional structure, and commence the false part. May be ommitted if there"
+  "are no words to be executed in the false case"
+  (let ((branch (make-branch-reference)))
+    (execute-branch fs branch)
+    (stack-push control-flow-stack branch))
+  (stack-swap control-flow-stack)
+  (let ((branch (stack-pop control-flow-stack)))
+    (resolve-branch fs branch)))
+
+
+;;; 4.4 Indefinite Loops
+
+;;; AGAIN
+;;; BEGIN
+;;; REPEAT
+;;; UNTIL
+;;; WHILE
+
+
+;;; 4.5 Counting Loops
+
+;;; DO
+;;; ?DO
+;;; LOOP
+;;; +LOOP
+;;; I
+;;; J
+;;; LEAVE
+;;; UNLOOP
+
+
+;;; 4.7 CASE Statement
+
+(define-word case (:word "CASE" :immediate? t :compile-only? t :inlineable? nil)
+  ""
+  (let ((branch (make-branch-reference)))
+    ;; This will be used to branch past the ENDCASE
+    (stack-push control-flow-stack branch)))
+
+(define-word of (:word "OF" :immediate? t :compile-only? t :inlineable? nil)
+  "( x1 x2 - | x1 )"
+  ""
+  (let ((branch (make-branch-reference)))
+    ;; This will be used to branch past the matching ENDOF
+    (stack-push control-flow-stack branch)
+    (execute-branch fs branch '(not (= (stack-pop data-stack) (stack-cell data-stack 0))))
+    (push `(stack-pop data-stack) (word-inline-forms compiling-word)))))
+
+(define-word endof (:word "ENDOF" :immediate? t :compile-only? t :inlineable? nil)
+  ""
+  (let ((branch (stack-pop control-flow-stack)))
+    ;; Branch past the ENDCASE
+    (execute-branch fs (stack-cell control-flow-stack 0))
+    (resolve-branch fs branch)))
+
+(define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t :inlineable? nil)
+  "( x - )"
+  ""
+  (let ((branch (stack-pop control-flow-stack)))
+    (push `(stack-pop data-stack) (word-inline-forms compiling-word))
+    (resolve-branch fs branch)))
+
+
+;;; 4.9 Nesting and Un-nesting Structures and Definitions
+
+;;; EXIT
 
 
 ;;; 5.3 Exception Handling
@@ -1000,7 +1078,14 @@
           do (write-string (subseq +spaces+ 0 (min n n-spaces))))))
 
 
+;;; 6.1.1 Input Sources
+
+(define-state-word source-id)
+
+
 ;;; 6.1.2 Input Source Management
+
+(define-state-word >in)
 
 (define-word evaluate-string (:word "EVALUATE")
   "( i*x c-addr u – j*x )"

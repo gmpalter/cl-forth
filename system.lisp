@@ -122,7 +122,7 @@
                        (:float
                         (push `(stack-push float-stack ,value) (word-inline-forms compiling-word)))))))
              finally
-                (when (and (terminal-input-p files) (not (shiftf first nil)) (not empty))
+                (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
        (unless (refill files)
          (if (terminal-input-p files)
@@ -142,10 +142,13 @@
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
+  (unless (zerop (stack-depth control-flow-stack))
+    (forth-exception :control-mismatch))
   (let ((thunk `(lambda (fs &rest parameters)
                   (declare (ignorable parameters))
                   (with-forth-system (fs)
-                    ,@(reverse (word-inline-forms compiling-word))))))
+                    (tagbody
+                       ,@(reverse (word-inline-forms compiling-word)))))))
     (when (not (zerop show-definition-code?))
       (format t "~&Code for ~A:~%  ~:W~%" (or (word-name compiling-word) "<execution token>") thunk))
     (setf (word-code compiling-word) (compile nil thunk)))
@@ -165,3 +168,23 @@
       (unwind-protect
            (apply (word-code word) fs (word-parameters word))
         (stack-pop return-stack)))))
+
+;;;
+
+(defstruct branch-reference
+  (tag (gensym "CS")))
+
+(define-forth-method execute-branch (fs branch &optional condition)
+  (unless (eq (state fs) :compiling)
+    (forth-exception :not-compiling))
+  (if condition
+      (push `(when ,condition
+               (go ,(branch-reference-tag branch)))
+            (word-inline-forms compiling-word))
+      (push `(go ,(branch-reference-tag branch)) (word-inline-forms compiling-word))))
+
+(define-forth-method resolve-branch (fs branch)
+  (unless (eq (state fs) :compiling)
+    (forth-exception :not-compiling))
+  (push (branch-reference-tag branch) (word-inline-forms compiling-word)))
+

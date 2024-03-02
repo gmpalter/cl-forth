@@ -48,3 +48,10 @@
 (define-word show-words (:word "WORDS" :inlineable? nil)
   "List all the definition names in the first word list of the search order"
   (show-words (first (word-lists-search-order word-lists))))
+
+
+;;; 6.4.2
+
+;;; AHEAD
+;;; CS-PICK
+;;; CS-ROLL
