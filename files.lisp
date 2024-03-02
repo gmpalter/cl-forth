@@ -46,8 +46,8 @@
   ((source-id :initform 0)
    (>in)
    (buffer)
-   (next-source-id :initform 1)
    (source-id-map :initform (make-hash-table))
+   (last-source-id :initform 0)
    (input-stack :initform nil)
    (source-stack :initform (make-instance 'stack :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
@@ -110,15 +110,16 @@
                  (let* ((count (- end >in))
                         (word-start (fill-pointer word))
                         (word-end (+ word-start count)))
-                   (setf word (adjust-array word word-end :fill-pointer word-end))
+                   (adjust-array word word-end :fill-pointer word-end)
                    (replace word buffer :start1 word-start :end1 word-end :start2 >in :end2 end)))
-            do (setf >in (1+ end))
+            do (setf >in end)
             if (< >in buffer-len)
-              do (return-from word word)
+              do (incf >in)
+                 (return-from word word)
             else
-              do (when (if (plusp source-id)
-                           (null (refill f))
-                           t)
+              do (if (if (and (plusp source-id) (not whitespace-delimiter-p))
+                         (null (refill f))
+                         t)
                    (return-from word word)
                    (vector-push-extend #\Space word))))))
 
@@ -137,13 +138,14 @@
                         (parsed-end (+ parsed-start count)))
                    (setf parsed (adjust-array parsed parsed-end :fill-pointer parsed-end))
                    (replace parsed buffer :start1 parsed-start :end1 parsed-end :start2 >in :end2 end)))
-            do (setf >in (1+ end))
+            do (setf >in end)
             if (< >in buffer-len)
-              do (return-from parse parsed)
+              do (incf >in)
+                 (return-from parse parsed)
             else
-              do (when (if (plusp source-id)
-                           (null (refill f))
-                           t)
+              do (if (if (and (plusp source-id) (not whitespace-delimiter-p))
+                         (null (refill f))
+                         t)
                    (return-from parse parsed)
                    (vector-push-extend #\Space parsed))))))
 
@@ -176,7 +178,7 @@
 (defmethod source-pop ((f files))
   (with-slots (source-id >in buffer source-stack) f
     (when (plusp source-id)
-      (close-file f source-id))
+      (forth-close-file f source-id))
     (let ((ss (stack-pop source-stack)))
       (setf source-id (saved-source-id ss)
             >in (saved-source->in ss)
@@ -187,3 +189,65 @@
     (unless (source-data-space-is-valid? source-as-space)
       (update-source-data-space source-as-space buffer))
     (values (make-address (space-prefix source-as-space) 0) (space-high-water-mark source-as-space))))
+
+
+;;;
+
+(defconstant +read-direction+  1)
+(defconstant +write-direction+ 2)
+
+(defconstant +binary-mode+ #x100)
+
+(defconstant +file-operation-success+ 0)
+;; Unfortunately, CCL doesn't include the actual OS status code in its FILE-ERROR condition
+(defconstant +file-operation-failure+ -1)
+
+(defun interpret-file-access-method (fam)
+  (values (cond ((and (logtest fam +read-direction+) (logtest fam +write-direction+))
+                 :io)
+                ((logtest fam +read-direction+)
+                 :input)
+                ((logtest fam +write-direction+)
+                 :output)
+                (t
+                 (forth-exception :file-i/o-exception "Unknown file access method")))
+          (if (logtest fam +binary-mode+)
+              '(unsigned-byte 8)
+              'character)))
+
+;;; Forth's definition of OPEN-FILE specifies that the file must exist. It also specifies that the file be positioned
+;;; to the beginning of the file. (It doesn't say what should happen if opening for output.)
+(defmethod forth-open-file ((f files) pathname fam)
+  (with-slots (source-id-map last-source-id) f
+    (multiple-value-bind (direction element-type)
+        (interpret-file-access-method fam)
+      (let ((stream (open pathname :direction direction :element-type element-type :if-exists :append :if-does-not-exist nil)))
+        (if stream
+            (let ((file-id (incf last-source-id)))
+              (setf (gethash file-id source-id-map) stream)
+              (file-position stream 0)
+              (values file-id +file-operation-success+))
+            (values 0 +file-operation-failure+))))))
+
+;; Forth's definition of CREATE-FILE specifies that it replaces an existing file
+(defmethod forth-create-file ((f files) pathname fam)
+  (with-slots (source-id-map last-source-id) f
+    (multiple-value-bind (direction element-type)
+        (interpret-file-access-method fam)
+      (let ((stream (open pathname :direction direction :element-type element-type :if-exists :supersede
+                                   :if-does-not-exist :create)))
+        (if stream
+            (let ((file-id (incf last-source-id)))
+              (setf (gethash file-id source-id-map) stream)
+              (values file-id +file-operation-success+))
+            (values 0 +file-operation-failure+))))))
+
+(defmethod forth-close-file ((f files) file-id)
+  (with-slots (source-id-map) f
+    (let* ((stream (or (gethash file-id source-id-map) (forth-exception :file-i/o-exception "Invalid FILE-ID"))))
+      (remhash file-id source-id-map)
+      (handler-case
+          (progn
+            (close stream)
+            +file-operation-success+)
+        (file-error () +file-operation-failure+)))))

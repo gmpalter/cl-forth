@@ -930,6 +930,13 @@
   (stack-push data-stack (if (< (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack))) +true+ +false+)))
 
 
+;;; 4.3 Conditionals
+
+;;; IF
+;;; THEN
+;;; ELSE
+
+
 ;;; 5.3 Exception Handling
 
 (define-word abort (:word "ABORT")
@@ -993,7 +1000,7 @@
           do (write-string (subseq +spaces+ 0 (min n n-spaces))))))
 
 
-;;; 6.1.1 Input Source Management
+;;; 6.1.2 Input Source Management
 
 (define-word evaluate-string (:word "EVALUATE")
   "( i*x c-addr u – j*x )"
@@ -1030,6 +1037,12 @@
       (access-source-buffer files)
     (stack-push data-stack address)
     (stack-push data-stack count)))
+
+
+;;; 6.1.3 Parsing Text in the Input Stream
+
+;;; PARSE
+;;; WORD
 
 
 ;;; 6.2.2 Colon Definitions
