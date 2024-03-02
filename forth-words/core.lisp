@@ -716,11 +716,15 @@
       (native-into-forth-counted-string text forth-memory offset)
       (push `(stack-push data-stack ,address) (word-inline-forms compiling-word)))))
 
-(define-word type-string (:word ".\"" :immediate? t :compile-only? t :inlineable? nil)
+(define-word type-string (:word ".\"" :immediate? t :inlineable? nil)
   ".\" <text>\""
-  "Type TEXT on the console. May only appear in definitions"
+  "Type TEXT on the console."
   (let ((text (word files #\")))
-    (push `(write-string ,text) (word-inline-forms compiling-word))))
+    (case (state fs)
+      (:interpreting
+       (write-string text))
+      (:compiling
+       (push `(write-string ,text) (word-inline-forms compiling-word))))))
 
 
 ;;; 3.3 Strings in Data Structures
