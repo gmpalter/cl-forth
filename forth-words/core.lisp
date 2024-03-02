@@ -981,14 +981,15 @@
 ;;; 4.7 CASE Statement
 
 (define-word case (:word "CASE" :immediate? t :compile-only? t :inlineable? nil)
-  ""
+  "Mark the start of a CASE ... OF ... ENDOF ... CASE structure"
   (let ((branch (make-branch-reference)))
     ;; This will be used to branch past the ENDCASE
     (stack-push control-flow-stack branch)))
 
 (define-word of (:word "OF" :immediate? t :compile-only? t :inlineable? nil)
   "( x1 x2 - | x1 )"
-  ""
+  "If the test value X2 is not equal to the case selector X1, discard X2 and branch forward to the code"
+  "immediately following the next ENDOF; otherwise, discard both values and continue execution beyond the OF "
   (let ((branch (make-branch-reference)))
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
@@ -996,7 +997,7 @@
     (push `(stack-pop data-stack) (word-inline-forms compiling-word)))))
 
 (define-word endof (:word "ENDOF" :immediate? t :compile-only? t :inlineable? nil)
-  ""
+  "Unconditionally branch to immediately beyond the next ENDCASE"
   (let ((branch (stack-pop control-flow-stack)))
     ;; Branch past the ENDCASE
     (execute-branch fs (stack-cell control-flow-stack 0))
@@ -1004,7 +1005,7 @@
 
 (define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t :inlineable? nil)
   "( x - )"
-  ""
+  "Discard the top stack value X (presumably the case selector) and continue execution"
   (let ((branch (stack-pop control-flow-stack)))
     (push `(stack-pop data-stack) (word-inline-forms compiling-word))
     (resolve-branch fs branch)))
