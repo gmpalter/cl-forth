@@ -404,7 +404,7 @@
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 (define-word cvariable (:word "CVARIABLE")
   "CVARIABLE <name>"
@@ -415,7 +415,7 @@
       (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 
 ;;; 2.3.2.2 Constants and Values
@@ -428,7 +428,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 (defun push-cell-at-parameter (fs &rest parameters)
   (with-forth-system (fs)
@@ -446,7 +446,7 @@
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-cell-at-parameter :parameters (list address :value))))
       (setf (memory-cell memory address) value)
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 
 ;;; 2.3.3 Arrays and Tables
@@ -489,7 +489,7 @@
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 (define-word create-char (:word "C,")
   "( char - )"
@@ -526,7 +526,7 @@
       (forth-exception :zero-length-name))
     (let* ((address (data-space-high-water-mark memory))
            (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
 
 
 ;;; 2.3.4 Memory Stack Operations
@@ -1381,4 +1381,4 @@
       (forth-exception :zero-length-name))
     (let* ((dict (vocabulary word-lists name))
            (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (list dict))))
-      (add-word (word-lists-compilation-word-list word-lists) word))))
+      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
