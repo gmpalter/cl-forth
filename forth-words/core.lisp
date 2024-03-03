@@ -937,19 +937,21 @@
   "If FLAG is zero, branch to the code immediately following an ELSE if one is present; if ELSE is ommitted, branch"
   "to the point following THEN. If FLAG is true, continue execution with the code immediately following the IF and"
   "branch over any code following an ELSE to the point following THEN"
-  (let ((branch (make-branch-reference)))
+  (let ((branch (make-branch-reference :if)))
     (stack-push control-flow-stack branch)
     (execute-branch fs branch '(falsep (stack-pop data-stack)))))
 
 (define-word then (:word "THEN" :immediate? t :compile-only? t)
   "Mark the point at which the true and false portions of an IF structure merge"
+  (verify-control-structure fs :if)
   (let ((branch (stack-pop control-flow-stack)))
     (resolve-branch fs branch)))
 
 (define-word else (:word "ELSE" :immediate? t :compile-only? t)
   "Mark the end of the true part of a conditional structure, and commence the false part. May be ommitted if there"
   "are no words to be executed in the false case"
-  (let ((branch (make-branch-reference)))
+  (verify-control-structure fs :if)
+  (let ((branch (make-branch-reference :if)))
     (execute-branch fs branch)
     (stack-push control-flow-stack branch))
   (stack-swap control-flow-stack)
@@ -959,11 +961,39 @@
 
 ;;; 4.4 Indefinite Loops
 
-;;; AGAIN
-;;; BEGIN
-;;; REPEAT
-;;; UNTIL
-;;; WHILE
+(define-word begin (:word "BEGIN" :immediate? t :compile-only? t)
+  "Mark the destination of a backward branch for use by the other indefinite structure words AGAIN, UNTIL or REPEAT"
+  (let ((branch (make-branch-reference :begin)))
+    (stack-push control-flow-stack branch)
+    (resolve-branch fs branch)))
+
+(define-word again (:word "AGAIN" :immediate? t :compile-only? t)
+  "Unconditionally branch back to the point immediately following the nearest previous BEGIN"
+  (verify-control-structure fs :begin)
+  (execute-branch fs (stack-pop control-flow-stack)))
+
+(define-word until (:word "UNTIL" :immediate? t :compile-only? t)
+  "If X is zero, branch back to the location immediately following the nearest previous BEGIN; otherwise, continue"
+  "execution beyond the UNTIL"
+  (verify-control-structure fs :begin)
+  (execute-branch fs (stack-pop control-flow-stack) '(falsep (stack-pop data-stack))))
+
+(define-word while (:word "WHILE" :immediate? t :compile-only? t)
+  "( x - )"
+  "If X is zero, branch to the location immediately following the nearest REPEAT; otherwise, continue"
+  "execution beyond the WHILE"
+  (verify-control-structure fs :begin)
+  (let ((branch (make-branch-reference :begin)))
+    (stack-push control-flow-stack branch)
+    (execute-branch fs branch '(falsep (stack-pop data-stack)))))
+
+(define-word repeat (:word "REPEAT" :immediate? t :compile-only? t)
+  "In a BEGIN ... WHILE ... REPEAT structure, unconditionally branch back to the location following the nearest previous BEGIN"
+  (verify-control-structure fs :begin 2)
+  (let ((done (stack-pop control-flow-stack))
+        (again (stack-pop control-flow-stack)))
+    (execute-branch fs again)
+    (resolve-branch fs done)))
 
 
 ;;; 4.5 Counting Loops
@@ -972,8 +1002,8 @@
   "( n1 n2 - )"
   "Establish the loop parameters. This word expects the initial loop index N2 on top of the stack, with the limit value N1"
   "beneath it. These values are removed from the stack and stored on the return stack when DO is executed"
-  (let ((again (make-branch-reference))
-        (done (make-branch-reference)))
+  (let ((again (make-branch-reference :do))
+        (done (make-branch-reference :do)))
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
     (push `(let ((n2 (stack-pop data-stack))
@@ -987,12 +1017,12 @@
   "( n1 n2 - )"
   "Like DO, but check whether the limit value and initial loop index are equal. If they are, continue execution immediately"
   "following the next LOOP or +LOOP; otherwise, set up the loop values and continue execution immediately following ?DO"
-  (let ((again (make-branch-reference))
-        (done (make-branch-reference)))
+  (let ((again (make-branch-reference :do))
+        (done (make-branch-reference :do)))
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
     (push `(stack-underflow-check data-stack 2) (word-inline-forms compiling-word))
-    (execute-branch fs done '(= (stack-cell data-stack 0) (stack-cell data-stack 1)))
+    (execute-branch fs done '(= (stack-c,ell data-stack 0) (stack-cell data-stack 1)))
     (push `(let ((n2 (stack-pop data-stack))
                  (n1 (stack-pop data-stack)))
              (stack-push return-stack n1)
@@ -1004,6 +1034,7 @@
   "Increment the index value by one and compare it with the limit value. If the index value is equal to the limit value,"
   "the loop is terminated, the parameters are discarded, and execution resumes with the next word. Otherwise, control"
   "returns to the word that follows the DO or ?DO that opened the loop"
+  (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
     (push `(incf (stack-cell return-stack 0)) (word-inline-forms compiling-word))
@@ -1018,6 +1049,7 @@
   "( n - )"
   "Like LOOP, but increment the index by the specified signed value n. After incrementing, if the index crossed the"
   "boundary between the loop limit minus one and the loop limit, the loop is terminated as with LOOP."
+  (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
     (push `(incf (stack-cell return-stack 0) (stack-pop data-stack)) (word-inline-forms compiling-word))
@@ -1040,10 +1072,8 @@
   (push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
 
 (define-word leave (:word "LEAVE" :immediate? t :compile-only? t)
-  "Discard loop parameters and continue execution immediately follow- ing the next LOOP or +LOOP containing this LEAVE"
-  (let ((again (stack-pop control-flow-stack))
-        (done (stack-pop control-flow-stack)))
-    (declare (ignore again))
+  "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
+  (let ((done (control-structure-find fs :do 1)))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (execute-branch fs done)))
@@ -1052,8 +1082,6 @@
   "Discard the loop parameters for the current nesting level. This word is not needed when a DO ... LOOP completes normally,"
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
-  (stack-pop control-flow-stack)
-  (stack-pop control-flow-stack)
   (push `(stack-pop return-stack) (word-inline-forms compiling-word))
   (push `(stack-pop return-stack) (word-inline-forms compiling-word)))
 
@@ -1062,7 +1090,7 @@
 
 (define-word case (:word "CASE" :immediate? t :compile-only? t)
   "Mark the start of a CASE ... OF ... ENDOF ... CASE structure"
-  (let ((branch (make-branch-reference)))
+  (let ((branch (make-branch-reference :case)))
     ;; This will be used to branch past the ENDCASE
     (stack-push control-flow-stack branch)))
 
@@ -1070,7 +1098,8 @@
   "( x1 x2 - | x1 )"
   "If the test value X2 is not equal to the case selector X1, discard X2 and branch forward to the code"
   "immediately following the next ENDOF; otherwise, discard both values and continue execution beyond the OF "
-  (let ((branch (make-branch-reference)))
+  (verify-control-structure fs :case)
+  (let ((branch (make-branch-reference :case)))
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
     (execute-branch fs branch '(not (= (stack-pop data-stack) (stack-cell data-stack 0))))
@@ -1078,6 +1107,7 @@
 
 (define-word endof (:word "ENDOF" :immediate? t :compile-only? t)
   "Unconditionally branch to immediately beyond the next ENDCASE"
+  (verify-control-structure fs :case 2)
   (let ((branch (stack-pop control-flow-stack)))
     ;; Branch past the ENDCASE
     (execute-branch fs (stack-cell control-flow-stack 0))
@@ -1086,6 +1116,7 @@
 (define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t)
   "( x - )"
   "Discard the top stack value X (presumably the case selector) and continue execution"
+  (verify-control-structure fs :case)
   (let ((branch (stack-pop control-flow-stack)))
     (push `(stack-pop data-stack) (word-inline-forms compiling-word))
     (resolve-branch fs branch)))

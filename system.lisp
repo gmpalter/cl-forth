@@ -170,8 +170,42 @@
 
 ;;;
 
-(defstruct branch-reference
-  (tag (gensym "CS")))
+(defstruct (branch-reference (:constructor %make-branch-reference))
+  type
+  tag)
+
+(declaim (inline make-branch-reference))
+(defun make-branch-reference (type)
+  (%make-branch-reference :type type :tag (gensym (symbol-name type))))
+
+(define-forth-method verify-control-structure (fs type &optional (n 1))
+  (when (zerop (stack-depth control-flow-stack))
+    (forth-exception :control-mismatch))
+  (unless (loop for i below n
+                always (eq (branch-reference-type (stack-cell control-flow-stack i)) type))
+    (forth-exception :control-mismatch)))
+
+(define-forth-method control-structure-push (fs branch)
+  (stack-push control-flow-stack branch))
+
+(define-forth-method control-structure-find (fs type &optional (n 0))
+  "Find the Nth TYPE entry on the control stack and return it, where N=0 is the most recent entry, etc."
+  (let* ((count 0)
+         (position (stack-find-if #'(lambda (cell) (when (eq (branch-reference-type cell) type)
+                                                     (if (= count n)
+                                                         t
+                                                         (progn (incf count) nil))))
+                                  control-flow-stack)))
+    (if position
+        (stack-cell control-flow-stack position)
+        (forth-exception :control-mismatch))))
+
+(define-forth-method control-structure-pop (fs type)
+  "Find the most recent TYPE entry on the control stack, remove it from the stack, and return it"
+  (let ((n (stack-find-if #'(lambda (cell) (eq (branch-reference-type cell) type)) control-flow-stack)))
+    (if n
+        (stack-snip control-flow-stack n)
+        (forth-exception :control-mismatch))))
 
 (define-forth-method execute-branch (fs branch &optional condition)
   (unless (eq (state fs) :compiling)

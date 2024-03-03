@@ -145,3 +145,20 @@
   (stack-underflow-check st 4)
   (shiftf (stack-cell st 2) (stack-cell st 0) (stack-cell st 2))
   (shiftf (stack-cell st 1) (stack-cell st 3) (stack-cell st 1)))
+
+;;; Control flow stack manipulation
+
+(defmethod stack-find-if (predicate (st stack))
+  (loop for n below (stack-depth st)
+        when (funcall predicate (stack-cell st n))
+          return n))
+
+(defmethod stack-snip ((st stack) n)
+  "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 )"
+  (stack-underflow-check st n)
+  (prog1
+      (let ((cell (stack-cell st n)))
+        (loop for i downfrom (1- n) to 0
+              do (setf (stack-cell st (1+ i)) (stack-cell st i)))
+        cell)
+    (decf (fill-pointer (stack-cells st)))))
