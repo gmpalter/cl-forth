@@ -288,8 +288,8 @@
 (define-word multiply-double (:word "M*")
   "( n1 n2 - d )"
   "Multiply the signed integers N1 and N2 and push the resulting double precision integer D onto the data stack"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (stack-push-double data-stack (* n1 n2))))
 
 (define-word single-to-double (:word "S>D")
