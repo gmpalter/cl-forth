@@ -28,7 +28,6 @@
     (add-state-space memory word-lists)
     (add-state-space memory files)
     (add-space memory (files-source-as-space files))
-    (install-predefined-words word-lists)
     ))
   
 (defmethod state ((fs forth-system))
@@ -136,7 +135,7 @@
         compiling-paused? nil)
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
   (when name
-    (add-word (word-lists-compilation-word-list word-lists) compiling-word :override (zerop show-redefinition-warnings?)))
+    (add-word (word-lists-compilation-word-list word-lists) compiling-word :silent (falsep show-redefinition-warnings?)))
   (setf (state fs) :compiling))
 
 (define-forth-method finish-compilation (fs)

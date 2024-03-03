@@ -10,12 +10,14 @@
   (print-unreadable-object (dict stream :type t :identity t)
     (write-string (dictionary-name dict) stream)))
 
-(defmethod add-word ((dict dictionary) word &key override)
+(defmethod add-word ((dict dictionary) word &key override silent)
   (with-slots (words) dict
     (let ((old (gethash (word-name word) words)))
-      (when (and old (not override))
-        (format t "~A isn't unique. " (word-name word))
-        (setf (word-previous word) old))
+      (when old
+        (unless silent
+          (format t "~A isn't unique. " (word-name word)))
+        (unless override
+          (setf (word-previous word) old)))
       (setf (gethash (word-name word) words) word))))
 
 (defmethod show-words ((dict dictionary))
@@ -44,6 +46,8 @@
 ;;;
 
 (defvar *predefined-words* (make-hash-table :test #'equalp))
+(defvar *saved-search-order* nil)
+(defvar *saved-compilation-word-list* nil)
 
 (defclass word-lists ()
   ((all-word-lists :initform (make-hash-table :test #'equalp))
@@ -57,12 +61,7 @@
   )
 
 (defmethod initialize-instance :after ((wls word-lists) &key &allow-other-keys)
-  (with-slots (all-word-lists forth search-order compilation-word-list) wls
-    (setf forth (word-list wls "FORTH" :if-not-found :create))
-    (setf (gethash "FORTH" all-word-lists) forth)
-    (setf search-order (list forth))
-    (setf compilation-word-list forth)
-    (update-psuedo-state-variables wls)))
+  (reset-word-lists wls))
 
 (defmethod print-object ((wls word-lists) stream)
   (with-slots (all-word-lists) wls
@@ -77,9 +76,37 @@
 (defmethod install-predefined-words ((wls word-lists))
   (maphash #'(lambda (forth-name wl-and-word)
                (declare (ignore forth-name))
-               (let ((wl (word-list wls (car wl-and-word))))
+               (let ((wl (word-list wls (car wl-and-word) :if-not-found :create)))
                  (add-word wl (cdr wl-and-word) :override t)))
            *predefined-words*))
+
+(defmethod reset-word-lists ((wls word-lists))
+  (with-slots (all-word-lists forth search-order compilation-word-list) wls
+    (clrhash all-word-lists)
+    ;; At a minimum, this will create the FORTH word list
+    (install-predefined-words wls)
+    (setf forth (word-list wls "FORTH"))
+    (if *saved-search-order*
+        (setf search-order (loop for wl in *saved-search-order*
+                                 append (word-list wls wl :if-not-found :create)))
+        (setf search-order (list forth)))
+    (if *saved-compilation-word-list*
+        ;; In case the user just creats an empty word list and sets it as the compilation word list before GILDing
+        (setf compilation-word-list (word-list wls *saved-compilation-word-list* :if-not-found :create))
+        (setf compilation-word-list forth))
+    (update-psuedo-state-variables wls)))
+
+(defmethod save-word-lists-state ((wls word-lists))
+  (with-slots (all-word-lists search-order compilation-word-list) wls
+    (clrhash *predefined-words*)
+    (maphash #'(lambda (name dictionary)
+                 (declare (ignore name))
+                 (maphash #'(lambda (forth-name wl-and-word)
+                              (setf (gethash forth-name *predefined-words*) wl-and-word))
+                          dictionary))
+             all-word-lists)
+    (setf *saved-search-order* (map 'list #'dictionary-name search-order))
+    (setf *saved-compilation-word-list* (dictionary-name compilation-word-list))))
 
 (defmethod word-list ((wls word-lists) name &key (if-not-found :error))
   (with-slots (all-word-lists address-to-word-list-map next-psuedo-address) wls
@@ -98,8 +125,9 @@
 (defmethod lookup ((wls word-lists) token)
   (with-slots (search-order) wls
     (loop for dictionary in search-order
-            thereis (let ((word (gethash token (dictionary-words dictionary))))
-                      (and word (not (word-smudge? word)) word)))))
+            thereis (loop for word = (gethash token (dictionary-words dictionary)) then (word-previous word)
+                          while word
+                            thereis (and (not (word-smudge? word)) word)))))
 
 (defmethod also ((wls word-lists))
   (with-slots (search-order) wls

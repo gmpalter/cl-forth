@@ -56,6 +56,11 @@
     (dotimes (i (length all-spaces))
       (space-reset (aref all-spaces i)))))
 
+(defmethod save-memory-state ((memory memory))
+  (with-slots (all-spaces) memory
+    (dotimes (i (length all-spaces))
+      (save-space-state (aref all-spaces i)))))
+
 (defmethod data-space-base-address ((memory memory))
   (with-slots (data-space) memory
     (make-address (space-prefix data-space) 0)))
@@ -234,6 +239,7 @@
       (format stream "prefix=~2,'0X, used=~D" prefix high-water-mark))))
 
 (defgeneric space-reset (space))
+(defgeneric save-space-state (space))
 
 (defgeneric space-allocate (space n-bytes))
 (defgeneric space-align (space))
@@ -256,7 +262,8 @@
 
 (defclass data-space (space)
   ((data :accessor data-space-data)
-   (extension :initform 0))
+   (extension :initform 0)
+   (saved-high-water-mark :initform 0))
   )
 
 (defmethod initialize-instance :after ((sp data-space) &key initial-size &allow-other-keys)
@@ -270,8 +277,15 @@
       (format stream "prefix=~2,'0X, size=~D, used=~D" prefix (length data) high-water-mark))))
 
 (defmethod space-reset ((sp data-space))
-  (setf (space-high-water-mark sp) 0)
+  (with-slots (high-water-mark saved-high-water-mark) sp
+    (setf high-water-mark saved-high-water-mark))
   nil)
+
+(defmethod save-space-state ((sp data-space))
+  (with-slots (high-water-mark saved-high-water-mark) sp
+    (setf saved-high-water-mark high-water-mark))
+  nil)
+
 
 (defmethod space-allocate ((sp data-space) n-bytes)
   (with-slots (prefix high-water-mark data extension) sp
@@ -372,6 +386,9 @@
       (format stream "prefix=~2,'0X, parent=~S" prefix parent))))
 
 (defmethod space-reset ((sp state-space))
+  nil)
+
+(defmethod save-space-state ((sp state-space))
   nil)
 
 (defmethod space-allocate ((sp state-space) n-bytes)

@@ -8,7 +8,19 @@
 
 ;;; 3.1 Interpreting Source Files
 
-;;; OPTIONAL
+(define-word optional (:word "OPTIONAL")
+  "OPTIONAL <name> <description>"
+  "If NAME already exists in the LOADED-OPTIONS wordlist, the rest of the file will be ignored; otherwise, NAME"
+  "will be added to the LOADED-OPTIONS wordlist and loading will continue. Valid only while including a file."
+  (unless (file-input-p files)
+    (forth-exception :optional-not-in-file))
+  (let ((loaded-options (word-list word-lists "LOADED-OPTIONS" :if-not-found :create))
+        (name (word files #\Space)))
+    (if (gethash name (dictionary-words loaded-options))
+        (flush-input-file files)
+        (progn
+          (flush-input-line files)
+          (setf (gethash name (dictionary-words loaded-options)) (make-word name nil :smudge? t))))))
 
 ;;; 3.2 Extended Comments
 
@@ -23,12 +35,28 @@
 
 ;;; 3.3 File-Related Debugging Aids
 
-;;; VERBOSE
-;;; SILENT
+(define-word verbose (:word "VERBOSE")
+  "Enables the INCLUDE monitor, with a default behavior of \"display the text of each line.\""
+  (setf (files-verbose files) t))
+
+(define-word silent (:word "SILENT")
+  "Disables the INCLUDE monitor"
+  (setf (files-verbose files) nil)) 
 
 ;;; 4.1.1 Dictionary Management
 
-;;; EMPTY
+(define-word empty (:word "EMPTY")
+  "Reset the dictionary to a predefined golden state, discarding all definitions and releasing all allocated data space"
+  "beyond that state. The initial golden state of the dictionary is that following the launch of CL-Forth; this may be"
+  "modified using GILD."
+  (reset-word-lists word-lists)
+  (reset-memory memory))
+
+(define-word gild (:word "GILD")
+  "Records the current state of the dictionary as a golden state such that subsequent uses of EMPTY will restore the"
+  "dictionary to this state."
+  (save-word-lists-state word-lists)
+  (save-memory-state memory))
 
 ;;; 4.2.2 Detecting Name Conflicts
 

@@ -13,6 +13,9 @@
 (defmethod space-reset ((sp source-data-space))
   nil)
 
+(defmethod save-space-state ((sp source-data-space))
+  nil)
+
 (defmethod space-allocate ((sp source-data-space) n-bytes)
   (declare (ignore n-bytes))
   (forth-exception :write-to-read-only-memory))
@@ -46,6 +49,7 @@
   ((source-id :initform 0)
    (>in)
    (buffer)
+   (verbose :accessor files-verbose :initform nil)
    (source-id-map :initform (make-hash-table))
    (last-source-id :initform 0)
    (input-stack :initform nil)
@@ -69,6 +73,10 @@
 (defmethod terminal-input-p ((f files))
   (with-slots (source-id) f
     (zerop source-id)))
+
+(defmethod file-input-p ((f files))
+  (with-slots (source-id) f
+    (plusp source-id)))
 
 (defmethod input-available-p ((f files))
   (with-slots (>in buffer) f
@@ -150,13 +158,15 @@
                    (vector-push-extend #\Space parsed))))))
 
 (defmethod refill ((f files))
-  (with-slots (source-id >in buffer source-id-map source-as-space) f
+  (with-slots (source-id >in buffer verbose source-id-map source-as-space) f
     (flet ((fillup (stream)
              (setf (source-data-space-is-valid? source-as-space) nil)
              (let ((line (read-line stream nil :eof)))
                (unless (eq line :eof)
                  (setf buffer line
                        >in 0)
+                 (when (and verbose (plusp source-id))
+                   (write-line buffer))
                  t))))
       (cond ((= source-id -1) nil)
             ((zerop source-id)
