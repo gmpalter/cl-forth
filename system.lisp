@@ -180,10 +180,12 @@
       (push `(when ,condition
                (go ,(branch-reference-tag branch)))
             (word-inline-forms compiling-word))
-      (push `(go ,(branch-reference-tag branch)) (word-inline-forms compiling-word))))
+      (push `(go ,(branch-reference-tag branch)) (word-inline-forms compiling-word)))
+  nil)
 
 (define-forth-method resolve-branch (fs branch)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
-  (push (branch-reference-tag branch) (word-inline-forms compiling-word)))
+  (push (branch-reference-tag branch) (word-inline-forms compiling-word))
+  nil)
 
