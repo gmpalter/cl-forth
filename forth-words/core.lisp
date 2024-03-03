@@ -994,7 +994,7 @@
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
     (execute-branch fs branch '(not (= (stack-pop data-stack) (stack-cell data-stack 0))))
-    (push `(stack-pop data-stack) (word-inline-forms compiling-word)))))
+    (push `(stack-pop data-stack) (word-inline-forms compiling-word))))
 
 (define-word endof (:word "ENDOF" :immediate? t :compile-only? t)
   "Unconditionally branch to immediately beyond the next ENDCASE"
@@ -1127,8 +1127,35 @@
 
 ;;; 6.1.3 Parsing Text in the Input Stream
 
-;;; PARSE
-;;; WORD
+(define-word parse (:word "PARSE")
+  "PARSE <text>" "( char - c-addr u )"
+  "Parse TEXT to the first instance of CHAR, returning the address and length of a temporary location"
+  "containing the parsed text"
+  (let* ((char (stack-pop data-stack))
+         (text (parse files (native-char char)))
+         (length (length text))
+         (address (temp-space-base-address memory)))
+    (ensure-temp-space-holds memory (* length +char-size+))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (native-into-forth-string text forth-memory offset))
+    (stack-push data-stack address)
+    (stack-push data-stack length)))
+
+(define-word word (:word "WORD")
+  "WORD <text>" "( char - c-addr )"
+  "Skip any leading occurences of the delimiter character CHAR. Parse TEXT delimited by CHAR."
+  "Return C-ADDR, the address of a temporary location containing the parsed text as a counted string"
+  (let* ((char (stack-pop data-stack))
+         (text (word files (native-char char)))
+         (length (length text))
+         (address (temp-space-base-address memory)))
+    ;; Length of a counted string is always a single byte regardless of character size
+    (ensure-temp-space-holds memory (1+ (* length +char-size+)))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (native-into-forth-counted-string text forth-memory offset))
+    (stack-push data-stack address)))
 
 
 ;;; 6.2.2 Colon Definitions
