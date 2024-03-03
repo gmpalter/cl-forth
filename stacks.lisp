@@ -40,8 +40,8 @@
   (with-slots (cells) st
     (multiple-value-bind (low high)
         (double-components value)
-      (vector-push-extend high cells)
-      (vector-push-extend low cells))))
+      (vector-push-extend low cells)
+      (vector-push-extend high cells))))
 
 (defmethod stack-pop ((st stack))
   (stack-underflow-check st)
@@ -52,13 +52,13 @@
 (defmethod stack-pop-double ((st stack))
   (stack-underflow-check st 2)
   (prog1
-      (double-cell-signed (stack-cell st 0) (stack-cell st 1))
+      (double-cell-signed (stack-cell st 1) (stack-cell st 0))
     (decf (fill-pointer (stack-cells st)) 2)))
 
 (defmethod stack-pop-double-unsigned ((st stack))
   (stack-underflow-check st 2)
   (prog1
-      (double-cell-unsigned (stack-cell st 0) (stack-cell st 1))
+      (double-cell-unsigned (stack-cell st 1) (stack-cell st 0))
     (decf (fill-pointer (stack-cells st)) 2)))
 
 (defmethod stack-depth ((st stack))
@@ -96,6 +96,14 @@
   "( +n - x )"
   (stack-underflow-check st n)
   (stack-push st (stack-cell st n)))
+
+(defmethod stack-roll ((st stack) n)
+  "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 xn )"
+  (stack-underflow-check st n)
+  (let ((cell (stack-cell st n)))
+    (loop for i downfrom (1- n) to 0
+          do (setf (stack-cell st (1+ i)) (stack-cell st i)))
+    (setf (stack-cell st 0) cell)))
 
 (defmethod stack-rot ((st stack))
   "( x1 x2 x3 - x2 x3 x1 )"

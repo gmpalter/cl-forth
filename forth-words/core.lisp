@@ -236,11 +236,11 @@
 
 (define-word ash-left-1 (:word "2*")
   "( x1 - x2 )"
-  (stack-push data-stack (cell-signed (ash (stack-pop data-stack) 1))))
+  (stack-push data-stack (ash (cell-signed (stack-pop data-stack)) 1)))
 
 (define-word ash-right-1 (:word "2/")
   "( x1 - x2 )"
-  (stack-push data-stack (cell-signed (ash (stack-pop data-stack) -1))))
+  (stack-push data-stack (ash (cell-signed (stack-pop data-stack)) -1)))
 
 (define-word ash-left (:word "LSHIFT")
   "( x1 u - n2 )"
@@ -297,7 +297,7 @@
   "Convert the signed integer N to a signed double precision integer D"
   (stack-push-double data-stack (cell-signed (stack-pop data-stack))))
 
-(define-word truncate-mod (:word "SM/MOD")
+(define-word truncate-mod (:word "SM/REM")
   "( d n1 - n2 n3 )"
   "Divide the double precision integer D by the integer N1 using symmetric division"
   "Push the remainder N2 and quotient N3 onto the data stack"
@@ -326,7 +326,7 @@
           (stack-push data-stack (cell-unsigned remainder))
           (stack-push data-stack (cell-unsigned quotient))))))
 
-(define-word multiply-double (:word "U*")
+(define-word multiply-double (:word "UM*")
   "( u1 u2 - ud )"
   "Multiply the unsigned integers U1 and U2 and push the resulting unsigned double precision integer UD onto the data stack"
   (let ((u2 (cell-unsigned (stack-pop data-stack)))
@@ -356,17 +356,17 @@
 (define-word max (:word "MAX")
   "( n1 n2 - n3)"
   "Push the larger of N1 and N2 onto the data stack"
-  (stack-push data-stack (cell-signed (max (stack-pop data-stack) (stack-pop data-stack)))))
+  (stack-push data-stack (max (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))
 
 (define-word min (:word "MIN")
   "( n1 n2 - n3)"
   "Push the smaller of N1 and N2 onto the data stack"
-  (stack-push data-stack (cell-signed (min (stack-pop data-stack) (stack-pop data-stack)))))
+  (stack-push data-stack (min (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))
 
 (define-word negate (:word "NEGATE")
   "( n1 - n2 )"
   "Change the sign of the top of the data stack"
-  (stack-push data-stack (cell-signed (- (stack-pop data-stack)))))
+  (stack-push data-stack (- (cell-signed (stack-pop data-stack)))))
 
 (define-word or (:word "OR")
   "( x1 x2 - x3 )"
@@ -883,7 +883,7 @@
   " ( n1 n2 - flag )"
   "Return true if N1 is less than N2"
   ;; As the first value popped off the stack is N2, we'll reverse the sense of the test to get the proper answer
-  (stack-push data-stack (if (>= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
+  (stack-push data-stack (if (> (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word not-equal (:word "<>")
   " ( n1 n2 - flag )"
@@ -920,7 +920,7 @@
   " ( u1 u2 - flag )"
   "Return true if U1 is less than U2"
   ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
-  (stack-push data-stack (if (>= (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack)))
+  (stack-push data-stack (if (> (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack)))
                              +true+ +false+)))
 
 (define-word greater-than-unsigned (:word "U>")
@@ -1022,7 +1022,7 @@
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
     (push `(stack-underflow-check data-stack 2) (word-inline-forms compiling-word))
-    (execute-branch fs done '(= (stack-c,ell data-stack 0) (stack-cell data-stack 1)))
+    (execute-branch fs done '(= (stack-cell data-stack 0) (stack-cell data-stack 1)))
     (push `(let ((n2 (stack-pop data-stack))
                  (n1 (stack-pop data-stack)))
              (stack-push return-stack n1)
@@ -1317,6 +1317,50 @@
   "Compile X into the current definition. When executed, push X onto the data stack"
   (let ((value (stack-pop data-stack)))
     (push `(stack-push data-stack ,value) (word-inline-forms compiling-word))))
+
+
+;;; 6.4.1 Making Compiler Directives
+
+(define-word immediate (:word "IMMEDIATE")
+  "Make the most recent definition an immediate word"
+  (when compiling-word
+    (setf (word-immediate? (shiftf compiling-word nil)) t)))
+
+(define-word postpone (:word "POSTPONE" :immediate? t :compile-only? t)
+  "IMMEDIATE <name>"
+  "At compile time, add the compilation behavior of NAME, rather than its execution behavior, to the current definition"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (postpone fs word))))
+
+
+;;; 6.4.2 The Control-flow Stack and Custom Compiling Structures
+
+(define-word ahead (:word "AHEAD" :immediate? t :compile-only? t)
+  "(C: — orig )"
+  "At compile time, begin an unconditional forward branch by placing ORIG (the location of the unresolved branch)"
+  "on the control-flow stack. The behavior is incomplete until the ORIG is resolved, e.g., by THEN."
+  "At run time, resume execution at the location provided by the resolution of this ORIG"
+  (let ((branch (make-branch-reference nil)))
+    (stack-push control-flow-stack branch)
+    (execute-branch fs branch)))
+
+(define-word cs-pick (:word "CS-PICK")
+  "(S: u - ) (C: xu ... x0 - xu ... x0 xu ) "
+  "Place a copy of the uth control-stack entry on the top of the control stack. The zeroth item is on top of the"
+  "control stack; i.e., 0 CS-PICK is equivalent to DUP and 1 CS-PICK is equivalent to OVER."
+  (stack-pick control-flow-stack (cell-unsigned (stack-pop data-stack))))
+
+(define-word cs-roll (:word "CS-ROLL")
+  "(S: u - ) (C: x(u-1) xu x(u+1) ... x0 - x(u-1) x(u+1) ... x0 xu )"
+  "Move the Uth control-stack entry to the top of the stack, pushing down all the control-stack entries in between."
+  "The zeroth item is on top of the stack; i.e., 0 CS-ROLL does nothing, 1 CS-ROLL is equivalent to SWAP, and"
+  "2 CS-ROLL is equivalent to ROT"
+  (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
 
 ;;; 6.6.2 Managing Word Lists

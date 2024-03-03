@@ -309,16 +309,16 @@
     (unless (<= address high-water-mark)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (signed-byte 64)) data))
-      (aref data (ash address +byte-to-cell-shift+)))))
+                      (type (simple-array (unsigned-byte 64)) data))
+      (cell-signed (aref data (ash address +byte-to-cell-shift+))))))
 
 (defmethod (setf cell-at) (value (sp data-space) address)
   (with-slots (data high-water-mark) sp
     (unless (<= address high-water-mark)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (signed-byte 64)) data))
-      (setf (aref data (ash address +byte-to-cell-shift+)) value))))
+                      (type (simple-array (unsigned-byte 64)) data))
+      (setf (aref data (ash address +byte-to-cell-shift+)) (cell-unsigned value)))))
 
 (defmethod cell-unsigned-at ((sp data-space) address)
   (with-slots (data high-water-mark) sp
