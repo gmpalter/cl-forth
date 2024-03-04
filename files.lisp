@@ -53,7 +53,7 @@
    (source-id-map :initform (make-hash-table))
    (last-source-id :initform 0)
    (input-stack :initform nil)
-   (source-stack :initform (make-instance 'stack :initial-size 16
+   (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    (source-as-space :accessor files-source-as-space :initform (make-instance 'source-data-space)))
   )

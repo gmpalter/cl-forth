@@ -1,7 +1,8 @@
 (in-package #:forth)
 
 (defclass stack ()
-  ((cells :accessor stack-cells)
+  ((name :initarg :name :initform "<unnamed>")
+   (cells :accessor stack-cells)
    (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
    (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)))
 
@@ -10,6 +11,11 @@
     (setf cells (make-array initial-size :adjustable t :fill-pointer 0))
     (assert (keywordp underflow-key) ((stack-underflow-key st)) "Value of ~S must be a keyword" :underflow-key)
     (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)))
+
+(defmethod print-object ((sp stack) stream)
+  (with-slots (name) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (write-string name stream))))
 
 (declaim (inline stack-underflow-check))
 (defun stack-underflow-check (st &optional (minimum-depth 1))

@@ -2,14 +2,16 @@
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
-   (data-stack :initform (make-instance 'stack :initial-size 1024
+   (data-stack :initform (make-instance 'stack :name "Data" :initial-size 1024
                                                :underflow-key :stack-underflow :overflow-key :stack-overflow))
-   (return-stack :initform (make-instance 'stack :initial-size 128
+   (return-stack :initform (make-instance 'stack :name "Return" :initial-size 128
                                                  :underflow-key :return-stack-underflow :overflow-key :return-stack-overflow))
-   (control-flow-stack :initform (make-instance 'stack :initial-size 128
+   (control-flow-stack :initform (make-instance 'stack :name "Control-flow"
+                                                       :initial-size 128
                                                        :underflow-key :control-flow-stack-underflow
                                                        :overflow-key :control-flow-stack-overflow))
-   (float-stack :initform (make-instance 'stack :initial-size 32
+   (float-stack :initform (make-instance 'stack :name "Float"
+                                                :initial-size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
