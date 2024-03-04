@@ -26,8 +26,8 @@
         (stack-push data-stack file-id)
         (stack-push data-stack ior)))))
 
-;;; DELETE-FILE
-;;; FLUSH-FILE
+;;;---*** DELETE-FILE
+;;;---*** FLUSH-FILE
 
 (define-word open-file (:word "OPEN-FILE")
   "( c-addr u fam - file-id ior )"
@@ -45,8 +45,8 @@
         (stack-push data-stack file-id)
         (stack-push data-stack ior)))))
 
-;;; RENAME-FILE
-;;; RESIZE-FILE
+;;;---*** RENAME-FILE
+;;;---*** RESIZE-FILE
 
 
 ;;; 5.5.3 File Reading and Writing
@@ -98,11 +98,11 @@
             (t
              (forth-exception :file-not-found "~A not found" filename))))))
     
-;;; READ-FILE
-;;; READ-LINE
-;;; REFILL
-;;; WRITE-FILE
-;;; WRITE-LINE
+;;;---*** READ-FILE
+;;;---*** READ-LINE
+;;;---*** REFILL
+;;;---*** WRITE-FILE
+;;;---*** WRITE-LINE
 
 
 ;;; 5.5.4 File Support Words
@@ -112,9 +112,9 @@
   "Modify the file access method FAM1 to additionally select a binary access method and return the new access method FAM2"
   (stack-push data-stack (logior +binary-mode+ (stack-pop data-stack))))
 
-;;; FILE-POSITION
-;;; FILE-SIZE
-;;; FILE-STATUS
+;;;---*** FILE-POSITION
+;;;---*** FILE-SIZE
+;;;---*** FILE-STATUS
 
 (define-word read-only-file-access-method (:word "R/O")
   "( - fam )"

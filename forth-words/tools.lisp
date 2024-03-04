@@ -52,6 +52,6 @@
 
 ;;; 6.4.2
 
-;;; AHEAD
-;;; CS-PICK
-;;; CS-ROLL
+;;;---*** AHEAD
+;;;---*** CS-PICK
+;;;---*** CS-ROLL

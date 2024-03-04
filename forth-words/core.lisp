@@ -155,7 +155,7 @@
 
 ;;; 2.1.4 Programmer Conveniences
 
-;;; ENVIRONMENT?
+;;;---*** ENVIRONMENT?
 
 
 ;;; 2.2.1 Arithmetic and Shift Operations
@@ -1123,7 +1123,14 @@
 
 ;;; 4.9 Nesting and Un-nesting Structures and Definitions
 
-;;; EXIT
+;;;---*** EXIT
+
+
+;;; 5.1.1 Execution Tokens
+
+;;;---*** '
+;;;---*** [']
+;;;---*** EXECUTE
 
 
 ;;; 5.3 Exception Handling
@@ -1223,8 +1230,8 @@
   "Attempt to fill the input buffer from the current input source, returning true if successful"
   (stack-push data-stack (if (refill files) +true+ +false+)))
 
-;;; RESTORE-INPUT
-;;; SAVE-INPUT
+;;;---*** RESTORE-INPUT
+;;;---*** SAVE-INPUT
 
 (define-word source (:word "SOURCE")
   "( - c-addr u )"
@@ -1268,6 +1275,12 @@
     (stack-push data-stack address)))
 
 
+;;; 6.1.4 Dictionary Searches
+
+;;;---*** >BODY
+;;;---*** FIND
+
+
 ;;; 6.2.2 Colon Definitions
 
 ;; Mark this word as IMMEDIATE so we can catch recursive compilation, probably the result of a missing ";"
@@ -1279,7 +1292,7 @@
       (forth-exception :zero-length-name))
     (begin-compilation fs name)))
 
-;;; :NONAME
+;;;---*** :NONAME
 
 (define-word finish-definition (:word ";" :immediate? t :compile-only? t)
   "Complete the current definition and make it available for use. Align the data space pointer to a cell boundary"
@@ -1293,7 +1306,7 @@
 
 ;;; 6.3.1 The Forth Compiler
 
-;;; COMPILE,
+;;;---*** COMPILE,
 
 (define-state-word state)
 
