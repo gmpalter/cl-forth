@@ -1051,8 +1051,18 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
-    (push `(incf (stack-cell return-stack 0) (stack-pop data-stack)) (word-inline-forms compiling-word))
-    (execute-branch fs again '(< (stack-cell return-stack 0) (stack-cell return-stack 1)))
+    (execute-branch fs again `(let ((increment (cell-signed (stack-pop data-stack))))
+                                (incf (stack-cell return-stack 0) increment)
+                                (cond ((plusp increment)
+                                       (< (stack-cell return-stack 0) (stack-cell return-stack 1)))
+                                      ((minusp increment)
+                                       ;; NOTE: The Forth Standard says "If the loop index did not cross the boundary
+                                       ;;        between the loop limit minus one and the loop limit, continue execution
+                                       ;;        at the beginning of the loop." That means, if the increment is negative,
+                                       ;;        the limit is inclusive rather exclusive.
+                                       (>= (stack-cell return-stack 0) (stack-cell return-stack 1)))
+                                      (t
+                                       (forth-exception :invalid-numeric-argument "Increment to +LOOP cannot be zero")))))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
