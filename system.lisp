@@ -71,11 +71,14 @@
   (reset-interpreter/compiler fs)
   (catch 'bye
     (loop
-      (handler-case
-          (interpreter/compiler fs)
-        (forth-exception (e)
-          (unless (member (forth-exception-key e) '(:abort :quit))
-            (write-line (forth-exception-phrase e)))
+      (restart-case
+          (handler-case
+              (interpreter/compiler fs)
+            (forth-exception (e)
+              (unless (member (forth-exception-key e) '(:abort :quit))
+                (write-line (forth-exception-phrase e)))
+              (reset-interpreter/compiler fs)))
+        (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
           (reset-interpreter/compiler fs))))))
 
 (define-forth-method interpreter/compiler (fs)
