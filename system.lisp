@@ -17,6 +17,7 @@
    state
    (compiling-word :initform nil)
    (compiling-paused? :initform nil)
+   (exit-branch :initform nil)
    (show-redefinition-warnings? :initform +true+)
    (reset-redefinition-warnings? :initform nil)
    (show-definition-code? :initform +false+))
@@ -46,7 +47,7 @@
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack float-stack
                 word-lists files base state compiling-word compiling-paused?
-                show-redefinition-warnings? reset-redefinition-warnings?
+                exit-branch show-redefinition-warnings? reset-redefinition-warnings?
                 show-definition-code?)
        ,fs
      ,@body))
@@ -135,7 +136,8 @@
   (unless (eq (state fs) :interpreting)
     (forth-exception :recursive-compile))
   (setf compiling-word (make-word name nil :smudge? t)
-        compiling-paused? nil)
+        compiling-paused? nil
+        exit-branch (make-branch-reference :exit))
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
   (when name
     (add-word (word-lists-compilation-word-list word-lists) compiling-word :silent (falsep show-redefinition-warnings?)))
@@ -150,14 +152,16 @@
                   (declare (ignorable parameters))
                   (with-forth-system (fs)
                     (tagbody
-                       ,@(reverse (word-inline-forms compiling-word)))))))
+                       ,@(reverse (word-inline-forms compiling-word))
+                       ,(branch-reference-tag exit-branch))))))
     (when (not (zerop show-definition-code?))
       (format t "~&Code for ~A:~%  ~:W~%" (or (word-name compiling-word) "<execution token>") thunk))
     (setf (word-code compiling-word) (compile nil thunk)))
   (setf (word-inline-forms compiling-word) nil)
   (setf (word-smudge? compiling-word) nil)
   ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
-  (setf compiling-paused? nil)
+  (setf compiling-paused? nil
+        exit-branch nil)
   (when (shiftf reset-redefinition-warnings? nil)
     (setf show-redefinition-warnings? +true+))
   (setf (state fs) :interpreting))

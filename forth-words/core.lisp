@@ -1123,7 +1123,12 @@
 
 ;;; 4.9 Nesting and Un-nesting Structures and Definitions
 
-;;;---*** EXIT
+;;; Marked as IMMEDIATE so we can generate the proper code sequence
+(define-word exit (:word "EXIT" :immediate? t)
+  "Return control immediately to the calling definition. Before executing EXIT, a program must remove any items"
+  "explicitly stored on the return stack. If EXIT is called within a DO ... LOOP, UNLOOP must be executed first"
+  "to discard the loop-control parameters"
+  (execute-branch fs exit-branch))
 
 
 ;;; 5.1.1 Execution Tokens
