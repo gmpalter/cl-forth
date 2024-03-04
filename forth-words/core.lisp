@@ -254,11 +254,13 @@
 
 (define-word mod (:word "MOD")
   "( n1 n2 - n3 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
         (forth-exception :divide-by-zero)
-        (stack-push data-stack (cell-signed (mod n1 n2))))))
+        ;; Lisp MOD uses FLOOR to produce its result but, as we're using symmetric division througout,
+        ;; we have to use REM which uses TRUNCATE here to preserve Forth semantics.
+        (stack-push data-stack (cell-signed (rem n1 n2))))))
 
 (define-word ash-right (:word "RSHIFT")
   "( x1 u - n2 )"
@@ -276,7 +278,7 @@
   "( d n1 - n2 n3 )"
   "Divide the double precision integer D by the integer N1 using floored division"
   "Push the remainder N2 and quotient N3 onto the data stack"
-  (let ((n1 (stack-pop data-stack))
+  (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
         (forth-exception :divide-by-zero)
@@ -301,7 +303,7 @@
   "( d n1 - n2 n3 )"
   "Divide the double precision integer D by the integer N1 using symmetric division"
   "Push the remainder N2 and quotient N3 onto the data stack"
-  (let ((n1 (stack-pop data-stack))
+  (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
     (if (zerop n1)
         (forth-exception :divide-by-zero)
@@ -310,15 +312,12 @@
           (stack-push data-stack (cell-signed remainder))
           (stack-push data-stack (cell-signed quotient))))))
 
-(define-word floor-mod (:word "UM/MOD")
+(define-word unsigned-floor-mod (:word "UM/MOD")
   "( ud u1 - u2 u3 )"
   "Divide the unsigned double precision integer UD by the unsigned integer U1"
   "Push the unsigned remainder U2 and unsigned quotient U3 onto the data stack"
-  (let* ((u1 (cell-unsigned (stack-pop data-stack)))
-         (d (stack-pop-double data-stack))
-         (ud (multiple-value-bind (low high)
-                 (double-components d)
-               (double-cell-unsigned low high))))
+  (let ((u1 (cell-unsigned (stack-pop data-stack)))
+        (ud (stack-pop-double-unsigned data-stack)))
     (if (zerop u1)
         (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
@@ -326,7 +325,7 @@
           (stack-push data-stack (cell-unsigned remainder))
           (stack-push data-stack (cell-unsigned quotient))))))
 
-(define-word multiply-double (:word "UM*")
+(define-word unsigned-multiply-double (:word "UM*")
   "( u1 u2 - ud )"
   "Multiply the unsigned integers U1 and U2 and push the resulting unsigned double precision integer UD onto the data stack"
   (let ((u2 (cell-unsigned (stack-pop data-stack)))
