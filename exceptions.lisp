@@ -80,6 +80,7 @@
   (:not-compiling -262 "Not compiling a definition")
   (:parse-integer-failure -263 "Conversion to an integer failed")
   (:optional-not-in-file -264 "OPTIONAL can only be used when including a file")
+  (:no-execution-token -265 "No execution token available")
   )
 
 (define-condition forth-exception (error)

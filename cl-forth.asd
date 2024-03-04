@@ -12,6 +12,7 @@
                (:file "stacks")
                (:file "words")
                (:file "files")
+               (:file "execution-tokens")
                (:file "system")
                (:module "forth-words"
                   :serial nil

@@ -1143,9 +1143,34 @@
 
 ;;; 5.1.1 Execution Tokens
 
-;;;---*** '
-;;;---*** [']
-;;;---*** EXECUTE
+(define-word lookup-xt (:word "'")
+  "' <name>" "( - xt )"
+  "Lookup NAME and return its execution token or abort if not found"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (stack-push data-stack (find-xt execution-tokens name)))))
+
+(define-word lookup-xt-compiled (:word "[']" :immediate? t :compile-only? t)
+  "' <name>" "( - xt )"
+  "Lookup NAME and fetch its execution token. Append code to the current definition to push the execution token onto the stack"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (let ((token (find-xt execution-tokens name)))
+        (push `(stack-push data-stack ,token) (word-inline-forms compiling-word))))))
+
+(define-word execute (:word "EXECUTE")
+  "( i*x xt - j*x )"
+  "Remove XT from the stack and perform the semantics identified by it. Other stack effects are due"
+  "to the worde executed"
+  (execute execution-tokens (stack-pop data-stack) fs))
 
 
 ;;; 5.3 Exception Handling
@@ -1232,7 +1257,8 @@
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (let ((string (forth-string-to-native forth-memory offset count)))
-        (source-push files :evaluate string)))))
+        (source-push files :evaluate string :source-address address)))
+    (interpreter/compiler fs :toplevel? nil)))
 
 (define-word reset-interpreter (:word "QUIT")
   "(S: i*x - ) (R: j*x - )"
@@ -1293,7 +1319,22 @@
 ;;; 6.1.4 Dictionary Searches
 
 ;;;---*** >BODY
-;;;---*** FIND
+
+(define-word find (:word "FIND")
+  "( c-addr - c-addr 0 | xt 1 | xt -1)"
+  "Find the definition named in the counted string at C-ADDR. If the definition is not found, return C-ADDR and zero."
+  "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
+  "otherwise also return minus-one (-1)"
+  (multiple-value-bind (forth-memory offset)
+      (memory-decode-address memory (stack-cell data-stack 0))
+    (multiple-value-bind (xt word)
+        (find-xt-and-word execution-tokens (forth-counted-string-to-native forth-memory offset))
+      (cond (xt
+             (stack-pop data-stack)
+             (stack-push data-stack xt)
+             (stack-push data-stack (if (word-immediate? word) 1 -1)))
+            (t
+             (stack-push data-stack 0))))))
 
 
 ;;; 6.2.2 Colon Definitions

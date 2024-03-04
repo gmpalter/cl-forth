@@ -15,22 +15,25 @@
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
+   (execution-tokens :initform (make-instance 'execution-tokens))
    (base :initform 10)
    state
    (compiling-word :initform nil)
    (compiling-paused? :initform nil)
    (exit-branch :initform nil)
+   (>body-address :initform 0)
    (show-redefinition-warnings? :initform +true+)
    (reset-redefinition-warnings? :initform nil)
    (show-definition-code? :initform +false+))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key &allow-other-keys)
-  (with-slots (memory word-lists files) fs
+  (with-slots (memory word-lists files execution-tokens) fs
     (add-state-space memory fs)
     (add-state-space memory word-lists)
     (add-state-space memory files)
     (add-space memory (files-source-as-space files))
+    (add-space memory execution-tokens)
     ))
   
 (defmethod state ((fs forth-system))
@@ -48,8 +51,8 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack float-stack
-                word-lists files base state compiling-word compiling-paused?
-                exit-branch show-redefinition-warnings? reset-redefinition-warnings?
+                word-lists files execution-tokens base state compiling-word compiling-paused?
+                >body-address exit-branch show-redefinition-warnings? reset-redefinition-warnings?
                 show-definition-code?)
        ,fs
      ,@body))
@@ -84,7 +87,7 @@
         (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
           (reset-interpreter/compiler fs))))))
 
-(define-forth-method interpreter/compiler (fs)
+(define-forth-method interpreter/compiler (fs &key (toplevel? t))
   (loop with first = t
     do (loop for empty = t then nil
              while (input-available-p files)
@@ -130,16 +133,21 @@
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
        (unless (refill files)
-         (if (terminal-input-p files)
-             (throw 'bye nil)
-             (source-pop files)))))
+         (cond ((not toplevel?)
+                (source-pop files)
+                (return-from interpreter/compiler nil))
+               ((terminal-input-p files)
+                (throw 'bye nil))
+               (t
+                (source-pop files))))))
 
 (define-forth-method begin-compilation (fs &optional name)
   (unless (eq (state fs) :interpreting)
     (forth-exception :recursive-compile))
   (setf compiling-word (make-word name nil :smudge? t)
         compiling-paused? nil
-        exit-branch (make-branch-reference :exit))
+        exit-branch (make-branch-reference :exit)
+        >body-address (data-space-high-water-mark memory))
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
   (when name
     (add-word (word-lists-compilation-word-list word-lists) compiling-word :silent (falsep show-redefinition-warnings?)))
@@ -161,12 +169,15 @@
     (setf (word-code compiling-word) (compile nil thunk)))
   (setf (word-inline-forms compiling-word) nil)
   (setf (word-smudge? compiling-word) nil)
-  ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
-  (setf compiling-paused? nil
-        exit-branch nil)
-  (when (shiftf reset-redefinition-warnings? nil)
-    (setf show-redefinition-warnings? +true+))
-  (setf (state fs) :interpreting))
+  (prog1
+      (register-execution-token execution-tokens compiling-word >body-address)
+    ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
+    (setf compiling-paused? nil
+          exit-branch nil
+          >body-address nil)
+    (when (shiftf reset-redefinition-warnings? nil)
+      (setf show-redefinition-warnings? +true+))
+    (setf (state fs) :interpreting)))
 
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)

@@ -49,6 +49,7 @@
   ((source-id :initform 0)
    (>in)
    (buffer)
+   (source-address :initform nil)
    (verbose :accessor files-verbose :initform nil)
    (source-id-map :initform (make-hash-table))
    (last-source-id :initform 0)
@@ -61,13 +62,15 @@
 (defstruct saved-source
   (id 0)
   (>in 0)
-  (buffer ""))
+  (buffer "")
+  (source-address nil))
 
 (defmethod reset-input ((f files))
-  (with-slots (source-id >in buffer source-stack) f
+  (with-slots (source-id >in buffer source-address source-stack) f
     (setf source-id 0
           >in 0
-          buffer "")
+          buffer ""
+          source-address nil)
     (stack-reset source-stack)))
 
 (defmethod terminal-input-p ((f files))
@@ -174,31 +177,34 @@
             (t
              (fillup (gethash source-id source-id-map)))))))
 
-(defmethod source-push ((f files) &key file-id evaluate)
+(defmethod source-push ((f files) &key file-id evaluate ((:source-address source-address-override)))
   (assert (not (and file-id evaluate)) () "Pass ~S or ~S but not both to ~S" :file-id :evaluate 'source-push)
-  (with-slots (source-id >in buffer source-stack source-as-space) f
-    (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer)))
+  (with-slots (source-id >in buffer source-address source-stack source-as-space) f
+    (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer :source-address source-address)))
       (stack-push source-stack ss)
       ;; SOURCE-ID for EVALUATE is always -1
       (setf source-id (or file-id -1)
             >in 0
-            buffer (or evaluate ""))
+            buffer (or evaluate "")
+            ;; SOURCE should return the user's buffer address for EVALUATE
+            source-address source-address-override)
       (setf (source-data-space-is-valid? source-as-space) nil))))
 
 (defmethod source-pop ((f files))
-  (with-slots (source-id >in buffer source-stack) f
+  (with-slots (source-id >in buffer source-address source-stack) f
     (when (plusp source-id)
       (forth-close-file f source-id))
     (let ((ss (stack-pop source-stack)))
       (setf source-id (saved-source-id ss)
             >in (saved-source->in ss)
-            buffer (saved-source-buffer ss)))))
+            buffer (saved-source-buffer ss)
+            source-address (saved-source-source-address ss)))))
 
 (defmethod access-source-buffer ((f files))
-  (with-slots (buffer source-as-space) f
+  (with-slots (buffer source-address source-as-space) f
     (unless (source-data-space-is-valid? source-as-space)
       (update-source-data-space source-as-space buffer))
-    (values (make-address (space-prefix source-as-space) 0) (space-high-water-mark source-as-space))))
+    (values (or source-address (make-address (space-prefix source-as-space) 0)) (space-high-water-mark source-as-space))))
 
 
 ;;;
