@@ -605,7 +605,7 @@
   (let ((byte (ldb (byte 8 0) (stack-pop data-stack)))
         (count (stack-pop data-stack))
         (address (stack-pop data-stack)))
-    (unless (plusp count)
+    (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to FILL can't be negative"))
     (memory-fill memory address count byte)))
 
@@ -615,7 +615,7 @@
   (let ((count (stack-pop data-stack))
         (destination (stack-pop data-stack))
         (source (stack-pop data-stack)))
-    (unless (plusp count)
+    (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to MOVE can't be negative"))
     (memory-copy memory source destination count)))
 
