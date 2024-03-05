@@ -1318,7 +1318,10 @@
 
 ;;; 6.1.4 Dictionary Searches
 
-;;;---*** >BODY
+(define-word >body (:word ">BODY")
+  "( xt - a-addr )"
+  "Return A-ADDR which is the data-field address corresponding to XT"
+  (stack-push data-stack (find-body execution-tokens (stack-pop data-stack))))
 
 (define-word find (:word "FIND")
   "( c-addr - c-addr 0 | xt 1 | xt -1)"
@@ -1339,8 +1342,7 @@
 
 ;;; 6.2.2 Colon Definitions
 
-;; Mark this word as IMMEDIATE so we can catch recursive compilation, probably the result of a missing ";"
-(define-word start-definition (:word ":" :immediate? t)
+(define-word start-definition (:word ":")
   ": <name>"
   "Create a definition for <name>. Enter compilation state and start compiling the definition."
   (let ((name (word files #\Space)))
