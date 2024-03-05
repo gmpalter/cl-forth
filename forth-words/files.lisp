@@ -126,7 +126,7 @@
   "Return the read/write file access method"
   (stack-push data-stack (logior +read-direction+ +write-direction+)))
 
-;;; REPOSITION-FILE
+;;;---*** REPOSITION-FILE
 
 (define-word write-only-file-access-method (:word "W/O")
   "( - fam )"
