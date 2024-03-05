@@ -1366,6 +1366,11 @@
   (push `(forth-call fs ,compiling-word) (word-inline-forms compiling-word)))
 
 
+;;; 6.2.4 Custom Defining Words
+
+;;;---*** DOES>
+
+
 ;;; 6.3.1 The Forth Compiler
 
 ;;;---*** COMPILE,
