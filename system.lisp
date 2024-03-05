@@ -151,7 +151,8 @@
   ;; :NONAME creates a word without a name and places its "execution token" on the data stack
   (when name
     (add-word (word-lists-compilation-word-list word-lists) compiling-word :silent (falsep show-redefinition-warnings?)))
-  (setf (state fs) :compiling))
+  (setf (state fs) :compiling)
+  (register-execution-token execution-tokens compiling-word >body-address))
 
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)
@@ -169,15 +170,13 @@
     (setf (word-code compiling-word) (compile nil thunk)))
   (setf (word-inline-forms compiling-word) nil)
   (setf (word-smudge? compiling-word) nil)
-  (prog1
-      (register-execution-token execution-tokens compiling-word >body-address)
-    ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
-    (setf compiling-paused? nil
-          exit-branch nil
-          >body-address nil)
-    (when (shiftf reset-redefinition-warnings? nil)
-      (setf show-redefinition-warnings? +true+))
-    (setf (state fs) :interpreting)))
+  ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
+  (setf compiling-paused? nil
+        exit-branch nil
+        >body-address nil)
+  (when (shiftf reset-redefinition-warnings? nil)
+    (setf show-redefinition-warnings? +true+))
+  (setf (state fs) :interpreting))
 
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)

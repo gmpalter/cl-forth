@@ -1350,7 +1350,11 @@
       (forth-exception :zero-length-name))
     (begin-compilation fs name)))
 
-;;;---*** :NONAME
+(define-word start-anonymous-definition (:word ":NONAME")
+  "( - xt )"
+  "Create an execution token XT, enter compilation state and start the current definition"
+  "This definition can be executed later by using XT EXECUTE"
+  (stack-push data-stack (begin-compilation fs)))
 
 (define-word finish-definition (:word ";" :immediate? t :compile-only? t)
   "Complete the current definition and make it available for use. Align the data space pointer to a cell boundary"
