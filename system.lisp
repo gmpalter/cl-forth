@@ -182,11 +182,13 @@
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)
          (push `(forth-call fs ,word) (word-inline-forms compiling-word)))
-        ((word-inlineable? word)
-         (setf (word-inline-forms compiling-word)
-               (append (word-inline-forms word) (word-inline-forms compiling-word))))
         (t
-         (push `(forth-call fs ,word) (word-inline-forms compiling-word)))
+         (push `(case (state fs)
+                  (:interpreting
+                   (forth-call fs ,word))
+                  (:compiling
+                   (push '(forth-call fs ,word) (word-inline-forms compiling-word))))
+               (word-inline-forms compiling-word)))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
         ;; (forth-exception :invalid-postpone))
