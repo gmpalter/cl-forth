@@ -81,6 +81,8 @@
   (:parse-integer-failure -263 "Conversion to an integer failed")
   (:optional-not-in-file -264 "OPTIONAL can only be used when including a file")
   (:no-execution-token -265 "No execution token available")
+  (:recursive-pictured-output -266 "Pictured output already in progress")
+  (:no-pictured-output -267 "Pictured output not in progress")
   )
 
 (define-condition forth-exception (error)

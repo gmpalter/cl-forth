@@ -68,6 +68,7 @@
   (stack-reset control-flow-stack)
   (stack-reset float-stack)
   (reset-input files)
+  (reset-pictured-buffer memory)
   (setf (state fs) :interpreting)
   (setf compiling-word nil)
   (setf compiling-paused? nil)
@@ -85,6 +86,7 @@
             (forth-exception (e)
               (unless (member (forth-exception-key e) '(:abort :quit))
                 (write-line (forth-exception-phrase e)))
+              (clear-input)
               (reset-interpreter/compiler fs)))
         (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
           (reset-interpreter/compiler fs))))))
@@ -122,7 +124,7 @@
                                (forth-call fs value))
                               ((word-inlineable? value)
                                (setf (word-inline-forms compiling-word)
-                                     (append (word-inline-forms value) (word-inline-forms compiling-word))))
+                                     (append (reverse (word-inline-forms value)) (word-inline-forms compiling-word))))
                               (t
                                (push `(forth-call fs ,value) (word-inline-forms compiling-word)))))
                        (:single

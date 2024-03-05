@@ -17,17 +17,21 @@
 
 ;;;
 
+(defconstant +data-space-size+ (expt 2 20))
 (defconstant +pad-and-temp-space-size+ 1024)
-
+(defconstant +pictured-buffer-size+ 256)
+ 
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :initial-element nil))
-   (data-space :initform (make-instance 'data-space :initial-size (expt 2 20)))
+   (data-space :initform (make-instance 'data-space :initial-size +data-space-size+))
    (pad :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
-   (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+)))
+   (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
+   (pictured-buffer :reader memory-pictured-buffer
+                    :initform (make-instance 'pictured-buffer :initial-size +pictured-buffer-size+)))
   )
 
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
-  (with-slots (all-spaces data-space pad temp-space) memory
+  (with-slots (all-spaces data-space pad temp-space pictured-buffer) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
       (setup (make-instance 'data-space :initial-size 0))
@@ -35,7 +39,8 @@
       (setup pad)
       ;; FILL, MOVE, ERASE, and BLANK all check the high water mark to decide if the operation is valid
       (setf (space-high-water-mark pad) +pad-and-temp-space-size+)
-      (setup temp-space))))
+      (setup temp-space)
+      (setup pictured-buffer))))
 
 (defmethod print-object ((memory memory) stream)
   (with-slots (all-spaces) memory
@@ -60,6 +65,10 @@
   (with-slots (all-spaces) memory
     (dotimes (i (length all-spaces))
       (save-space-state (aref all-spaces i)))))
+
+(defmethod reset-pictured-buffer ((memory memory))
+  (with-slots (pictured-buffer) memory
+    (space-reset pictured-buffer)))
 
 (defmethod data-space-base-address ((memory memory))
   (with-slots (data-space) memory
@@ -367,6 +376,55 @@
 (defmethod space-decode-address ((sp data-space) address)
   (with-slots (data) sp
     (values data address)))
+
+
+;;;
+
+(defclass pictured-buffer (data-space)
+  ((active? :accessor pictured-buffer-active? :initform nil)
+   (used :initform 0))
+  )
+
+(defmethod initialize-instance :after ((pb pictured-buffer) &key &allow-other-keys)
+  (with-slots (data high-water-mark) pb
+    ;; All memory operations check the high water mark to decide if the operation is valid
+    ;; As we fill the buffer from the end towards the front, we have to claim its all "in use"
+    (setf high-water-mark (length data))))
+
+(defmethod print-object ((pb pictured-buffer) stream)
+  (with-slots (prefix high-water-mark used active?) pb
+    (print-unreadable-object (pb stream :type t :identity t)
+      (format stream "prefix=~2,'0X, size=~D, used=~D~@[, active~]" prefix high-water-mark used active?))))
+
+(defmethod space-reset ((pb pictured-buffer))
+  (with-slots (data high-water-mark used) pb
+      (setf high-water-mark (length data)
+            used 0)))
+
+(defmethod space-allocate ((pb pictured-buffer) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :pictured-output-overflow))
+
+(defmethod start-pictured-buffer ((pb pictured-buffer))
+  (with-slots (active? used) pb
+    (when active?
+      (forth-exception :recursive-pictured-output))
+    (setf used 0
+          active? t)))
+
+(defmethod add-to-pictured-buffer ((pb pictured-buffer) forth-char)
+  (with-slots (high-water-mark used) pb
+    (when (= used high-water-mark)
+      (forth-exception :pictured-output-overflow))
+    (prog1
+        (setf (byte-at pb (- high-water-mark used 1)) forth-char)
+      (incf used))))
+
+(defmethod finish-pictured-buffer ((pb pictured-buffer))
+  (with-slots (active? prefix high-water-mark used) pb
+    (setf active? nil)
+    (let ((idx (- high-water-mark used)))
+      (values (make-address prefix idx) used))))
 
 
 ;;;

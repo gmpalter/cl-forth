@@ -2,7 +2,7 @@
 
 (defclass source-data-space (data-space)
   ((is-valid? :accessor source-data-space-is-valid? :initform nil))
-  (:default-initargs :initial-size (expt 2 20)))
+  (:default-initargs :initial-size +data-space-size+))
 
 (defmethod update-source-data-space ((sp source-data-space) buffer)
   (with-slots (data high-water-mark is-valid?) sp

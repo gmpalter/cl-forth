@@ -858,16 +858,64 @@
 
 ;;; 3.6.2.2 Pictured Number Conversion
 
-;;;---*** <#
-;;;---*** #
-;;;---*** #S
-;;;---*** SIGN
-;;;---*** #>
+(define-word start-pictured (:word "<#")
+  "Initialize the pictured numeric output conversion process"
+  (start-pictured-buffer (memory-pictured-buffer memory)))
+
+(define-word add-digit-to-picture-buffer (:word "#")
+  "( ud1 – ud2 )"
+  "Divide UD1 by the number in BASE giving the quotient UD2 and the remainder N. (N is the least significant digit of UD1.)"
+  "Convert N to external form and add the resulting character to the beginning of the pictured numeric output string"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "Can't use # outside <# ... #>"))
+  (let ((ud1 (stack-pop-double-unsigned data-stack)))
+    (multiple-value-bind (ud2 digit)
+        (floor ud1 base)
+      (add-to-pictured-buffer (memory-pictured-buffer memory) (forth-char (digit-char digit base)))
+      (stack-push-double data-stack ud2))))
+
+(define-word add-digits-to-picture-buffer (:word "#S")
+  "( ud1 – ud2 )"
+  "Convert one digit of UD1 according to the rule for #. Continue conversion until the quotient is zero. UD2 is zero"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "Can't use #S outside <# ... #>"))
+  (let ((ud1 (stack-pop-double-unsigned data-stack)))
+    (loop do (multiple-value-bind (ud2 digit)
+                 (floor ud1 base)
+               (add-to-pictured-buffer (memory-pictured-buffer memory) (forth-char (digit-char digit base)))
+               (setf ud1 ud2))
+          until (zerop ud1))
+    (stack-push-double data-stack 0)))
+
+(define-word add-sign-to-picture-buffer (:word "SIGN")
+  "( n - )"
+  "If N is negative, add a minus sign to the beginning of the pictured numeric output string"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "Can't use SIGN outside <# ... #>"))
+  (when (minusp (cell-signed (stack-pop data-stack)))
+    (add-to-pictured-buffer (memory-pictured-buffer memory) (forth-char #\-))))
+
+(define-word finish-pictured (:word "#>")
+  "( xd - c-addr u)"
+  "Drop XD. Make the pictured numeric output string available as a character string."
+  "C-ADDR and U specify the resulting character string"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "#> without matching <#"))
+  (stack-pop-double data-stack)
+  (multiple-value-bind (c-addr u)
+      (finish-pictured-buffer (memory-pictured-buffer memory))
+    (stack-push data-stack c-addr)
+    (stack-push data-stack u)))
 
 
 ;;; 3.6.2.4 Using Pictured Fill Characters
 
-;;;---*** HOLD
+(define-word add-char-to-picture-buffer (:word "HOLD")
+  "( char - )"
+  "Add char to the beginning of the pictured numeric output string"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "Can't use HOLD outside <# ... #>"))
+  (add-to-pictured-buffer (memory-pictured-buffer memory) (stack-pop data-stack)))
 
 
 ;;; 4.2 Comparison and Testing Operations
