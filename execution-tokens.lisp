@@ -48,6 +48,8 @@
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
+      (when (null (word-creating-word? (xt-word xt)))
+        (forth-exception :invalid->body))
       (xt->body xt))))
 
 (defmethod space-reset ((sp execution-tokens))
@@ -60,7 +62,7 @@
 
 (defmethod save-space-state ((xts execution-tokens))
   (with-slots (high-water-mark name-to-xt-map token-to-xt-map
-               saved-high-water-mark saved-name-to-xt-map saved-token-to-xt-map) sp
+               saved-high-water-mark saved-name-to-xt-map saved-token-to-xt-map) xts
     (setf saved-high-water-mark high-water-mark
           saved-name-to-xt-map name-to-xt-map
           saved-token-to-xt-map token-to-xt-map))

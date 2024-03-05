@@ -402,8 +402,8 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word))))
 
 (define-word cvariable (:word "CVARIABLE")
   "CVARIABLE <name>"
@@ -413,8 +413,8 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word))))
 
 
 ;;; 2.3.2.2 Constants and Values
@@ -427,7 +427,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+      (add-and-register-word fs word))))
 
 (defun push-cell-at-parameter (fs &rest parameters)
   (with-forth-system (fs)
@@ -443,9 +443,9 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
-           (word (make-word name #'push-cell-at-parameter :parameters (list address :value))))
+           (word (make-word name #'push-cell-at-parameter :parameters (list address :value) :creating-word? t)))
       (setf (memory-cell memory address) value)
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+      (add-and-register-word fs word))))
 
 
 ;;; 2.3.3 Arrays and Tables
@@ -487,8 +487,8 @@
       (forth-exception :zero-length-name))
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word))))
 
 (define-word create-char (:word "C,")
   "( char - )"
@@ -524,8 +524,8 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((address (data-space-high-water-mark memory))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word))))
 
 
 ;;; 2.3.4 Memory Stack Operations
@@ -856,6 +856,20 @@
     (format t "~V,VR" base width value)))
 
 
+;;; 3.6.2.2 Pictured Number Conversion
+
+;;;---*** <#
+;;;---*** #
+;;;---*** #S
+;;;---*** SIGN
+;;;---*** #>
+
+
+;;; 3.6.2.4 Using Pictured Fill Characters
+
+;;;---*** HOLD
+
+
 ;;; 4.2 Comparison and Testing Operations
 
 (define-word minusp (:word "0<")
@@ -938,7 +952,7 @@
   "branch over any code following an ELSE to the point following THEN"
   (let ((branch (make-branch-reference :if)))
     (stack-push control-flow-stack branch)
-    (execute-branch fs branch '(falsep (stack-pop data-stack)))))
+    (execute-branch fs branch '(falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word then (:word "THEN" :immediate? t :compile-only? t)
   "Mark the point at which the true and false portions of an IF structure merge"
@@ -975,7 +989,7 @@
   "If X is zero, branch back to the location immediately following the nearest previous BEGIN; otherwise, continue"
   "execution beyond the UNTIL"
   (verify-control-structure fs :begin)
-  (execute-branch fs (stack-pop control-flow-stack) '(falsep (stack-pop data-stack))))
+  (execute-branch fs (stack-pop control-flow-stack) '(falsep (cell-unsigned (stack-pop data-stack)))))
 
 (define-word while (:word "WHILE" :immediate? t :compile-only? t)
   "( x - )"
@@ -984,7 +998,7 @@
   (verify-control-structure fs :begin)
   (let ((branch (make-branch-reference :begin)))
     (stack-push control-flow-stack branch)
-    (execute-branch fs branch '(falsep (stack-pop data-stack)))))
+    (execute-branch fs branch '(falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word repeat (:word "REPEAT" :immediate? t :compile-only? t)
   "In a BEGIN ... WHILE ... REPEAT structure, unconditionally branch back to the location following the nearest previous BEGIN"
@@ -1190,6 +1204,11 @@
     (push `(when (truep (stack-pop data-stack))
              (forth-exception :abort\" "~@[In ~A: ~]~A" ,(word-name compiling-word) ,message))
           (word-inline-forms compiling-word))))
+
+
+;;; 5.4.1 Terminal Input
+
+;;;---*** ACCEPT
 
 
 ;;; 5.4.2 Terminal Output
@@ -1454,10 +1473,10 @@
 
 (define-word create-word-list (:word "VOCABULARY")
   "VOCABULARY <name>"
-  "Create an empty word list and define NAME to to replace the first word list in the sarch order with this new list"
+  "Create an empty word list and define NAME to replace the first word list in the sarch order with this new list"
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((dict (vocabulary word-lists name))
            (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (list dict))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+      (add-and-register-word fs word))))

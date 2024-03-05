@@ -108,7 +108,7 @@
             if (< >in buffer-len)
               do (loop-finish)
             else
-              do (when (if (plusp source-id)
+              do (when (if (and (plusp source-id) (not whitespace-delimiter-p))
                            (null (refill f))
                            t)
                    (return-from word nil)))

@@ -73,8 +73,10 @@
   (setf compiling-paused? nil)
   )
 
-(define-forth-method toplevel (fs)
+(define-forth-method toplevel (fs &key evaluate)
   (reset-interpreter/compiler fs)
+  (when evaluate
+    (source-push files :evaluate evaluate))
   (catch 'bye
     (loop
       (restart-case
@@ -146,13 +148,16 @@
     (forth-exception :recursive-compile))
   (setf compiling-word (make-word name nil :smudge? t)
         compiling-paused? nil
-        exit-branch (make-branch-reference :exit)
-        >body-address (data-space-high-water-mark memory))
-  ;; :NONAME creates a word without a name and places its "execution token" on the data stack
-  (when name
-    (add-word (word-lists-compilation-word-list word-lists) compiling-word :silent (falsep show-redefinition-warnings?)))
+        exit-branch (make-branch-reference :exit))
   (setf (state fs) :compiling)
-  (register-execution-token execution-tokens compiling-word >body-address))
+  (if name
+      (add-and-register-word fs compiling-word)
+      ;; :NONAME creates a word without a name and places its "execution token" on the data stack
+      (register-execution-token execution-tokens compiling-word >body-address)))
+
+(define-forth-method add-and-register-word (fs word)
+  (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
+  (register-execution-token execution-tokens word (data-space-high-water-mark memory)))
 
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)

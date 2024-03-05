@@ -8,6 +8,15 @@
     (setf *fs* fs)
     (toplevel fs)))
 
+(defun run-tests ()
+  (write-line "CL-Forth 0.9")
+  (let ((*default-pathname-defaults* (probe-file "../cl-forth-tests/"))
+        (fs (make-instance 'forth-system)))
+    (setf *fs* fs)
+    (with-input-from-string (text "The quick brown fox jumped over the lazy red dog.")
+      (let ((*standard-input* (make-concatenated-stream text *standard-input*)))
+        (toplevel fs :evaluate "INCLUDE cl-forth-tests")))))
+
 (defun hex (n)
   (format nil "~X" n))
 

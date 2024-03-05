@@ -106,8 +106,8 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word))))
 
 
 ;;; 2.3.2.2 Constants and Values
@@ -124,7 +124,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
-      (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?)))))
+      (add-and-register-word fs word))))
 
 
 ;;; 3.6.2 Numeric Output
