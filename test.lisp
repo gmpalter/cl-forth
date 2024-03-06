@@ -13,7 +13,7 @@
   (let ((*default-pathname-defaults* (probe-file "../cl-forth-tests/"))
         (fs (make-instance 'forth-system)))
     (setf *fs* fs)
-    (with-input-from-string (text "The quick brown fox jumped over the lazy red dog.")
+    (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
       (let ((*standard-input* (make-concatenated-stream text *standard-input*)))
         (toplevel fs :evaluate (format nil "~@[ VERBOSE~] INCLUDE cl-forth-tests" verbose?))))))
 
