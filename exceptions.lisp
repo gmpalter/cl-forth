@@ -1,14 +1,14 @@
 (in-package #:forth)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
 (defvar *forth-exceptions-map* (make-hash-table))
-)
 
 (defmacro define-forth-exceptions (&body body)
-  (dolist (exception body)
-    (destructuring-bind (key code default-phrase)
-        exception
-      (setf (gethash key *forth-exceptions-map*) (list code default-phrase)))))
+  `(progn
+    (clrhash *forth-exceptions-map*)
+    (dolist (exception ',body)
+      (destructuring-bind (key code default-phrase)
+          exception
+        (setf (gethash key *forth-exceptions-map*) (list code default-phrase))))))
 
 (define-forth-exceptions
   (:abort -1 "ABORT")
