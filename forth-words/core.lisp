@@ -19,11 +19,11 @@
 
 (define-word comment (:word "(" :immediate? t)
   "Ignore all text up to and including the next close parenthesis"
-  (word files #\)))
+  (word files #\) :multiline? t))
 
 (define-word displayed-comment (:word ".(" :immediate? t)
   "Display without interpretation all text up to the next close parenthesis on the console"
-  (let ((comment (word files #\))))
+  (let ((comment (word files #\) :multiline? t)))
     (write-line comment)))
 
 (define-word rest-of-line-comment (:word "\\" :immediate? t)
