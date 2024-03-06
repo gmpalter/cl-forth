@@ -529,6 +529,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
+    (align-memory memory)
     (let* ((address (data-space-high-water-mark memory))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
       (add-and-register-word fs word))))
