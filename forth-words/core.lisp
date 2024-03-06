@@ -1053,13 +1053,14 @@
   (verify-control-structure fs :begin)
   (let ((branch (make-branch-reference :begin)))
     (stack-push control-flow-stack branch)
+    (stack-roll control-flow-stack 1)
     (execute-branch fs branch '(falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word repeat (:word "REPEAT" :immediate? t :compile-only? t)
   "In a BEGIN ... WHILE ... REPEAT structure, unconditionally branch back to the location following the nearest previous BEGIN"
   (verify-control-structure fs :begin 2)
-  (let ((done (stack-pop control-flow-stack))
-        (again (stack-pop control-flow-stack)))
+  (let ((again (stack-pop control-flow-stack))
+        (done (stack-pop control-flow-stack)))
     (execute-branch fs again)
     (resolve-branch fs done)))
 

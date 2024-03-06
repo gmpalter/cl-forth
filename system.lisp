@@ -225,8 +225,13 @@
   (%make-branch-reference :type type :tag (gensym (symbol-name type))))
 
 (define-forth-method verify-control-structure (fs type &optional (n 1))
+  (declare (ignore type n))
   (when (zerop (stack-depth control-flow-stack))
     (forth-exception :control-mismatch))
+  ;; Forth allows you to mix and match control structures. For example,
+  ;;   : GI5 BEGIN DUP 2 > WHILE DUP 5 < WHILE DUP 1+ REPEAT 123 ELSE 345 THEN ;
+  ;;   3 GI5 => 3 4 5 123
+  #+ignore
   (unless (loop for i below n
                 always (eq (branch-reference-type (stack-cell control-flow-stack i)) type))
     (forth-exception :control-mismatch)))
