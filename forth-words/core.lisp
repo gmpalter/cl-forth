@@ -472,19 +472,25 @@
                     (+ addr (- +cell-size+ (mod addr +cell-size+)))))))
 
 (define-word allocate (:word "ALLOT")
-  "( u - )"
-  "Allocate U bytes of data space beginning at the next available location"
-  (let ((count (stack-pop data-stack)))
-    (unless (plusp count)
-      (forth-exception :invalid-numeric-argument "Byte count to ALLOT can't be negative"))
-    (allocate-memory memory count)))
+  "( n - )"
+  "If N is greater than zero, reserve N address units of data space. If N is less than zero, release abs(N) address units"
+  "of data space. If N is zero, leave the data-space pointer unchanged."
+  (let ((count (cell-signed (stack-pop data-stack))))
+    (cond ((plusp count)
+           (allocate-memory memory count))
+          ((minusp count)
+           (deallocate-memory memory (abs count)))
+          ((zerop count)
+           nil))))
 
 (define-word create-buffer (:word "BUFFER:")
-  "BUFFER: <name>" "( n - )"
-  "Reserve N bytes of memory and create a dictionary entry for <name> that returns the address of the first byte"
+  "BUFFER: <name>" "( u - )"
+  "Reserve U bytes of memory at an aligned address and create a dictionary entry for <NAME>"
+  "that returns the address of the first byte"
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
+    (align-memory memory)
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))

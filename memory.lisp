@@ -103,6 +103,10 @@
   (with-slots (data-space) memory
     (space-allocate data-space n-bytes)))
 
+(defmethod deallocate-memory ((memory memory) n-bytes)
+  (with-slots (data-space) memory
+    (space-deallocate data-space n-bytes)))
+ 
 (defmethod align-memory ((memory memory))
   (with-slots (data-space) memory
     (space-align data-space)))
@@ -251,6 +255,7 @@
 (defgeneric save-space-state (space))
 
 (defgeneric space-allocate (space n-bytes))
+(defgeneric space-deallocate (space n-bytes))
 (defgeneric space-align (space))
 
 (defgeneric cell-at (space address))
@@ -295,7 +300,6 @@
     (setf saved-high-water-mark high-water-mark))
   nil)
 
-
 (defmethod space-allocate ((sp data-space) n-bytes)
   (with-slots (prefix high-water-mark data extension) sp
     (let ((address (make-address prefix high-water-mark)))
@@ -307,6 +311,10 @@
           (setf data new)))
       (incf high-water-mark n-bytes)
       address)))
+
+(defmethod space-deallocate ((sp data-space) n-bytes)
+  (with-slots (high-water-mark) sp
+    (decf high-water-mark (min high-water-mark n-bytes))))
 
 (defmethod space-align ((sp data-space))
   (with-slots (high-water-mark) sp
