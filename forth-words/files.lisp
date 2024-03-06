@@ -68,9 +68,10 @@
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (let ((filename (forth-string-to-native forth-memory offset length)))
-        (unless (let ((pos (search ".4th" filename :from-end t)))
-                  (and pos (= pos (- (length filename) (length ".4th")))))
-          (setf filename (concatenate 'string filename ".4th")))
+        ;; NOTE: Unlike INCLUDE, do not add the ".4th" file type to the filename
+        ;;(unless (let ((pos (search ".4th" filename :from-end t)))
+        ;;          (and pos (= pos (- (length filename) (length ".4th")))))
+        ;;  (setf filename (concatenate 'string filename ".4th")))
         (multiple-value-bind (file-id ior)
             (forth-open-file files filename +read-direction+)
           (cond ((zerop ior)
