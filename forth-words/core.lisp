@@ -1256,9 +1256,30 @@
 
 ;;; 5.4.1 Terminal Input
 
-;;;---*** ACCEPT
+(define-word accept (:word "ACCEPT")
+  "( c-addr +n1 – +n2 )"
+  "Receive a string of at most +N1 characters. Input terminates when an implementation-defined line terminator is received."
+  "When input terminates, nothing is appended to the string. +N2 is the length of the string stored at C-ADDR"
+  (let ((count (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp count)
+      (forth-exception :invalid-numeric-argument "ACCEPT buffer size must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      ;;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
+      ;;;       until we either get a Newline or fill the buffer. (Sigh)
+      (let ((buffer (make-array count :element-type 'character :fill-pointer 0 :adjustable t)))
+        (loop while (< (length buffer) count)
+              for char = (read-char nil nil :eof)
+              if (or (eq char :eof) (char-equal char #\Newline))
+                do (loop-finish)
+              else
+                do (vector-push-extend char buffer))
+        (when (plusp (length buffer))
+          (native-into-forth-string buffer forth-memory offset)
+        (stack-push data-stack (length buffer)))))))
 
-
+    
 ;;; 5.4.2 Terminal Output
 
 (define-word write-char (:word "EMIT")
