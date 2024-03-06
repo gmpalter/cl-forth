@@ -97,43 +97,45 @@
     do (loop for empty = t then nil
              while (input-available-p files)
              as token = (word files #\Space)
-             do (multiple-value-bind (type value)
-                    (let ((word (lookup word-lists token)))
-                      (if word
-                          (values :word word)
-                          (interpret-number token base)))
-                  (when (null type)
-                    (forth-exception :undefined-word "~A is not defined" token))
-                  (case (state fs)
-                    (:interpreting
-                     (case type
-                       (:word
-                        (cond ((word-compile-only? value)
-                               (forth-exception :compile-only-word))
-                              (t
-                               (forth-call fs value))))
-                       (:single
-                        (stack-push data-stack value))
-                       (:double
-                        (stack-push-double data-stack value))
-                       (:float
-                        (stack-push float-stack value))))
-                    (:compiling
-                     (case type
-                       (:word
-                        (cond ((word-immediate? value)
-                               (forth-call fs value))
-                              ((word-inlineable? value)
-                               (setf (word-inline-forms compiling-word)
-                                     (append (reverse (word-inline-forms value)) (word-inline-forms compiling-word))))
-                              (t
-                               (push `(forth-call fs ,value) (word-inline-forms compiling-word)))))
-                       (:single
-                        (push `(stack-push data-stack ,value) (word-inline-forms compiling-word)))
-                       (:double
-                        (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word)))
-                       (:float
-                        (push `(stack-push float-stack ,value) (word-inline-forms compiling-word)))))))
+             ;; If there's more than one whitespace character at the end of a line, WORD will return a null TOKEN
+             when token
+               do (multiple-value-bind (type value)
+                      (let ((word (lookup word-lists token)))
+                        (if word
+                            (values :word word)
+                            (interpret-number token base)))
+                    (when (null type)
+                      (forth-exception :undefined-word "~A is not defined" token))
+                    (case (state fs)
+                      (:interpreting
+                       (case type
+                         (:word
+                          (cond ((word-compile-only? value)
+                                 (forth-exception :compile-only-word))
+                                (t
+                                 (forth-call fs value))))
+                         (:single
+                          (stack-push data-stack value))
+                         (:double
+                          (stack-push-double data-stack value))
+                         (:float
+                          (stack-push float-stack value))))
+                      (:compiling
+                       (case type
+                         (:word
+                          (cond ((word-immediate? value)
+                                 (forth-call fs value))
+                                ((word-inlineable? value)
+                                 (setf (word-inline-forms compiling-word)
+                                       (append (reverse (word-inline-forms value)) (word-inline-forms compiling-word))))
+                                (t
+                                 (push `(forth-call fs ,value) (word-inline-forms compiling-word)))))
+                         (:single
+                          (push `(stack-push data-stack ,value) (word-inline-forms compiling-word)))
+                         (:double
+                          (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word)))
+                         (:float
+                          (push `(stack-push float-stack ,value) (word-inline-forms compiling-word)))))))
              finally
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
