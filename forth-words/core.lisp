@@ -1120,6 +1120,7 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
+    ;;---*** TODO: This isn't right ...
     (execute-branch fs again `(let ((increment (cell-signed (stack-pop data-stack))))
                                 (incf (stack-cell return-stack 0) increment)
                                 (cond ((plusp increment)
@@ -1131,7 +1132,15 @@
                                        ;;        the limit is inclusive rather exclusive.
                                        (>= (stack-cell return-stack 0) (stack-cell return-stack 1)))
                                       (t
-                                       (forth-exception :invalid-numeric-argument "Increment to +LOOP cannot be zero")))))
+                                       t))))
+    ;;;---*** TODO: ... and neither is this! (Sigh)
+    #+ignore
+    (execute-branch fs again `(let* ((limit (cell-signed (stack-cell return-stack 1)))
+                                     (previous (cell-signed (stack-cell return-stack 0)))
+                                     (new (+ previous (cell-signed (stack-pop data-stack)))))
+                                (setf (stack-cell return-stack 0) new)
+                                (not (or (and (<= previous (1- limit)) (>= new limit))
+                                         (and (>= previous limit) (<= new (1- limit)))))))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
