@@ -34,6 +34,7 @@
     (add-state-space memory files)
     (add-space memory (files-source-as-space files))
     (add-space memory execution-tokens)
+    (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))
     ))
   
 (defmethod state ((fs forth-system))

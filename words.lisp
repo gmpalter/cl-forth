@@ -80,6 +80,12 @@
                  (add-word wl (cdr wl-and-word) :override t)))
            *predefined-words*))
 
+(defmethod register-predefined-words ((wls word-lists) execution-tokens here)
+  (maphash #'(lambda (name wl-and-word)
+               (declare (ignore name))
+               (register-execution-token execution-tokens (cdr wl-and-word) here))
+           *predefined-words*))
+
 (defmethod reset-word-lists ((wls word-lists))
   (with-slots (all-word-lists forth search-order compilation-word-list) wls
     (clrhash all-word-lists)

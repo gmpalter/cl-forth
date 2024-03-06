@@ -27,7 +27,7 @@
 (define-word extended-comment (:word "{" :immediate? t)
   "Ignore all text up to and including the next right brace"
   "Useful for large comment blocks that contain parentheses (e.g., documenting stack behavior)"
-  (word files #\}))
+  (word files #\} :multiline? t))
 
 (define-word rest-of-file-comment (:word "\\\\" :immediate? t)
   "Ignore all text in the rest of the file"
@@ -50,7 +50,8 @@
   "beyond that state. The initial golden state of the dictionary is that following the launch of CL-Forth; this may be"
   "modified using GILD."
   (reset-word-lists word-lists)
-  (reset-memory memory))
+  (reset-memory memory)
+  (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory)))
 
 (define-word gild (:word "GILD")
   "Records the current state of the dictionary as a golden state such that subsequent uses of EMPTY will restore the"

@@ -95,7 +95,7 @@
         (source-pop f)
         (flush-input-line f))))
 
-(defmethod word ((f files) delimiter)
+(defmethod word ((f files) delimiter &key multiline?)
   (with-slots (source-id >in buffer) f
     (let ((word (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
@@ -108,7 +108,7 @@
             if (< >in buffer-len)
               do (loop-finish)
             else
-              do (when (if (and (plusp source-id) (not whitespace-delimiter-p))
+              do (when (if (and (plusp source-id) multiline?)
                            (null (refill f))
                            t)
                    (return-from word nil)))
@@ -128,13 +128,13 @@
               do (incf >in)
                  (return-from word word)
             else
-              do (if (if (and (plusp source-id) (not whitespace-delimiter-p))
+              do (if (if (and (plusp source-id) multiline?)
                          (null (refill f))
                          t)
                    (return-from word word)
                    (vector-push-extend #\Space word))))))
 
-(defmethod parse ((f files) delimiter)
+(defmethod parse ((f files) delimiter &key multiline?)
   (with-slots (source-id >in buffer) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
@@ -154,7 +154,7 @@
               do (incf >in)
                  (return-from parse parsed)
             else
-              do (if (if (and (plusp source-id) (not whitespace-delimiter-p))
+              do (if (if (and (plusp source-id) multiline?)
                          (null (refill f))
                          t)
                    (return-from parse parsed)
