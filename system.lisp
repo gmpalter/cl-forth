@@ -162,6 +162,8 @@
 
 (define-forth-method add-and-register-word (fs word)
   (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
+  ;; Ensure that IMMEDIATE will affect this word if it wasn't created by BEGIN-COMPILATION (e.g., by CREATE and friends)
+  (setf compiling-word word)
   (register-execution-token execution-tokens word (data-space-high-water-mark memory)))
 
 (define-forth-method finish-compilation (fs)
