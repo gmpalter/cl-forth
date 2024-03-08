@@ -691,7 +691,7 @@
   "S\" <text>\"" "( - a-addr u )"
   "If interpreted, place TEXT in a temporary buffer and return the address of length of the text"
   "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
-  (let* ((text (word files #\"))
+  (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+)))
     (case (state fs)
       (:interpreting
@@ -713,7 +713,7 @@
 (define-word counted-string (:word "C\"" :immediate? t :compile-only? t)
   "C\" <text>\"" "( - a-addr )"
   "Compile TEXT as a counted string into the current definition. When executed, place its address on the data stack"
-  (let* ((text (word files #\"))
+  (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+))
          ;; Length of a counted string is always a single byte regardless of character size
          (address (allocate-memory memory (1+ text-size))))
@@ -725,7 +725,7 @@
 (define-word type-string (:word ".\"" :immediate? t :inlineable? nil)
   ".\" <text>\""
   "Type TEXT on the console."
-  (let ((text (word files #\")))
+  (let ((text (parse files #\")))
     (case (state fs)
       (:interpreting
        (write-string text))
@@ -738,7 +738,7 @@
 (define-word allocate-counted-string (:word ",\"")
   ",\" <text>\""
   "Compile TEXT as a counted string. User is responsible for keeping track of its address in data space"
-  (let* ((text (word files #\"))
+  (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+))
          ;; Length of a counted string is always a single byte regardless of character size
          (address (allocate-memory memory (1+ text-size))))
@@ -1075,8 +1075,9 @@
         (done (make-branch-reference :do)))
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
-    (push `(let ((n2 (stack-pop data-stack))
-                 (n1 (stack-pop data-stack)))
+    (push `(let ((n2 (cell-signed (stack-pop data-stack)))
+                 (n1 (cell-signed (stack-pop data-stack))))
+             (stack-push return-stack 0) ;---*** TEMPORARY
              (stack-push return-stack n1)
              (stack-push return-stack n2))
           (word-inline-forms compiling-word))
@@ -1094,6 +1095,7 @@
     (execute-branch fs done '(= (stack-cell data-stack 0) (stack-cell data-stack 1)))
     (push `(let ((n2 (stack-pop data-stack))
                  (n1 (stack-pop data-stack)))
+             (stack-push return-stack 0) ;---*** TEMPORARY
              (stack-push return-stack n1)
              (stack-push return-stack n2))
           (word-inline-forms compiling-word))
@@ -1108,6 +1110,7 @@
         (done (stack-cell control-flow-stack 1)))
     (push `(incf (stack-cell return-stack 0)) (word-inline-forms compiling-word))
     (execute-branch fs again '(< (stack-cell return-stack 0) (stack-cell return-stack 1)))
+    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
@@ -1121,27 +1124,23 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
-    ;;---*** TODO: This isn't right ...
-    (execute-branch fs again `(let ((increment (cell-signed (stack-pop data-stack))))
-                                (incf (stack-cell return-stack 0) increment)
-                                (cond ((plusp increment)
-                                       (< (stack-cell return-stack 0) (stack-cell return-stack 1)))
-                                      ((minusp increment)
-                                       ;; NOTE: The Forth Standard says "If the loop index did not cross the boundary
-                                       ;;        between the loop limit minus one and the loop limit, continue execution
-                                       ;;        at the beginning of the loop." That means, if the increment is negative,
-                                       ;;        the limit is inclusive rather exclusive.
-                                       (>= (stack-cell return-stack 0) (stack-cell return-stack 1)))
-                                      (t
-                                       t))))
-    ;;;---*** TODO: ... and neither is this! (Sigh)
-    #+ignore
-    (execute-branch fs again `(let* ((limit (cell-signed (stack-cell return-stack 1)))
-                                     (previous (cell-signed (stack-cell return-stack 0)))
-                                     (new (+ previous (cell-signed (stack-pop data-stack)))))
-                                (setf (stack-cell return-stack 0) new)
-                                (not (or (and (<= previous (1- limit)) (>= new limit))
-                                         (and (>= previous limit) (<= new (1- limit)))))))
+    ;;;---*** TODO: This isn't quite right ... ( "MIN-INT MAX-INT DO ... STEP +LOOP" loops forever)
+    (execute-branch fs again `(let* ((increment (cell-signed (stack-pop data-stack)))
+                                     (limit (cell-signed (stack-cell return-stack 1)))
+                                     (before (cell-signed (stack-cell return-stack 0)))
+                                     (after (+ before increment))
+                                     (after-signed (cell-signed after)))
+                                ;;(format t "~& limit=~D before=~D after=~D increment=~D~%" limit before after increment)
+                                (prog1
+                                    (cond ((> (incf (stack-cell return-stack 2)) 10000) nil) ;---*** TEMPORARY
+                                          ;;((/= after after-signed) nil)
+                                          ((plusp increment)
+                                           (not (and (< before limit) (>= after limit))))
+                                          ((minusp increment)
+                                           (not (and (>= before limit) (< after limit))))
+                                          (t t))
+                                  (setf (stack-cell return-stack 0) after-signed))))
+    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
@@ -1157,11 +1156,13 @@
   "( - n )"
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
-  (push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
+  (push `(stack-push data-stack (stack-cell return-stack 3)) (word-inline-forms compiling-word))) ;---*** TEMPORARY
+  ;;(push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
 
 (define-word leave (:word "LEAVE" :immediate? t :compile-only? t)
   "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
   (let ((done (control-structure-find fs :do 1)))
+    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (execute-branch fs done)))
@@ -1170,6 +1171,7 @@
   "Discard the loop parameters for the current nesting level. This word is not needed when a DO ... LOOP completes normally,"
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
+  (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
   (push `(stack-pop return-stack) (word-inline-forms compiling-word))
   (push `(stack-pop return-stack) (word-inline-forms compiling-word)))
 
@@ -1265,7 +1267,7 @@
   "(S: i*x x1 - | i*x ) (R: j*x - | j*x )"
   "At compile time, parse MESSAGE from the input buffer. At runtime, if X1 is true (i.e., non-zero), display"
   "the message and perform the actions of ABORT"
-  (let ((message (word files #\")))
+  (let ((message (parse files #\")))
     (push `(when (truep (stack-pop data-stack))
              (forth-exception :abort\" "~@[In ~A: ~]~A" ,(word-name compiling-word) ,message))
           (word-inline-forms compiling-word))))
