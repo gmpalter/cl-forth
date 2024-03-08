@@ -6,8 +6,8 @@
   :serial t
   :components ((:file "packages")
                (:file "exceptions")
-               (:file "numbers")
                (:file "strings")
+               (:file "numbers")
                (:file "memory")
                (:file "stacks")
                (:file "words")

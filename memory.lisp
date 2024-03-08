@@ -405,9 +405,10 @@
       (format stream "prefix=~2,'0X, size=~D, used=~D~@[, active~]" prefix high-water-mark used active?))))
 
 (defmethod space-reset ((pb pictured-buffer))
-  (with-slots (data high-water-mark used) pb
-      (setf high-water-mark (length data)
-            used 0)))
+  (with-slots (active? data high-water-mark used) pb
+    (setf active? nil
+          high-water-mark (length data)
+          used 0)))
 
 (defmethod space-allocate ((pb pictured-buffer) n-bytes)
   (declare (ignore n-bytes))
