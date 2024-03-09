@@ -1077,7 +1077,6 @@
     (stack-push control-flow-stack again)
     (push `(let ((n2 (cell-signed (stack-pop data-stack)))
                  (n1 (cell-signed (stack-pop data-stack))))
-             (stack-push return-stack 0) ;---*** TEMPORARY
              (stack-push return-stack n1)
              (stack-push return-stack n2))
           (word-inline-forms compiling-word))
@@ -1095,7 +1094,6 @@
     (execute-branch fs done '(= (stack-cell data-stack 0) (stack-cell data-stack 1)))
     (push `(let ((n2 (stack-pop data-stack))
                  (n1 (stack-pop data-stack)))
-             (stack-push return-stack 0) ;---*** TEMPORARY
              (stack-push return-stack n1)
              (stack-push return-stack n2))
           (word-inline-forms compiling-word))
@@ -1110,7 +1108,6 @@
         (done (stack-cell control-flow-stack 1)))
     (push `(incf (stack-cell return-stack 0)) (word-inline-forms compiling-word))
     (execute-branch fs again '(< (stack-cell return-stack 0) (stack-cell return-stack 1)))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
@@ -1124,23 +1121,31 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
-    ;;;---*** TODO: This isn't quite right ... ( "MIN-INT MAX-INT DO ... STEP +LOOP" loops forever)
-    (execute-branch fs again `(let* ((increment (cell-signed (stack-pop data-stack)))
-                                     (limit (cell-signed (stack-cell return-stack 1)))
-                                     (before (cell-signed (stack-cell return-stack 0)))
-                                     (after (+ before increment))
-                                     (after-signed (cell-signed after)))
-                                ;;(format t "~& limit=~D before=~D after=~D increment=~D~%" limit before after increment)
-                                (prog1
-                                    (cond ((> (incf (stack-cell return-stack 2)) 10000) nil) ;---*** TEMPORARY
-                                          ;;((/= after after-signed) nil)
-                                          ((plusp increment)
-                                           (not (and (< before limit) (>= after limit))))
-                                          ((minusp increment)
-                                           (not (and (>= before limit) (< after limit))))
-                                          (t t))
-                                  (setf (stack-cell return-stack 0) after-signed))))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
+    (execute-branch fs again
+                    `(let* ((increment (cell-signed (stack-pop data-stack)))
+                            (limit (cell-signed (stack-cell return-stack 1)))
+                            (before (cell-signed (stack-cell return-stack 0)))
+                            (after (+ before increment))
+                            (after-signed (cell-signed after)))
+                       (prog1
+                           (cond ((plusp increment)
+                                  (if (= after after-signed)
+                                      (not (and (< before limit) (>= after limit)))
+                                      ;; Value wrapped around .. check unsigned
+                                      (let ((limit-unsigned (cell-unsigned limit))
+                                            (before-unsigned (cell-unsigned before))
+                                            (after-unsigned (cell-unsigned after)))
+                                        (not (and (< before-unsigned limit-unsigned) (>= after-unsigned limit-unsigned))))))
+                                 ((minusp increment)
+                                  (if (= after after-signed)
+                                      (not (and (>= before limit) (< after limit)))
+                                      ;; Value wrapped around .. check unsigned
+                                      (let ((limit-unsigned (cell-unsigned limit))
+                                            (before-unsigned (cell-unsigned before))
+                                            (after-unsigned (cell-unsigned after)))
+                                        (not (and (>= before-unsigned limit-unsigned) (< after-unsigned limit-unsigned))))))
+                                 (t t))
+                         (setf (stack-cell return-stack 0) after))))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (stack-pop control-flow-stack)
@@ -1156,13 +1161,11 @@
   "( - n )"
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
-  (push `(stack-push data-stack (stack-cell return-stack 3)) (word-inline-forms compiling-word))) ;---*** TEMPORARY
-  ;;(push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
+  (push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
 
 (define-word leave (:word "LEAVE" :immediate? t :compile-only? t)
   "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
   (let ((done (control-structure-find fs :do 1)))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (push `(stack-pop return-stack) (word-inline-forms compiling-word))
     (execute-branch fs done)))
@@ -1171,7 +1174,6 @@
   "Discard the loop parameters for the current nesting level. This word is not needed when a DO ... LOOP completes normally,"
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
-  (push `(stack-pop return-stack) (word-inline-forms compiling-word)) ;---*** TEMPORARY
   (push `(stack-pop return-stack) (word-inline-forms compiling-word))
   (push `(stack-pop return-stack) (word-inline-forms compiling-word)))
 
