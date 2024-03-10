@@ -766,6 +766,11 @@
   "Push the address of the next available memory location in data space onto the stack"
   (stack-push data-stack (data-space-high-water-mark memory)))
 
+(define-word unused (:word "UNUSED")
+  "( – u )"
+  "U is the amount of space remaining in the region addressed by HERE, in address units"
+  (stack-push data-stack (data-space-unused memory)))
+
 
 ;;; 3.6.1 Input Number Conversion
 

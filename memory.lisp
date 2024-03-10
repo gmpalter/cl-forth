@@ -78,6 +78,10 @@
   (with-slots (data-space) memory
     (make-address (space-prefix data-space) (space-high-water-mark data-space))))
 
+(defmethod data-space-unused ((memory memory))
+  (with-slots (data-space) memory
+    (space-unused data-space)))
+
 (defmethod pad-base-address ((memory memory))
   (with-slots (pad) memory
     (make-address (space-prefix pad) 0)))
@@ -256,6 +260,8 @@
 
 (defgeneric space-allocate (space n-bytes))
 (defgeneric space-deallocate (space n-bytes))
+(defgeneric space-unused (space)
+  (:method ((sp space)) 0))
 (defgeneric space-align (space))
 
 (defgeneric cell-at (space address))
@@ -315,6 +321,10 @@
 (defmethod space-deallocate ((sp data-space) n-bytes)
   (with-slots (high-water-mark) sp
     (decf high-water-mark (min high-water-mark n-bytes))))
+
+(defmethod space-unused ((sp data-space))
+  (with-slots (data high-water-mark) sp
+    (- (length data) high-water-mark)))
 
 (defmethod space-align ((sp data-space))
   (with-slots (high-water-mark) sp
