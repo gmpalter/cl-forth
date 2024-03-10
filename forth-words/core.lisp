@@ -383,10 +383,16 @@
 (define-word within (:word "WITHIN")
   "( x1 x2 x3 - flag )"
   "Returns true if X2 <= X1 < X3. X1, X2, and X3 should be either all signed or all unsigned"
-  (let ((x3 (stack-pop data-stack))
-        (x2 (stack-pop data-stack))
-        (x1 (stack-pop data-stack)))
-    (if (and (<= x2 x1) (< x1 x3))
+  "Our implementation simulates a machine that ignores arithmeitc overflow. See the Forth 2012"
+  "Standard, Section A.6.2.2440, for an explanation of how to handle this situation"
+  (stack-over data-stack)
+  (let* ((x2 (stack-pop data-stack))
+         (x3 (stack-pop data-stack))
+         (x3-x2 (cell-unsigned (- x3 x2)))
+         (x2 (stack-pop data-stack))
+         (x1 (stack-pop data-stack))
+         (x1-x2 (cell-unsigned (- x1 x2))))
+    (if (< x1-x2 x3-x2)
         (stack-push data-stack +true+)
         (stack-push data-stack +false+))))
 
@@ -1588,6 +1594,11 @@
   "The zeroth item is on top of the stack; i.e., 0 CS-ROLL does nothing, 1 CS-ROLL is equivalent to SWAP, and"
   "2 CS-ROLL is equivalent to ROT"
   (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
+
+
+;;; 6.5 Overlays
+
+;;;---*** MARKER
 
 
 ;;; 6.6.2 Managing Word Lists
