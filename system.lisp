@@ -1,5 +1,10 @@
 (in-package #:forth)
 
+(defstruct definition
+  word
+  exit-branch
+  >body-address)
+
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
    (data-stack :initform (make-instance 'stack :name "Data" :initial-size 1024
@@ -13,15 +18,17 @@
    (float-stack :initform (make-instance 'stack :name "Float"
                                                 :initial-size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
+   (definitions-stack :initform (make-instance 'stack :name "Definitions"
+                                                      :initial-size 32
+                                                      :underflow-key :definitions-stack-underflow
+                                                      :overflow-key :definitions-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
    (execution-tokens :initform (make-instance 'execution-tokens))
    (base :initform 10)
    state
-   (compiling-word :initform nil)
+   (definition :initform nil)
    (compiling-paused? :initform nil)
-   (exit-branch :initform nil)
-   (>body-address :initform 0)
    (show-redefinition-warnings? :initform +true+)
    (reset-redefinition-warnings? :initform nil)
    (show-definition-code? :initform +false+))
@@ -51,10 +58,9 @@
   value)
          
 (defmacro with-forth-system ((fs) &body body)
-  `(with-slots (memory data-stack return-stack control-flow-stack float-stack
-                word-lists files execution-tokens base state compiling-word compiling-paused?
-                >body-address exit-branch show-redefinition-warnings? reset-redefinition-warnings?
-                show-definition-code?)
+  `(with-slots (memory data-stack return-stack control-flow-stack float-stack definitions-stack
+                word-lists files execution-tokens base state definition compiling-paused?
+                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
      ,@body))
 
@@ -68,10 +74,11 @@
   (stack-reset return-stack)
   (stack-reset control-flow-stack)
   (stack-reset float-stack)
+  (stack-reset definitions-stack)
   (reset-input files)
   (reset-pictured-buffer memory)
   (setf (state fs) :interpreting)
-  (setf compiling-word nil)
+  (setf definition nil)
   (setf compiling-paused? nil)
   )
 
@@ -126,16 +133,17 @@
                           (cond ((word-immediate? value)
                                  (forth-call fs value))
                                 ((word-inlineable? value)
-                                 (setf (word-inline-forms compiling-word)
-                                       (append (reverse (word-inline-forms value)) (word-inline-forms compiling-word))))
+                                 (setf (word-inline-forms (definition-word definition))
+                                       (append (reverse (word-inline-forms value))
+                                               (word-inline-forms (definition-word definition)))))
                                 (t
-                                 (push `(forth-call fs ,value) (word-inline-forms compiling-word)))))
+                                 (push `(forth-call fs ,value) (word-inline-forms (definition-word definition))))))
                          (:single
-                          (push `(stack-push data-stack ,value) (word-inline-forms compiling-word)))
+                          (push `(stack-push data-stack ,value) (word-inline-forms (definition-word definition))))
                          (:double
-                          (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word)))
+                          (push `(stack-push-double data-stack ,value) (word-inline-forms (definition-word definition))))
                          (:float
-                          (push `(stack-push float-stack ,value) (word-inline-forms compiling-word)))))))
+                          (push `(stack-push float-stack ,value) (word-inline-forms (definition-word definition))))))))
              finally
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
@@ -148,71 +156,106 @@
                (t
                 (source-pop files))))))
 
+(defun forth-call (fs word)
+  (with-forth-system (fs)
+    (let ((return-address (multiple-value-bind (fn pc) (ccl::cfp-lfun (ccl::%get-frame-ptr))
+                            (declare (ignore fn))
+                            (cons word pc))))
+      (stack-push return-stack return-address)
+      (unwind-protect
+           (progn
+             (apply (word-code word) fs (word-parameters word))
+             (when (word-does> word)
+               (apply (word-code (word-does> word)) fs (word-parameters word))))
+        (stack-pop return-stack)))))
+
+;;;
+
 (define-forth-method begin-compilation (fs &optional name)
   (unless (eq (state fs) :interpreting)
     (forth-exception :recursive-compile))
-  (setf compiling-word (make-word name nil :smudge? t)
-        compiling-paused? nil
-        exit-branch (make-branch-reference :exit))
+  (setf definition (make-definition :word (make-word name nil :smudge? t) :exit-branch (make-branch-reference :exit)
+                                    :>body-address (data-space-high-water-mark memory))
+        compiling-paused? nil)
+  (stack-reset definitions-stack)
   (setf (state fs) :compiling)
-  (if name
-      (add-and-register-word fs compiling-word)
-      ;; :NONAME creates a word without a name and places its "execution token" on the data stack
-      (register-execution-token execution-tokens compiling-word >body-address)))
+  (when name
+    (add-word (word-lists-compilation-word-list word-lists) (definition-word definition)
+              :silent (falsep show-redefinition-warnings?)))
+  ;; :NONAME creates a word without a name and places its "execution token" on the data stack
+  (register-execution-token execution-tokens (definition-word definition) (definition->body-address definition)))
 
-(define-forth-method add-and-register-word (fs word)
-  (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
-  ;; Ensure that IMMEDIATE will affect this word if it wasn't created by BEGIN-COMPILATION (e.g., by CREATE and friends)
-  (setf compiling-word word)
-  (register-execution-token execution-tokens word (data-space-high-water-mark memory)))
+;;; Used by words that create words (e.g., CREATE, CONSTANT, etc.) to add the word to compilation word list
+;;; and register its execution token
+(define-forth-method add-and-register-word (fs word &optional >body-address)
+  ;; Ensure that IMMEDIATE and DOES> will find this word
+  (let ((>body-address (or >body-address (data-space-high-water-mark memory))))
+    (setf definition (make-definition :word word :>body-address >body-address))
+    (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
+    (register-execution-token execution-tokens word >body-address)))
+
+(defmacro add-to-definition (fs &body body)
+  (declare (ignore fs))
+  `(progn
+     ,@(loop for form in body
+             collect `(push ,form (word-inline-forms (definition-word definition))))))
 
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
   (unless (zerop (stack-depth control-flow-stack))
     (forth-exception :control-mismatch))
-  (let ((thunk `(lambda (fs &rest parameters)
-                  (declare (ignorable parameters))
-                  (with-forth-system (fs)
-                    (tagbody
-                       ,@(reverse (word-inline-forms compiling-word))
-                       ,(branch-reference-tag exit-branch))))))
-    (when (not (zerop show-definition-code?))
-      (format t "~&Code for ~A:~%  ~:W~%" (or (word-name compiling-word) "<execution token>") thunk))
-    (setf (word-code compiling-word) (compile nil thunk)))
-  (setf (word-inline-forms compiling-word) nil)
-  (setf (word-smudge? compiling-word) nil)
-  ;; Leave the new definition in COMPILING-WORD for use by IMMEDIATE
-  (setf compiling-paused? nil
-        exit-branch nil
-        >body-address nil)
-  (when (shiftf reset-redefinition-warnings? nil)
-    (setf show-redefinition-warnings? +true+))
-  (setf (state fs) :interpreting))
+  (flet ((finish-definition ()
+           (let ((thunk `(lambda (fs &rest parameters)
+                           (declare (ignorable parameters))
+                           (with-forth-system (fs)
+                             (tagbody
+                                ,@(reverse (word-inline-forms (definition-word definition)))
+                                ,(branch-reference-tag (definition-exit-branch definition)))))))
+             (when (not (zerop show-definition-code?))
+               (format t "~&Code for ~A:~%  ~:W~%" (or (word-name (definition-word definition)) "<execution token>") thunk))
+             (setf (word-code (definition-word definition)) (compile nil thunk)))
+           (setf (word-inline-forms (definition-word definition)) nil)
+           (setf (word-smudge? (definition-word definition)) nil)))
+    (finish-definition)
+    (loop while (plusp (stack-depth definitions-stack))
+          do (let ((does>-word (definition-word definition)))
+               (setf definition (stack-pop definitions-stack))
+               (push `(execute-does> fs ,does>-word) (word-inline-forms (definition-word definition)))
+               (finish-definition)))
+    ;; Leave the new definition in DEFINITION for use by IMMEDIATE and DOES>
+    (setf compiling-paused? nil)
+    (when (shiftf reset-redefinition-warnings? nil)
+      (setf show-redefinition-warnings? +true+))
+    (setf (state fs) :interpreting)))
 
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)
-         (push `(forth-call fs ,word) (word-inline-forms compiling-word)))
+         (push `(forth-call fs ,word) (word-inline-forms (definition-word definition))))
         (t
          (push `(case (state fs)
                   (:interpreting
                    (forth-call fs ,word))
                   (:compiling
-                   (push '(forth-call fs ,word) (word-inline-forms compiling-word))))
-               (word-inline-forms compiling-word)))
+                   (push '(forth-call fs ,word) (word-inline-forms (definition-word definition)))))
+               (word-inline-forms (definition-word definition))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
         ;; (forth-exception :invalid-postpone))
         ))
 
-(defun forth-call (fs word)
-  (with-forth-system (fs)
-    (let ((return-address (multiple-value-bind (fn pc) (ccl::cfp-lfun (ccl::%get-frame-ptr))
-                            (+ (%address-of fn) pc))))
-      (stack-push return-stack return-address)
-      (unwind-protect
-           (apply (word-code word) fs (word-parameters word))
-        (stack-pop return-stack)))))
+(define-forth-method compile-does> (fs)
+  (let ((does>-word (make-word (symbol-name (gensym "DOES>")) nil)))
+    (stack-push definitions-stack definition)
+    (setf definition (make-definition :word does>-word :exit-branch (make-branch-reference :exit)
+                                      :>body-address (data-space-high-water-mark memory)))))
+
+(define-forth-method execute-does> (fs does>-word)
+  (unless definition
+    )
+  (unless (word-creating-word? (definition-word definition))
+    )
+  (setf (word-does> (definition-word definition)) does>-word))
 
 ;;;
 
@@ -264,13 +307,18 @@
   (if condition
       (push `(when ,condition
                (go ,(branch-reference-tag branch)))
-            (word-inline-forms compiling-word))
-      (push `(go ,(branch-reference-tag branch)) (word-inline-forms compiling-word)))
+            (word-inline-forms (definition-word definition)))
+      (push `(go ,(branch-reference-tag branch)) (word-inline-forms (definition-word definition))))
   nil)
+
+(defmacro execute-branch-when (fs branch &body body)
+  (if (= (length body) 1)
+      `(execute-branch ,fs ,branch ',@body)
+      `(execute-branch ,fs ,branch '(progn ,@body))))
 
 (define-forth-method resolve-branch (fs branch)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
-  (push (branch-reference-tag branch) (word-inline-forms compiling-word))
+  (push (branch-reference-tag branch) (word-inline-forms (definition-word definition)))
   nil)
 

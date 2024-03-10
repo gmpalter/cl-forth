@@ -83,6 +83,8 @@
   (:no-execution-token -265 "No execution token available")
   (:recursive-pictured-output -266 "Pictured output already in progress")
   (:no-pictured-output -267 "Pictured output not in progress")
+  (:definitions-stack-overflow -268 "Too many DOES> words in definition")
+  (:definitions-stack-underflow -269 "Internal error: definitions stack underflow")
   )
 
 (define-condition forth-exception (error)

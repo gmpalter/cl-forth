@@ -107,7 +107,7 @@
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 
 ;;; 2.3.2.2 Constants and Values
@@ -184,4 +184,5 @@
   "( x1 x2 - )"
   "Compile X1 and X2 into the current definition. When executed, push X1 and X2 onto the data stack"
   (let ((value (stack-pop-double-unsigned data-stack)))
-    (push `(stack-push-double data-stack ,value) (word-inline-forms compiling-word))))
+    (add-to-definition fs
+      `(stack-push-double data-stack ,value))))

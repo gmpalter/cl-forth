@@ -187,7 +187,8 @@
    (creating-word? :accessor word-creating-word? :initarg :creating-word? :initform nil)
    (code :accessor word-code :initarg :code :initform nil)
    (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
-   (parameters :accessor word-parameters :initarg :parameters :initform nil))
+   (parameters :accessor word-parameters :initarg :parameters :initform nil)
+   (does> :accessor word-does> :initform nil))
   )
 
 (defmethod print-object ((word word) stream)

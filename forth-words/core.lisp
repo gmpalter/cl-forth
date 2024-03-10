@@ -73,6 +73,14 @@
       (forth-exception :invalid-numeric-argument "Pick count can't be negative"))
     (stack-pick data-stack n)))
 
+(define-word stack-roll (:word "ROLL")
+  "( x(u) x(u-1) . . . x(0) u – x(u-1) . . . x(0) x(u) )"
+  "Remove U. Rotate U+1 items on the top of the stack"
+  (let ((n (stack-pop data-stack)))
+    (when (minusp n)
+      (forth-exception :invalid-numeric-argument "Roll count can't be negative"))
+    (stack-roll data-stack n)))
+  
 (define-word stack-rot (:word "ROT")
   "( x1 x2 x3 - x2 x3 x1 )"
   "Rotate the top three items on the stack"
@@ -403,7 +411,7 @@
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 (define-word cvariable (:word "CVARIABLE")
   "CVARIABLE <name>"
@@ -414,7 +422,7 @@
       (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 
 ;;; 2.3.2.2 Constants and Values
@@ -427,7 +435,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word (data-space-high-water-mark memory)))))
 
 (defun push-cell-at-parameter (fs &rest parameters)
   (with-forth-system (fs)
@@ -445,7 +453,7 @@
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-cell-at-parameter :parameters (list address :value) :creating-word? t)))
       (setf (memory-cell memory address) value)
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 
 ;;; 2.3.3 Arrays and Tables
@@ -494,7 +502,7 @@
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 (define-word create-char (:word "C,")
   "( char - )"
@@ -532,7 +540,7 @@
     (align-memory memory)
     (let* ((address (data-space-high-water-mark memory))
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
-      (add-and-register-word fs word))))
+      (add-and-register-word fs word address))))
 
 
 ;;; 2.3.4 Memory Stack Operations
@@ -658,7 +666,8 @@
   (let ((char (word files #\Space)))
     (when (null char)
       (forth-exception :zero-length-name))
-    (push `(stack-push data-stack ,(forth-char (aref char 0))) (word-inline-forms compiling-word))))
+    (add-to-definition fs
+      `(stack-push data-stack ,(forth-char (aref char 0))))))
 
 (define-word blank (:word "BL")
   "( - char )"
@@ -707,8 +716,9 @@
          (multiple-value-bind (forth-memory offset)
              (memory-decode-address memory address)
            (native-into-forth-string text forth-memory offset)
-           (push `(stack-push data-stack ,address) (word-inline-forms compiling-word))
-           (push `(stack-push data-stack ,text-size) (word-inline-forms compiling-word))))))))
+           (add-to-definition fs
+             `(stack-push data-stack ,address)
+             `(stack-push data-stack ,text-size))))))))
 
 (define-word counted-string (:word "C\"" :immediate? t :compile-only? t)
   "C\" <text>\"" "( - a-addr )"
@@ -720,7 +730,8 @@
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (native-into-forth-counted-string text forth-memory offset)
-      (push `(stack-push data-stack ,address) (word-inline-forms compiling-word)))))
+      (add-to-definition fs
+        `(stack-push data-stack ,address)))))
 
 (define-word type-string (:word ".\"" :immediate? t :inlineable? nil)
   ".\" <text>\""
@@ -730,7 +741,8 @@
       (:interpreting
        (write-string text))
       (:compiling
-       (push `(write-string ,text) (word-inline-forms compiling-word))))))
+       (add-to-definition fs
+         `(write-string ,text))))))
 
 
 ;;; 3.3 Strings in Data Structures
@@ -1007,7 +1019,8 @@
   "branch over any code following an ELSE to the point following THEN"
   (let ((branch (make-branch-reference :if)))
     (stack-push control-flow-stack branch)
-    (execute-branch fs branch '(falsep (cell-unsigned (stack-pop data-stack))))))
+    (execute-branch-when fs branch
+      (falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word then (:word "THEN" :immediate? t :compile-only? t)
   "Mark the point at which the true and false portions of an IF structure merge"
@@ -1044,7 +1057,8 @@
   "If X is zero, branch back to the location immediately following the nearest previous BEGIN; otherwise, continue"
   "execution beyond the UNTIL"
   (verify-control-structure fs :begin)
-  (execute-branch fs (stack-pop control-flow-stack) '(falsep (cell-unsigned (stack-pop data-stack)))))
+  (execute-branch-when fs (stack-pop control-flow-stack)
+    (falsep (cell-unsigned (stack-pop data-stack)))))
 
 (define-word while (:word "WHILE" :immediate? t :compile-only? t)
   "( x - )"
@@ -1054,7 +1068,8 @@
   (let ((branch (make-branch-reference :begin)))
     (stack-push control-flow-stack branch)
     (stack-roll control-flow-stack 1)
-    (execute-branch fs branch '(falsep (cell-unsigned (stack-pop data-stack))))))
+    (execute-branch-when fs branch
+      (falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word repeat (:word "REPEAT" :immediate? t :compile-only? t)
   "In a BEGIN ... WHILE ... REPEAT structure, unconditionally branch back to the location following the nearest previous BEGIN"
@@ -1075,11 +1090,11 @@
         (done (make-branch-reference :do)))
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
-    (push `(let ((n2 (cell-signed (stack-pop data-stack)))
-                 (n1 (cell-signed (stack-pop data-stack))))
-             (stack-push return-stack n1)
-             (stack-push return-stack n2))
-          (word-inline-forms compiling-word))
+    (add-to-definition fs
+      `(let ((n2 (cell-signed (stack-pop data-stack)))
+             (n1 (cell-signed (stack-pop data-stack))))
+         (stack-push return-stack n1)
+         (stack-push return-stack n2)))
     (resolve-branch fs again)))
 
 (define-word maybe-do (:word "?DO" :immediate? t :compile-only? t)
@@ -1090,13 +1105,15 @@
         (done (make-branch-reference :do)))
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
-    (push `(stack-underflow-check data-stack 2) (word-inline-forms compiling-word))
-    (execute-branch fs done '(= (stack-cell data-stack 0) (stack-cell data-stack 1)))
-    (push `(let ((n2 (stack-pop data-stack))
-                 (n1 (stack-pop data-stack)))
-             (stack-push return-stack n1)
-             (stack-push return-stack n2))
-          (word-inline-forms compiling-word))
+    (add-to-definition fs
+      `(stack-underflow-check data-stack 2))
+    (execute-branch-when fs done
+      (= (stack-cell data-stack 0) (stack-cell data-stack 1)))
+    (add-to-definition fs
+      `(let ((n2 (stack-pop data-stack))
+             (n1 (stack-pop data-stack)))
+         (stack-push return-stack n1)
+         (stack-push return-stack n2)))
     (resolve-branch fs again)))
 
 (define-word loop (:word "LOOP" :immediate? t :compile-only? t)
@@ -1106,10 +1123,13 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
-    (push `(incf (stack-cell return-stack 0)) (word-inline-forms compiling-word))
-    (execute-branch fs again '(< (stack-cell return-stack 0) (stack-cell return-stack 1)))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
+    (add-to-definition fs
+      `(incf (stack-cell return-stack 0)))
+    (execute-branch-when fs again
+      (< (stack-cell return-stack 0) (stack-cell return-stack 1)))
+    (add-to-definition fs
+      `(stack-pop return-stack)
+      `(stack-pop return-stack))
     (stack-pop control-flow-stack)
     (stack-pop control-flow-stack)
     (resolve-branch fs done)))
@@ -1121,33 +1141,33 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
-    (execute-branch fs again
-                    `(let* ((increment (cell-signed (stack-pop data-stack)))
-                            (limit (cell-signed (stack-cell return-stack 1)))
-                            (before (cell-signed (stack-cell return-stack 0)))
-                            (after (+ before increment))
-                            (after-signed (cell-signed after)))
-                       (prog1
-                           (cond ((plusp increment)
-                                  (if (= after after-signed)
-                                      (not (and (< before limit) (>= after limit)))
-                                      ;; Value wrapped around .. check unsigned
-                                      (let ((limit-unsigned (cell-unsigned limit))
-                                            (before-unsigned (cell-unsigned before))
-                                            (after-unsigned (cell-unsigned after)))
-                                        (not (and (< before-unsigned limit-unsigned) (>= after-unsigned limit-unsigned))))))
-                                 ((minusp increment)
-                                  (if (= after after-signed)
-                                      (not (and (>= before limit) (< after limit)))
-                                      ;; Value wrapped around .. check unsigned
-                                      (let ((limit-unsigned (cell-unsigned limit))
-                                            (before-unsigned (cell-unsigned before))
-                                            (after-unsigned (cell-unsigned after)))
-                                        (not (and (>= before-unsigned limit-unsigned) (< after-unsigned limit-unsigned))))))
-                                 (t t))
-                         (setf (stack-cell return-stack 0) after))))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
+    (execute-branch-when fs again
+      (let* ((increment (cell-signed (stack-pop data-stack)))
+             (limit (cell-signed (stack-cell return-stack 1)))
+             (before (cell-signed (stack-cell return-stack 0)))
+             (after (+ before increment))
+             (after-signed (cell-signed after)))
+        (setf (stack-cell return-stack 0) after)
+        (cond ((plusp increment)
+               (if (= after after-signed)
+                   (not (and (< before limit) (>= after limit)))
+                   ;; Value wrapped around .. check unsigned
+                   (let ((limit-unsigned (cell-unsigned limit))
+                         (before-unsigned (cell-unsigned before))
+                         (after-unsigned (cell-unsigned after)))
+                     (not (and (< before-unsigned limit-unsigned) (>= after-unsigned limit-unsigned))))))
+              ((minusp increment)
+               (if (= after after-signed)
+                   (not (and (>= before limit) (< after limit)))
+                   ;; Value wrapped around .. check unsigned
+                   (let ((limit-unsigned (cell-unsigned limit))
+                         (before-unsigned (cell-unsigned before))
+                         (after-unsigned (cell-unsigned after)))
+                     (not (and (>= before-unsigned limit-unsigned) (< after-unsigned limit-unsigned))))))
+              (t t))))
+    (add-to-definition fs
+      `(stack-pop return-stack)
+      `(stack-pop return-stack))
     (stack-pop control-flow-stack)
     (stack-pop control-flow-stack)
     (resolve-branch fs done)))
@@ -1155,27 +1175,31 @@
 (define-word index1 (:word "I" :immediate? t :compile-only? t)
   "( - n )"
   "Push a copy of the current value of the index onto the data stack"
-  (push `(stack-push data-stack (stack-cell return-stack 0)) (word-inline-forms compiling-word)))
+  (add-to-definition fs
+    `(stack-push data-stack (stack-cell return-stack 0))))
 
 (define-word index2 (:word "J" :immediate? t :compile-only? t)
   "( - n )"
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
-  (push `(stack-push data-stack (stack-cell return-stack 2)) (word-inline-forms compiling-word)))
+  (add-to-definition fs
+    `(stack-push data-stack (stack-cell return-stack 2))))
 
 (define-word leave (:word "LEAVE" :immediate? t :compile-only? t)
   "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
   (let ((done (control-structure-find fs :do 1)))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
-    (push `(stack-pop return-stack) (word-inline-forms compiling-word))
+    (add-to-definition fs
+      `(stack-pop return-stack)
+      `(stack-pop return-stack))
     (execute-branch fs done)))
 
 (define-word unloop (:word "UNLOOP" :immediate? t :compile-only? t)
   "Discard the loop parameters for the current nesting level. This word is not needed when a DO ... LOOP completes normally,"
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
-  (push `(stack-pop return-stack) (word-inline-forms compiling-word))
-  (push `(stack-pop return-stack) (word-inline-forms compiling-word)))
+  (add-to-definition fs
+    `(stack-pop return-stack)
+    `(stack-pop return-stack)))
 
 
 ;;; 4.7 CASE Statement
@@ -1194,8 +1218,10 @@
   (let ((branch (make-branch-reference :case)))
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
-    (execute-branch fs branch '(not (= (stack-pop data-stack) (stack-cell data-stack 0))))
-    (push `(stack-pop data-stack) (word-inline-forms compiling-word))))
+    (execute-branch-when fs branch
+      (not (= (stack-pop data-stack) (stack-cell data-stack 0))))
+    (add-to-definition fs
+      `(stack-pop data-stack))))
 
 (define-word endof (:word "ENDOF" :immediate? t :compile-only? t)
   "Unconditionally branch to immediately beyond the next ENDCASE"
@@ -1210,7 +1236,8 @@
   "Discard the top stack value X (presumably the case selector) and continue execution"
   (verify-control-structure fs :case)
   (let ((branch (stack-pop control-flow-stack)))
-    (push `(stack-pop data-stack) (word-inline-forms compiling-word))
+    (add-to-definition fs
+      `(stack-pop data-stack))
     (resolve-branch fs branch)))
 
 
@@ -1221,7 +1248,7 @@
   "Return control immediately to the calling definition. Before executing EXIT, a program must remove any items"
   "explicitly stored on the return stack. If EXIT is called within a DO ... LOOP, UNLOOP must be executed first"
   "to discard the loop-control parameters"
-  (execute-branch fs exit-branch))
+  (execute-branch fs (definition-exit-branch definition)))
 
 
 ;;; 5.1.1 Execution Tokens
@@ -1247,7 +1274,8 @@
       (when (null word)
         (forth-exception :undefined-word "~A is not defined" name))
       (let ((token (find-xt execution-tokens name)))
-        (push `(stack-push data-stack ,token) (word-inline-forms compiling-word))))))
+        (add-to-definition fs
+          `(stack-push data-stack ,token))))))
 
 (define-word execute (:word "EXECUTE")
   "( i*x xt - j*x )"
@@ -1270,9 +1298,9 @@
   "At compile time, parse MESSAGE from the input buffer. At runtime, if X1 is true (i.e., non-zero), display"
   "the message and perform the actions of ABORT"
   (let ((message (parse files #\")))
-    (push `(when (truep (stack-pop data-stack))
-             (forth-exception :abort\" "~@[In ~A: ~]~A" ,(word-name compiling-word) ,message))
-          (word-inline-forms compiling-word))))
+    (add-to-definition fs
+      `(when (truep (stack-pop data-stack))
+         (forth-exception :abort\" "~@[In ~A: ~]~A" ,(word-name (definition-word definition)) ,message)))))
 
 
 ;;; 5.4.1 Terminal Input
@@ -1472,12 +1500,17 @@
 
 (define-word recurse (:word "RECURSE" :immediate? t :compile-only? t)
   "Append the execution behavior of the current definition to the current definition, so that it calls itself recursively"
-  (push `(forth-call fs ,compiling-word) (word-inline-forms compiling-word)))
+  (add-to-definition fs
+    `(forth-call fs ,(definition-word definition))))
 
 
 ;;; 6.2.4 Custom Defining Words
 
-;;;---*** DOES>
+(define-word does> (:word "DOES>" :immediate? t :compile-only? t)
+  "Begin run-time behavior, specified in high-level Forth. At run time, the address of the parameter field"
+  "of the instance of the defining word is pushed onto the stack before the run-time words are executed."
+  "NOTE: The above description from the Programmer's Handbook is a bit vague"
+  (compile-does> fs))
 
 
 ;;; 6.3.1 The Forth Compiler
@@ -1504,15 +1537,16 @@
   "( x - )"
   "Compile X into the current definition. When executed, push X onto the data stack"
   (let ((value (stack-pop data-stack)))
-    (push `(stack-push data-stack ,value) (word-inline-forms compiling-word))))
+    (add-to-definition fs
+      `(stack-push data-stack ,value))))
 
 
 ;;; 6.4.1 Making Compiler Directives
 
 (define-word immediate (:word "IMMEDIATE")
   "Make the most recent definition an immediate word"
-  (when compiling-word
-    (setf (word-immediate? (shiftf compiling-word nil)) t)))
+  (when definition
+    (setf (word-immediate? (definition-word definition)) t)))
 
 (define-word postpone (:word "POSTPONE" :immediate? t :compile-only? t)
   "IMMEDIATE <name>"
