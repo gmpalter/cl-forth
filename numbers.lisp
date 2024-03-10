@@ -15,7 +15,7 @@
 (defconstant +most-positive-double-cell+ (1- (dpb 1 (byte 1 127) 0)))
 (defconstant +most-negative-double-cell+ (- (dpb 1 (byte 1 127) 0)))
 
-(defun interpret-number (thing base &key (allow-floats? t) (signal-overflow? t))
+(defun interpret-number (thing base &key (allow-floats? nil) (signal-overflow? t))
   (flet ((interpret-base-prefix ()
            (let ((ch (aref thing 0)))
              (cond ((char-equal ch #\#) (values 10 1))
