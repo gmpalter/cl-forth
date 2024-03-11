@@ -960,6 +960,8 @@
     (forth-exception :no-pictured-output "Can't use HOLD outside <# ... #>"))
   (add-to-pictured-buffer (memory-pictured-buffer memory) (stack-pop data-stack)))
 
+;;;---*** HOLDS
+
 
 ;;; 4.2 Comparison and Testing Operations
 
@@ -1596,7 +1598,7 @@
   "At compile time, begin an unconditional forward branch by placing ORIG (the location of the unresolved branch)"
   "on the control-flow stack. The behavior is incomplete until the ORIG is resolved, e.g., by THEN."
   "At run time, resume execution at the location provided by the resolution of this ORIG"
-  (let ((branch (make-branch-reference nil)))
+  (let ((branch (make-branch-reference :ahead)))
     (stack-push control-flow-stack branch)
     (execute-branch fs branch)))
 
