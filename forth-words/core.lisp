@@ -651,7 +651,7 @@
     (when (null word)
       (forth-exception :undefined-word "~A is not defined" name))
     (unless (eq (second (word-parameters word)) :value)
-      (forth-exception :invalid-name-argument "~A was not created by VALUE"))
+      (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
     (setf (memory-cell memory (first (word-parameters word))) value)))
 
 
@@ -1119,7 +1119,12 @@
     (add-to-definition fs
       `(stack-underflow-check data-stack 2))
     (execute-branch-when fs done
-      (= (stack-cell data-stack 0) (stack-cell data-stack 1)))
+      (and (= (stack-cell data-stack 0) (stack-cell data-stack 1))
+           (prog1
+               t
+             ;; Be sure to pop the limit and initial index when they're equal
+             (stack-pop data-stack)
+             (stack-pop data-stack))))
     (add-to-definition fs
       `(let ((n2 (stack-pop data-stack))
              (n1 (stack-pop data-stack)))
