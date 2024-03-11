@@ -640,19 +640,32 @@
       (forth-exception :invalid-numeric-argument "Count to MOVE can't be negative"))
     (memory-copy memory source destination count)))
 
-(define-word to (:word "TO")
+(define-word to (:word "TO" :immediate? t :inlineable? nil)
   "TO <name>" "( x - )"
   "Store X in the data space associated with <name> which must have been created with VALUE"
-  (let* ((name (word files #\Space))
-         (word (lookup word-lists name))
-         (value (stack-pop data-stack)))
-    (when (null name)
-      (forth-exception :zero-length-name))
-    (when (null word)
-      (forth-exception :undefined-word "~A is not defined" name))
-    (unless (eq (second (word-parameters word)) :value)
-      (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
-    (setf (memory-cell memory (first (word-parameters word))) value)))
+  (case (state fs)
+    (:interpreting
+     (let* ((name (word files #\Space))
+            (word (lookup word-lists name))
+            (value (stack-pop data-stack)))
+       (when (null name)
+         (forth-exception :zero-length-name))
+       (when (null word)
+         (forth-exception :undefined-word "~A is not defined" name))
+       (unless (eq (second (word-parameters word)) :value)
+         (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
+       (setf (memory-cell memory (first (word-parameters word))) value)))
+    (:compiling
+     (let* ((name (word files #\Space))
+            (word (lookup word-lists name)))
+       (when (null name)
+         (forth-exception :zero-length-name))
+       (when (null word)
+         (forth-exception :undefined-word "~A is not defined" name))
+       (unless (eq (second (word-parameters word)) :value)
+         (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
+       (add-to-definition fs
+         `(setf (memory-cell memory (first (word-parameters ,word))) (stack-pop data-stack)))))))
 
 
 ;;; 3.1.1 Single Characters
