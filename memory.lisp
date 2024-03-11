@@ -439,6 +439,16 @@
         (setf (byte-at pb (- high-water-mark used 1)) forth-char)
       (incf used))))
 
+(defmethod add-string-to-pictured-buffer ((pb pictured-buffer) memory address count)
+  (with-slots (data high-water-mark used) pb
+    (when (>= (+ used count) high-water-mark)
+      (forth-exception :pictured-output-overflow))
+    (multiple-value-bind (source-data offset)
+        (memory-decode-address memory address)
+      (replace data source-data :start1 (- high-water-mark used count) :end1 (- high-water-mark used)
+                                :start2 offset :end2 (+ offset count))
+      (incf used count))))
+
 (defmethod finish-pictured-buffer ((pb pictured-buffer))
   (with-slots (active? prefix high-water-mark used) pb
     (setf active? nil)

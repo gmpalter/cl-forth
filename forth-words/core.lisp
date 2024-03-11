@@ -24,7 +24,7 @@
 (define-word displayed-comment (:word ".(" :immediate? t)
   "Display without interpretation all text up to the next close parenthesis on the console"
   (let ((comment (word files #\) :multiline? t)))
-    (write-line comment)))
+    (write-string comment)))
 
 (define-word rest-of-line-comment (:word "\\" :immediate? t)
   "Ignore all text on the rest of the line"
@@ -172,42 +172,42 @@
 
 (define-word add (:word "+")
   "( n1 n2 - n3 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (+ n1 n2)))))
 
 (define-word subtract (:word "-")
   "( n1 n2 - n3 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (- n1 n2)))))
 
 (define-word multiply (:word "*")
   "( n1 n2 - n3 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (* n1 n2)))))
 
 (define-word divide (:word "/")
   "( n1 n2 - n3 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
         (forth-exception :divide-by-zero)
         (stack-push data-stack (cell-signed (truncate n1 n2))))))
 
 (define-word multiply-divide (:word "*/")
   "( n1 n2 n3 - n4 )"
-  (let ((n3 (stack-pop data-stack))
-        (n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n3 (cell-signed (stack-pop data-stack)))
+        (n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (truncate (* n1 n2) n3)))))
 
 (define-word multiply-divide-mod (:word "*/MOD")
   "( n1 n2 n3 - n4 n5 )"
-  (let ((n3 (stack-pop data-stack))
-        (n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n3 (cell-signed (stack-pop data-stack)))
+        (n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n3)
         (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
@@ -217,8 +217,8 @@
 
 (define-word divide-mod (:word "/MOD")
   "( n1 n2 - n3 n4 )"
-  (let ((n2 (stack-pop data-stack))
-        (n1 (stack-pop data-stack)))
+  (let ((n2 (cell-signed (stack-pop data-stack)))
+        (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
         (forth-exception :divide-by-zero)
         (multiple-value-bind (quotient remainder)
@@ -228,19 +228,19 @@
 
 (define-word add-one (:word "1+")
   "( n1 - n2 )"
-  (stack-push data-stack (cell-signed (1+ (stack-pop data-stack)))))
+  (stack-push data-stack (cell-signed (1+ (cell-signed (stack-pop data-stack))))))
 
 (define-word subtract-one (:word "1-")
   "( n1 - n2 )"
-  (stack-push data-stack (cell-signed (1- (stack-pop data-stack)))))
+  (stack-push data-stack (cell-signed (1- (cell-signed (stack-pop data-stack))))))
 
 (define-word add-two (:word "2+")
   "( n1 - n2 )"
-  (stack-push data-stack (cell-signed (+ (stack-pop data-stack) 2))))
+  (stack-push data-stack (cell-signed (+ (cell-signed (stack-pop data-stack)) 2))))
 
 (define-word subtract-two (:word "2-")
   "( n1 - n2 )"
-  (stack-push data-stack (cell-signed (- (stack-pop data-stack) 2))))
+  (stack-push data-stack (cell-signed (- (cell-signed (stack-pop data-stack)) 2))))
 
 (define-word ash-left-1 (:word "2*")
   "( x1 - x2 )"
@@ -614,9 +614,9 @@
 (define-word erase-memory (:word "ERASE")
   "( c-addr u - )"
   "Set a region of memory, at address C-ADDR and of length U, to zero"
-  (let ((count (stack-pop data-stack))
+  (let ((count (cell-signed (stack-pop data-stack)))
         (address (stack-pop data-stack)))
-    (unless (plusp count)
+    (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to ERASE can't be negative"))
     (memory-fill memory address count 0)))
 
@@ -624,7 +624,7 @@
   "( c-addr u b - )"
   "Set a region of memory, at address C-ADDR and of length U, to the byte B"
   (let ((byte (ldb (byte 8 0) (stack-pop data-stack)))
-        (count (stack-pop data-stack))
+        (count (cell-signed (stack-pop data-stack)))
         (address (stack-pop data-stack)))
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to FILL can't be negative"))
@@ -633,7 +633,7 @@
 (define-word move-memory (:word "MOVE")
   "( addr1 addr2 u - )"
   "Copy U bytes starting from a source starting at the address ADDR1 to the destination starting at address ADDR2"
-  (let ((count (stack-pop data-stack))
+  (let ((count (cell-signed (stack-pop data-stack)))
         (destination (stack-pop data-stack))
         (source (stack-pop data-stack)))
     (when (minusp count)
@@ -878,8 +878,8 @@
   "is greater than N2, all digits are displayed in a field as wide as necessary with no leading spaces"
   (let ((width (stack-pop data-stack))
         (value (cell-signed (stack-pop data-stack))))
-    (unless (plusp width)
-      (forth-exception :invalid-numeric-argument "Field width to .R must be positive"))
+    (when (minusp width)
+      (forth-exception :invalid-numeric-argument "Field width to .R can't be negative"))
     (format t "~V,VR" base width value)))
 
 (define-word print-tos-unsigned (:word "U.")
@@ -894,8 +894,8 @@
   "is greater than N, all digits are displayed in a field as wide as necessary with no leading spaces"
   (let ((width (stack-pop data-stack))
         (value (cell-unsigned (stack-pop data-stack))))
-    (unless (plusp width)
-      (forth-exception :invalid-numeric-argument "Field width to U.R must be positive"))
+    (when (minusp width)
+      (forth-exception :invalid-numeric-argument "Field width to U.R can't be negative"))
     (format t "~V,VR" base width value)))
 
 
@@ -960,7 +960,16 @@
     (forth-exception :no-pictured-output "Can't use HOLD outside <# ... #>"))
   (add-to-pictured-buffer (memory-pictured-buffer memory) (stack-pop data-stack)))
 
-;;;---*** HOLDS
+(define-word add-string-to-picture-buffer (:word "HOLDS")
+  "( c-addr u - )"
+  "Adds the string represented by C-ADDR U to the pictured numeric output string"
+  (unless (pictured-buffer-active? (memory-pictured-buffer memory))
+    (forth-exception :no-pictured-output "Can't use HOLDS outside <# ... #>"))
+  (let ((count (stack-pop data-stack))
+        (address (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-exception :invalid-numeric-argument "Count to HOLDS can't be negative"))
+    (add-string-to-pictured-buffer (memory-pictured-buffer memory) memory address count)))
 
 
 ;;; 4.2 Comparison and Testing Operations

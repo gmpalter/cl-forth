@@ -142,8 +142,8 @@
   "is greater than N, all digits are displayed in a field as wide as necessary with no leading spaces"
   (let ((width (stack-pop data-stack))
         (value (stack-pop-double data-stack)))
-    (unless (plusp width)
-      (forth-exception :invalid-numeric-argument "Field width to D.R must be positive"))
+    (when (minusp width)
+      (forth-exception :invalid-numeric-argument "Field width to D.R can't be negative"))
     (format t "~V,VR" base width value)))
 
 
