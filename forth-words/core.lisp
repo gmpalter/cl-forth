@@ -1462,21 +1462,6 @@
 
 ;;; 6.1.3 Parsing Text in the Input Stream
 
-(define-word parse (:word "PARSE")
-  "PARSE <text>" "( char - c-addr u )"
-  "Parse TEXT to the first instance of CHAR, returning the address and length of a temporary location"
-  "containing the parsed text"
-  (let* ((char (stack-pop data-stack))
-         (text (parse files (native-char char)))
-         (length (length text))
-         (address (temp-space-base-address memory)))
-    (ensure-temp-space-holds memory (* length +char-size+))
-    (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
-      (native-into-forth-string text forth-memory offset))
-    (stack-push data-stack address)
-    (stack-push data-stack length)))
-
 (define-word word (:word "WORD")
   "WORD <text>" "( char - c-addr )"
   "Skip any leading occurences of the delimiter character CHAR. Parse TEXT delimited by CHAR."
@@ -1491,6 +1476,24 @@
         (memory-decode-address memory address)
       (native-into-forth-counted-string text forth-memory offset))
     (stack-push data-stack address)))
+
+(define-word parse (:word "PARSE")
+  "PARSE <text>" "( char - c-addr u )"
+  "Parse TEXT to the first instance of CHAR."
+  "C-ADDR is the address (within the input buffer) and U is the length of the parsed string"
+  (multiple-value-bind (address length)
+      (parse files (native-char (stack-pop data-stack)) :forth-values? t)
+    (stack-push data-stack address)
+    (stack-push data-stack length)))
+
+(define-word parse-name (:word "PARSE-NAME")
+  "PARSE-NAME <name>" "( - c-addr u )"
+  "Skip leading space delimiters. Parse NAME delimited by a space"
+  "C-ADDR is the address of the selected string within the input buffer and U is its length in characters"
+  (multiple-value-bind (address length)
+      (word files #\Space :forth-values? t)
+    (stack-push data-stack address)
+    (stack-push data-stack length)))
 
 
 ;;; 6.1.4 Dictionary Searches

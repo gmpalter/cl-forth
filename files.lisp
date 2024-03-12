@@ -1,14 +1,16 @@
 (in-package #:forth)
 
 (defclass source-data-space (data-space)
-  ((is-valid? :accessor source-data-space-is-valid? :initform nil))
+  ((is-valid? :accessor source-data-space-is-valid? :initform nil)
+   (buffer :accessor source-data-space-buffer :initform nil))
   (:default-initargs :initial-size +data-space-size+))
 
-(defmethod update-source-data-space ((sp source-data-space) buffer)
-  (with-slots (data high-water-mark is-valid?) sp
-    (native-into-forth-string buffer data 0)
-    (setf high-water-mark (length buffer)
-          is-valid? t)))
+(defmethod update-source-data-space ((sp source-data-space))
+  (with-slots (data high-water-mark is-valid? buffer) sp
+    (when buffer
+      (native-into-forth-string buffer data 0)
+      (setf high-water-mark (length buffer)
+            is-valid? t))))
 
 (defmethod space-reset ((sp source-data-space))
   nil)
@@ -23,13 +25,37 @@
 (defmethod space-align ((sp source-data-space))
   nil)
 
+(defmethod space-decode-address :before ((sp source-data-space) address)
+  (declare (ignore address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
+
+(defmethod cell-at :before ((sp source-data-space) address)
+  (declare (ignore address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
+
 (defmethod (setf cell-at) (value (sp source-data-space) address)
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
+(defmethod cell-unsigned-at :before ((sp source-data-space) address)
+  (declare (ignore address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
+
 (defmethod (setf cell-unsigned-at) (value (sp source-data-space) address)
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
+
+(defmethod byte-at :before ((sp source-data-space) address)
+  (declare (ignore address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
 
 (defmethod (setf byte-at) (value (sp source-data-space) address)
   (declare (ignore value address))
@@ -38,6 +64,12 @@
 (defmethod space-fill ((sp source-data-space) address count byte)
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))
+
+(defmethod space-copy :before ((ssp source-data-space) source-address (dsp space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (with-slots (is-valid?) ssp
+    (unless is-valid?
+      (update-source-data-space ssp))))
 
 (defmethod space-copy ((ssp space) source-address (dsp source-data-space) destination-address count)
   (declare (ignore source-address destination-address count))
@@ -95,8 +127,8 @@
         (source-pop f)
         (flush-input-line f))))
 
-(defmethod word ((f files) delimiter &key multiline?)
-  (with-slots (source-id >in buffer) f
+(defmethod word ((f files) delimiter &key multiline? forth-values?)
+  (with-slots (source-id >in buffer source-as-space) f
     (let ((word (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
       (loop for buffer-len = (length buffer)
@@ -111,8 +143,17 @@
               do (when (if (and (plusp source-id) multiline?)
                            (null (refill f))
                            t)
-                   (return-from word nil)))
-      (loop for buffer-len = (length buffer)
+                   (if forth-values?
+                       (return-from word (values 0 0))
+                       (return-from word nil))))
+      (loop with starting->in = >in
+            with address = (when forth-values?
+                             (multiple-value-bind (address count)
+                                 (access-source-buffer f)
+                               (declare (ignore count))
+                               (make-address (address-prefix address) (+ (address-address address)
+                                                                         (* starting->in +char-size+)))))
+            for buffer-len = (length buffer)
             for end = (or (if whitespace-delimiter-p
                               (position-if #'whitespacep buffer :start >in)
                               (position delimiter buffer :start >in :test #'char-equal))
@@ -126,19 +167,30 @@
             do (setf >in end)
             if (< >in buffer-len)
               do (incf >in)
-                 (return-from word word)
+                 (if forth-values?
+                     (return-from word (values address (* (- >in starting->in 1) +char-size+)))
+                     (return-from word word))
             else
               do (if (if (and (plusp source-id) multiline?)
                          (null (refill f))
                          t)
-                   (return-from word word)
-                   (vector-push-extend #\Space word))))))
+                     (if forth-values?
+                         (return-from word (values address (* (- >in starting->in) +char-size+)))
+                         (return-from word word))
+                     (vector-push-extend #\Space word))))))
 
-(defmethod parse ((f files) delimiter &key multiline?)
-  (with-slots (source-id >in buffer) f
+(defmethod parse ((f files) delimiter &key multiline? forth-values?)
+  (with-slots (source-id >in buffer source-as-space) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
-      (loop for buffer-len = (length buffer)
+      (loop with starting->in = >in
+            with address = (when forth-values?
+                             (multiple-value-bind (address count)
+                                 (access-source-buffer f)
+                               (declare (ignore count))
+                               (make-address (address-prefix address) (+ (address-address address)
+                                                                         (* starting->in +char-size+)))))
+            for buffer-len = (length buffer)
             for end = (or (if whitespace-delimiter-p
                               (position-if #'whitespacep buffer :start >in)
                               (position delimiter buffer :start >in :test #'char-equal))
@@ -152,21 +204,27 @@
             do (setf >in end)
             if (< >in buffer-len)
               do (incf >in)
-                 (return-from parse parsed)
+                 (if forth-values?
+                     (return-from parse (values address (* (- >in starting->in 1) +char-size+)))
+                     (return-from parse parsed))
             else
               do (if (if (and (plusp source-id) multiline?)
                          (null (refill f))
                          t)
-                   (return-from parse parsed)
-                   (vector-push-extend #\Space parsed))))))
+                     (if forth-values?
+                         (return-from parse (values address (* (- >in starting->in) +char-size+)))
+                         (return-from parse parsed))
+                     (vector-push-extend #\Space parsed))))))
 
 (defmethod refill ((f files))
   (with-slots (source-id >in buffer verbose source-id-map source-as-space) f
     (flet ((fillup (stream)
-             (setf (source-data-space-is-valid? source-as-space) nil)
+             (setf (source-data-space-is-valid? source-as-space) nil
+                   (source-data-space-buffer source-as-space) nil)
              (let ((line (read-line stream nil :eof)))
                (unless (eq line :eof)
                  (setf buffer line
+                       (source-data-space-buffer source-as-space) line
                        >in 0)
                  (when (and verbose (plusp source-id))
                    (write-line buffer))
@@ -188,22 +246,26 @@
             buffer (or evaluate "")
             ;; SOURCE should return the user's buffer address for EVALUATE
             source-address source-address-override)
-      (setf (source-data-space-is-valid? source-as-space) nil))))
+      (setf (source-data-space-is-valid? source-as-space) nil
+            ;; For EVALUATE, set the buffer in the psuedo space here as the recursive interpreter won't
+            (source-data-space-buffer source-as-space) evaluate))))
 
 (defmethod source-pop ((f files))
-  (with-slots (source-id >in buffer source-address source-stack) f
+  (with-slots (source-id >in buffer source-address source-stack source-as-space) f
     (when (plusp source-id)
       (forth-close-file f source-id))
     (let ((ss (stack-pop source-stack)))
       (setf source-id (saved-source-id ss)
             >in (saved-source->in ss)
             buffer (saved-source-buffer ss)
-            source-address (saved-source-source-address ss)))))
+            source-address (saved-source-source-address ss)
+            (source-data-space-is-valid? source-as-space) nil
+            (source-data-space-buffer source-as-space) (saved-source-buffer ss)))))
 
 (defmethod access-source-buffer ((f files))
   (with-slots (buffer source-address source-as-space) f
     (unless (source-data-space-is-valid? source-as-space)
-      (update-source-data-space source-as-space buffer))
+      (update-source-data-space source-as-space))
     (values (or source-address (make-address (space-prefix source-as-space) 0)) (space-high-water-mark source-as-space))))
 
 
