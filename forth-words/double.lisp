@@ -49,7 +49,7 @@
         (d1 (stack-pop-double data-stack)))
     (unless (plusp n2)
       (forth-exception :invalid-numeric-argument))
-    (stack-push-double data-stack (cell-signed (truncate (* d1 n1) n2)))))
+    (stack-push-double data-stack (truncate (* d1 n1) n2))))
 
 (define-word add-double-single (:word "M+")
   "( d1 n - d2 )"
@@ -126,6 +126,20 @@
     (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
       (add-and-register-word fs word))))
 
+(define-word 2value (:word "2VALUE")
+  "2VALUE <name>" "( x1 x2 - )"
+  "Allocate two cells in data space, initialize it to X1 X2, and create a dictionary entry for <name> which returns"
+  "the contents of those cells in data space. To change the value, use TO"
+  (let ((name (word files #\Space))
+        (value (stack-pop-double data-stack)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (align-memory memory)
+    (let* ((address (allocate-memory memory (* 2 +cell-size+)))
+           (word (make-word name #'push-value :parameters (list address :2value) :creating-word? t)))
+      (setf (memory-double-cell memory address) value)
+      (add-and-register-word fs word address))))
+
 
 ;;; 3.6.2 Numeric Output
 
@@ -134,7 +148,7 @@
 (define-word print-double-tos (:word "D.")
   "( d - )"
   "Display the top two cells of the data stack as a signed double in the current base"
-  (format t "~VR. " base (stack-pop-double data-stack)))
+  (format t "~VR " base (stack-pop-double data-stack)))
 
 (define-word print-double-tos-in-field (:word "D.R")
   "( d +n - )"
@@ -163,7 +177,7 @@
   " ( d1 d2 - flag )"
   "Return true if D1 is less than D2"
   ;; As the first value popped off the stack is D2, we'll reverse the sense of the test to get the proper answer
-  (stack-push data-stack (if (>= (stack-pop-double data-stack) (stack-pop-double data-stack)) +true+ +false+)))
+  (stack-push data-stack (if (> (stack-pop-double data-stack) (stack-pop-double data-stack)) +true+ +false+)))
 
 (define-word equal-double (:word "D=")
   " ( d1 d2 - flag )"
@@ -174,7 +188,7 @@
   " ( du1 du2 - flag )"
   "Return true if DU1 is less than DU2"
   ;; As the first value popped off the stack is DU2, we'll reverse the sense of the test to get the proper answer
-  (stack-push data-stack (if (>= (stack-pop-double-unsigned data-stack) (stack-pop-double-unsigned data-stack))
+  (stack-push data-stack (if (> (stack-pop-double-unsigned data-stack) (stack-pop-double-unsigned data-stack))
                              +true+ +false+)))
 
 

@@ -443,9 +443,15 @@
     (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
       (add-and-register-word fs word (data-space-high-water-mark memory)))))
 
-(defun push-cell-at-parameter (fs &rest parameters)
+(defun push-value (fs &rest parameters)
   (with-forth-system (fs)
-    (stack-push data-stack (memory-cell memory (first parameters)))))
+    (let ((address (first parameters))
+          (type (second parameters)))
+      (case type
+        (:value
+         (stack-push data-stack (memory-cell memory address)))
+        (:2value
+         (stack-push-double data-stack (memory-double-cell memory address)))))))
 
 (define-word value (:word "VALUE")
   "VALUE <name>" "( x - )"
@@ -457,7 +463,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
-           (word (make-word name #'push-cell-at-parameter :parameters (list address :value) :creating-word? t)))
+           (word (make-word name #'push-value :parameters (list address :value) :creating-word? t)))
       (setf (memory-cell memory address) value)
       (add-and-register-word fs word address))))
 
@@ -641,20 +647,26 @@
     (memory-copy memory source destination count)))
 
 (define-word to (:word "TO" :immediate? t :inlineable? nil)
-  "TO <name>" "( x - )"
-  "Store X in the data space associated with <name> which must have been created with VALUE"
+  "TO <name>" "( x | x1 x2 - )"
+  "Store X in the data space associated with <name> which must have been created with VALUE or"
+  "store X1 X2 in the data space associated with <name> which must have been created with 2VALUE"
   (case (state fs)
     (:interpreting
      (let* ((name (word files #\Space))
-            (word (lookup word-lists name))
-            (value (stack-pop data-stack)))
+            (word (lookup word-lists name)))
        (when (null name)
          (forth-exception :zero-length-name))
        (when (null word)
          (forth-exception :undefined-word "~A is not defined" name))
-       (unless (eq (second (word-parameters word)) :value)
-         (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
-       (setf (memory-cell memory (first (word-parameters word))) value)))
+       (let ((address (first (word-parameters word)))
+             (type (second (word-parameters word))))
+         (unless (member type '(:value :2value))
+           (forth-exception :invalid-name-argument "~A was not created by VALUE or 2VALUE" name))
+         (case type
+           (:value
+            (setf (memory-cell memory address) (stack-pop data-stack)))
+           (:2value
+            (setf (memory-double-cell memory address) (stack-pop-double data-stack)))))))
     (:compiling
      (let* ((name (word files #\Space))
             (word (lookup word-lists name)))
@@ -662,10 +674,17 @@
          (forth-exception :zero-length-name))
        (when (null word)
          (forth-exception :undefined-word "~A is not defined" name))
-       (unless (eq (second (word-parameters word)) :value)
-         (forth-exception :invalid-name-argument "~A was not created by VALUE" name))
-       (add-to-definition fs
-         `(setf (memory-cell memory (first (word-parameters ,word))) (stack-pop data-stack)))))))
+       (let ((address (first (word-parameters word)))
+             (type (second (word-parameters word))))
+         (unless (member type '(:value :2value))
+           (forth-exception :invalid-name-argument "~A was not created by VALUE or 2VALUE" name))
+         (case type
+           (:value
+            (add-to-definition fs
+              `(setf (memory-cell memory ,address) (stack-pop data-stack))))
+           (:2value
+            (add-to-definition fs
+              `(setf (memory-double-cell memory ,address) (stack-pop-double data-stack))))))))))
 
 
 ;;; 3.1.1 Single Characters
