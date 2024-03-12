@@ -717,10 +717,35 @@
 
 (define-word string (:word "S\"" :immediate? t :inlineable? nil)
   "S\" <text>\"" "( - a-addr u )"
-  "If interpreted, place TEXT in a temporary buffer and return the address of length of the text"
+  "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
   "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
   (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+)))
+    (case (state fs)
+      (:interpreting
+       (let ((address (temp-space-base-address memory)))
+         (ensure-temp-space-holds memory text-size)
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (stack-push data-stack address)
+           (stack-push data-stack text-size))))
+      (:compiling
+       (let ((address (allocate-memory memory text-size)))
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (add-to-definition fs
+             `(stack-push data-stack ,address)
+             `(stack-push data-stack ,text-size))))))))
+
+(define-word escaped-string (:word "S\\\"" :immediate? t :inlineable? nil)
+  "S\" <text>\"" "( - a-addr u )"
+  "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
+  "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
+  "Process escape sequences in the text according to Section 6.2.2266 of the Forth Standard 2012 "
+  (let* ((text (escaped-parse files))
+         (text-size (length text)))
     (case (state fs)
       (:interpreting
        (let ((address (temp-space-base-address memory)))
@@ -1415,7 +1440,10 @@
 
 ;;; 6.1.1 Input Sources
 
-(define-state-word source-id)
+(define-word source-id (:word "SOURCE-ID")
+  "( - 0 | -1 | file-id )"
+  "Return 0 if the input source is the console, -1 if it is a string (EVALUATE), or the FILE-ID if it is a file"
+  (stack-push data-stack (source-id files)))
 
 
 ;;; 6.1.2 Input Source Management

@@ -78,7 +78,7 @@
 ;;;
 
 (defclass files ()
-  ((source-id :initform 0)
+  ((source-id :reader source-id :initform 0)
    (>in)
    (buffer)
    (source-address :initform nil)
@@ -128,7 +128,7 @@
         (flush-input-line f))))
 
 (defmethod word ((f files) delimiter &key multiline? forth-values?)
-  (with-slots (source-id >in buffer source-as-space) f
+  (with-slots (source-id >in buffer) f
     (let ((word (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
       (loop for buffer-len = (length buffer)
@@ -180,7 +180,7 @@
                      (vector-push-extend #\Space word))))))
 
 (defmethod parse ((f files) delimiter &key multiline? forth-values?)
-  (with-slots (source-id >in buffer source-as-space) f
+  (with-slots (source-id >in buffer) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
           (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
       (loop with starting->in = >in
@@ -215,6 +215,61 @@
                          (return-from parse (values address (* (- >in starting->in) +char-size+)))
                          (return-from parse parsed))
                      (vector-push-extend #\Space parsed))))))
+
+(defparameter *escape-translations*
+  '((#\a #\Bell)
+    (#\b #\Backspace)
+    (#\e #\Escape)
+    (#\f #\Formfeed)
+    (#\l #\Linefeed)
+    (#\m (#\Return #\Linefeed))
+    (#\n #\Newline)
+    (#\q #\")
+    (#\r #\Return)
+    (#\t #\Tab)
+    (#\v #\PageUp)
+    (#\z #\Null)
+    (#\" #\")
+    (#\\ #\\)))
+
+;;; Special simplified parsing method used only by S\" --
+;;;  The delimiter is always double quote (")
+;;;  Recognizes the escape sequences defined in Section 6.2.2266 of the Forth Standard 2012
+(defmethod escaped-parse ((f files))
+  (with-slots (>in buffer) f
+    (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
+      (loop with end = (length buffer)
+            while (< >in end)
+            with translation = nil
+            with hex = nil
+            do (let ((ch (aref buffer >in)))
+                 (cond ((char-equal ch #\")
+                        (incf >in)
+                        (return-from escaped-parse parsed))
+                       ((and (char-equal ch #\\) (< >in (1- end)))
+                        (let ((escapee (aref buffer (1+ >in))))
+                          (cond ((and (char-equal escapee #\x) (< >in (- end 3))
+                                      (setf hex (ignore-errors
+                                                 (parse-integer buffer :start (+ >in 2) :end (+ >in 4) :radix 16))))
+                                 (vector-push-extend (code-char hex) parsed)
+                                 (incf >in 4))
+                                ;; Forth Standard 2012 states that the escape characters are case sensitive
+                                ;;  (I.e. '\a' is recognized while '\A' is not)
+                                ((setf translation (cadr (find escapee *escape-translations* :key #'car)))
+                                 (if (listp translation)
+                                     (loop for char in translation
+                                           do (vector-push-extend char parsed))
+                                     (vector-push-extend translation parsed))
+                                 (incf >in 2))
+                                (t
+                                 ;; If the escape sequence isn't recognized, just add it as raw text
+                                 (vector-push-extend #\\ parsed)
+                                 (vector-push-extend escapee parsed)
+                                 (incf >in 2)))))
+                       (t
+                        (vector-push-extend ch parsed)
+                        (incf >in))))
+            finally (return parsed)))))
 
 (defmethod refill ((f files))
   (with-slots (source-id >in buffer verbose source-id-map source-as-space) f
