@@ -1669,31 +1669,6 @@
       (postpone fs word))))
 
 
-;;; 6.4.2 The Control-flow Stack and Custom Compiling Structures
-
-(define-word ahead (:word "AHEAD" :immediate? t :compile-only? t)
-  "(C: — orig )"
-  "At compile time, begin an unconditional forward branch by placing ORIG (the location of the unresolved branch)"
-  "on the control-flow stack. The behavior is incomplete until the ORIG is resolved, e.g., by THEN."
-  "At run time, resume execution at the location provided by the resolution of this ORIG"
-  (let ((branch (make-branch-reference :ahead)))
-    (stack-push control-flow-stack branch)
-    (execute-branch fs branch)))
-
-(define-word cs-pick (:word "CS-PICK")
-  "(S: u - ) (C: xu ... x0 - xu ... x0 xu ) "
-  "Place a copy of the uth control-stack entry on the top of the control stack. The zeroth item is on top of the"
-  "control stack; i.e., 0 CS-PICK is equivalent to DUP and 1 CS-PICK is equivalent to OVER."
-  (stack-pick control-flow-stack (cell-unsigned (stack-pop data-stack))))
-
-(define-word cs-roll (:word "CS-ROLL")
-  "(S: u - ) (C: x(u-1) xu x(u+1) ... x0 - x(u-1) x(u+1) ... x0 xu )"
-  "Move the Uth control-stack entry to the top of the stack, pushing down all the control-stack entries in between."
-  "The zeroth item is on top of the stack; i.e., 0 CS-ROLL does nothing, 1 CS-ROLL is equivalent to SWAP, and"
-  "2 CS-ROLL is equivalent to ROT"
-  (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
-
-
 ;;; 6.5 Overlays
 
 ;;;---*** MARKER
