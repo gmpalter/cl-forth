@@ -68,7 +68,28 @@
   (:float-unknown-fault -55 "Floating-point unidentified fault")
   (:quit -56 "QUIT")
   (:send/receive-char-exception -57 "Exception in sending or receiving a character")
-  (:if/then/else-exception -58 "[If], [ELSE], or [THEN] exception")
+  (:if/then/else-exception -58 "[IF], [ELSE], or [THEN] exception")
+  (:allocate-exception -59 "ALLOCATE exception")
+  (:free-exception -60 "FREE exception")
+  (:resize-exception -61 "RESIZE exception")
+  (:close-file-exception -62 "CLOSE-FILE exception")
+  (:create-file-exception -63 "CREATE-FILE exception")
+  (:delete-file-exception -64 "DELETE-FILE exception")
+  (:file-position-exception -65 "FILE-POSITION exception")
+  (:file-size-exception -66 "FILE-SIZE exception")
+  (:file-status-exception -67 "FILE-STATUS exception")
+  (:flush-file-exception -68 "FLUSH-FILE exception")
+  (:open-file-exception -69 "OPEN-FILE exception")
+  (:read-file-exception -70 "READ-FILE exception")
+  (:read-line-exception -71 "READ-LINE exception")
+  (:rename-file-exception -72 "RENAME-FILE exception")
+  (:reposition-file-exception -73 "REPOSITION-FILE exception")
+  (:resize-file-exception -74 "RESIZE-FILE exception")
+  (:write-file-exception -75 "WRITE-FILE exception")
+  (:write-line-exception -76 "WRITE-LINE exception")
+  (:malformed-xchar -77 "Malformed extended character")
+  (:substitute-exception -78 "SUBSTITUTE exception")
+  (:replaces-exception -79 "REPLACES exception")
   ;;
   ;; CL-Forth specific exceptions
   (:unknown-slot -256 "Unknown slot")
@@ -85,6 +106,7 @@
   (:no-pictured-output -267 "Pictured output not in progress")
   (:definitions-stack-overflow -268 "Too many DOES> words in definition")
   (:definitions-stack-underflow -269 "Internal error: definitions stack underflow")
+  (:save-restore-input-mismatch -270 "Saved input source doesn't match current source")
   )
 
 (define-condition forth-exception (error)
@@ -101,4 +123,3 @@
         (destructuring-bind (code default-phrase) entry
           (error 'forth-exception :key key :code code :phrase (or phrase default-phrase)))
         (error 'forth-exception :key :bad-exception-key :code -999 :phrase (format nil "Unrecognized exception key ~S" key)))))
-
