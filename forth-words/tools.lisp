@@ -207,7 +207,7 @@
     (let ((old-word (lookup word-lists old-name)))
       (when (null old-word)
         (forth-exception :undefined-word "~A is not defined" old-name))
-      (let ((new-word (make-word (word-name old-word) (word-code old-word)
+      (let ((new-word (make-word new-name (word-code old-word)
                                  :immediate? (word-immediate? old-word)
                                  :compile-only? (word-compile-only? old-word)
                                  :creating-word? (word-creating-word? old-word)
