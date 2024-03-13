@@ -216,7 +216,8 @@
              (when (not (zerop show-definition-code?))
                (format t "~&Code for ~A:~%  ~:W~%" (or (word-name (definition-word definition)) "<execution token>") thunk))
              (setf (word-code (definition-word definition)) (compile nil thunk)))
-           (setf (word-inline-forms (definition-word definition)) nil)
+           ;; Keep the forms for SHOW-DEFINITION
+           ;;(setf (word-inline-forms (definition-word definition)) nil)
            (setf (word-smudge? (definition-word definition)) nil)))
     (finish-definition)
     (loop while (plusp (stack-depth definitions-stack))
@@ -238,8 +239,12 @@
                   (:interpreting
                    (forth-call fs ,word))
                   (:compiling
-                   (push '(forth-call fs ,word) (word-inline-forms (definition-word definition)))))
-               (word-inline-forms (definition-word definition))))
+                   ,(if (word-inlineable? word)
+                        `(setf (word-inline-forms (definition-word definition))
+                               (append (reverse (word-inline-forms ,word))
+                                       (word-inline-forms (definition-word definition))))
+                        `(push '(forth-call fs ,word) (word-inline-forms (definition-word definition))))))
+               (word-inline-forms (definition-word definition)))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
         ;; (forth-exception :invalid-postpone))
@@ -257,6 +262,24 @@
   (unless (word-creating-word? (definition-word definition))
     )
   (setf (word-does> (definition-word definition)) does>-word))
+
+(define-forth-method show-definition (fs word)
+  (cond ((word-inline-forms word)
+         (let ((thunk `(defun ,(make-symbol (string-upcase (word-name word))) (fs &rest parameters)
+                         (declare (ignorable parameters))
+                         (with-forth-system (fs)
+                           (tagbody
+                              ,@(reverse (word-inline-forms word))
+                            :exit)))))
+           (format t "~&Source code:")
+           (let ((*package* (find-package '#:forth)))
+             (pprint thunk)
+             (terpri))))
+        ((word-code word)
+         (format t "~&Object code for ~A:~%" (word-name word))
+         (disassemble (word-code word)))
+        (t
+         (format t "~&No human-readable definition of ~A~%" (word-name word)))))
 
 ;;;
 
