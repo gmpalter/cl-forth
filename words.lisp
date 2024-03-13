@@ -54,7 +54,7 @@
    (forth :reader word-lists-forth-word-list :initform nil)
    (search-order :reader  word-lists-search-order :initform nil)
    (compilation-word-list :reader word-lists-compilation-word-list :initform nil)
-   (next-psuedo-address :initform (dpb #x55 (byte 8 48) 0))
+   (next-psuedo-address :initform (make-address #xFF 0))
    (address-to-word-list-map :initform (make-hash-table))
    (context :initform 0)
    (current :initform 0))
