@@ -40,6 +40,7 @@
     (add-state-space memory word-lists)
     (add-state-space memory files)
     (add-space memory (files-source-as-space files))
+    (add-space memory (files-saved-buffer-space files))
     (add-space memory execution-tokens)
     (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))
     ))

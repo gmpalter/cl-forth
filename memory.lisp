@@ -22,7 +22,7 @@
 (defconstant +pictured-buffer-size+ 256)
  
 (defclass memory ()
-  ((all-spaces :initform (make-array 10 :fill-pointer 0 :initial-element nil))
+  ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
    (data-space :initform (make-instance 'data-space :initial-size +data-space-size+))
    (pad :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
    (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))

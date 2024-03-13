@@ -88,7 +88,8 @@
    (input-stack :initform nil)
    (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
-   (source-as-space :accessor files-source-as-space :initform (make-instance 'source-data-space)))
+   (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
+   (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+)))
   )
 
 (defstruct saved-source
@@ -322,6 +323,75 @@
     (unless (source-data-space-is-valid? source-as-space)
       (update-source-data-space source-as-space))
     (values (or source-address (make-address (space-prefix source-as-space) 0)) (space-high-water-mark source-as-space))))
+
+
+;;;
+
+(defmethod save-buffer-for-restore ((f files))
+  (with-slots (buffer saved-buffer-space) f
+    (let* ((count (length buffer))
+           (address (space-allocate saved-buffer-space count)))
+      (multiple-value-bind (data offset)
+          (space-decode-address saved-buffer-space address)
+        (native-into-forth-string buffer data offset))
+      (values address count))))
+
+(defmethod restore-buffer ((f files) address count)
+  (with-slots (buffer saved-buffer-space) f
+    (multiple-value-bind (data offset)
+        (space-decode-address saved-buffer-space address)
+      (setf buffer (forth-string-to-native data offset count)))))
+
+(defmethod save-input ((f files))
+  (with-slots (source-id >in buffer source-address source-id-map) f
+    (let ((state-vector (make-array 16 :fill-pointer 0 :adjustable t)))
+      (vector-push-extend source-id state-vector)
+      (vector-push-extend >in state-vector)
+      (cond ((= source-id -1)
+             ;; EVALUATE supplies the address of the input buffer which we'll use to verify the subsequent restore
+             (vector-push-extend source-address state-vector))
+            ((zerop source-id)
+             nil)
+            ((plusp source-id)
+             (let ((stream (gethash source-id source-id-map)))
+               (when stream
+                 (vector-push-extend (file-position stream) state-vector)
+                 ;; For a file input source, save the current input buffer so we can restore it later
+                 ;; We can't just reposition the file's stream and read the line back into the buffer as the stream
+                 ;; is positioned after the line which is in the input buffer
+                 (multiple-value-bind (address count)
+                     (save-buffer-for-restore buffer)
+                   (vector-push-extend address state-vector)
+                   (vector-push-extend count state-vector))))))
+      state-vector)))
+
+(defmethod restore-input ((f files) state-vector)
+  (with-slots (source-id >in buffer source-address source-id-map) f
+    (let ((saved-source-id (aref state-vector 0))
+          (saved->in (aref state-vector 1)))
+      (unless (= source-id saved-source-id)
+        (forth-exception :save-restore-input-mismatch))
+      (cond ((= saved-source-id -1)
+             (let ((saved-source-address (aref state-vector 2)))
+               (unless (= source-address saved-source-address)
+                 (forth-exception :save-restore-input-mismatch))
+               (setf >in saved->in)
+               t))
+            ((zerop saved-source-id)
+             nil)
+            (t
+             (let ((stream (gethash saved-source-id source-id-map))
+                   (saved-file-position (aref state-vector 2))
+                   (saved-buffer-address (aref state-vector 3))
+                   (saved-buffer-count (aref state-vector 4)))
+               (when stream
+                 (handler-case
+                     (progn
+                       (file-position stream saved-file-position)
+                       (restore-buffer f saved-buffer-address saved-buffer-count)
+                       (setf >in saved->in)
+                       t)
+                   (file-error () nil)))))))))
 
 
 ;;;

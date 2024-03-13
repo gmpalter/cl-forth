@@ -1495,8 +1495,27 @@
   "Attempt to fill the input buffer from the current input source, returning true if successful"
   (stack-push data-stack (if (refill files) +true+ +false+)))
 
-;;;---*** RESTORE-INPUT
-;;;---*** SAVE-INPUT
+(define-word restore-input (:word "RESTORE-INPUT")
+  "( x1 ... xn n - flag )"
+  "Attempt to restore the input source specification to the state described by X1 through XN."
+  "FLAG is true if the input source specification cannot be so restored"
+  (let* ((n (stack-pop data-stack))
+         (state-vector (make-array n :initial-element 0)))
+    (dotimes (i n)
+      (setf (aref state-vector (- n i 1)) (stack-pop data-stack)))
+    ;; Unlike the word, the RESTORE-INPUT method returns T for success
+    (if (restore-input files state-vector)
+        (stack-push data-stack +false+)
+        (stack-push data-stack +true+))))
+
+(define-word save-input (:word "SAVE-INPUT")
+  "( - x1 ... xn n )"
+  "X1 through XN describe the current state of the input source specification for later use by RESTORE-INPUT"
+  (let ((state-vector (save-input files)))
+    (let ((n (length state-vector)))
+      (dotimes (i n)
+        (stack-push data-stack (aref state-vector i)))
+      (stack-push data-stack n))))
 
 (define-word source (:word "SOURCE")
   "( - c-addr u )"
