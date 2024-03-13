@@ -4,13 +4,31 @@
 
 ;;; 2.1.3 Return Stack Manipulation
 
-;;;---*** N>R
-"( i*n +n – ) (R: – j*x +n )
-Remove n+1 items from the data stack and store them for later retrieval by NR>. The return stack may be used to store the data. Until this data has been retrieved by NR>:"
+;;; NOTE: This word pushes a vector of values onto the return stack rather than individual items.
+;;;  A Forth program will crash if it doesn't maintain proper return stack discipline. But, that's true
+;;;  anyway as the return "address" pushed/popped by a call is actually a CONS.
+(define-word save-values (:word "N>R")
+  "( i*n +n – ) (R: – j*x +n )"
+  "Remove N+1 items from the data stack and store them for later retrieval by NR>."
+  "The return stack may be used to store the data"
+  (let ((n (stack-pop data-stack)))
+    (when (minusp n)
+      (forth-exception :invalid-numeric-argument "N>R count can't be negative"))
+    (let ((vector (make-array n :initial-element 0)))
+      (dotimes (i n)
+        (setf (aref vector (- n i 1)) (stack-pop data-stack)))
+      (stack-push return-stack vector))))
 
-;;;---*** NR>
-"( – i*x +n) (R: j*x +n – )
-Retrieve the items previously stored by an invocation of N>R. n is the number of items placed on the data stack."
+(define-word retrieve-values (:word "NR>")
+  "( – i*x +n) (R: j*x +n – )"
+  "Retrieve the items previously stored by an invocation of N>R. N is the number of items placed on the data stack."
+  (let ((vector (stack-pop return-stack)))
+    (unless (vectorp vector)
+      (forth-exception :type-mismatch "Return stack out of sync"))
+    (let ((n (length vector)))
+      (dotimes (i n)
+        (stack-push data-stack (aref vector i)))
+      (stack-push data-stack n))))
 
 
 ;;; 2.1.4 Programmer Conveniences
@@ -146,7 +164,7 @@ Retrieve the items previously stored by an invocation of N>R. n is the number of
 
 (define-word interpreted-then (:word "[THEN]" :immediate? t)
   "Does nothing"
-  )
+  nil)
 
 
 ;;; 6.4.2 The Control-flow Stack and Custom Compiling Structures
@@ -173,3 +191,28 @@ Retrieve the items previously stored by an invocation of N>R. n is the number of
   "2 CS-ROLL is equivalent to ROT"
   (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
+
+;;; Standard Forth 2012 Words
+
+(define-word synonym (:word "SYNONYM")
+  "SYNONYM <newname> <oldname>"
+  "Parse NEWNAME and OLDNAME delimited by a space. Create a definition for NEWNAME with the semantics of OLDNAME."
+  "NEWNAME may be the same as OLDNAME; when looking up OLDNAME, NEWNAME shall not be found."
+  (let ((new-name (word files #\Space))
+        (old-name (word files #\Space)))
+    (when (null new-name)
+      (forth-exception :zero-length-name))
+    (when (null old-name)
+      (forth-exception :zero-length-name))
+    (let ((old-word (lookup word-lists old-name)))
+      (when (null old-word)
+        (forth-exception :undefined-word "~A is not defined" old-name))
+      (let ((new-word (make-word (word-name old-word) (word-code old-word)
+                                 :immediate? (word-immediate? old-word)
+                                 :compile-only? (word-compile-only? old-word)
+                                 :creating-word? (word-creating-word? old-word)
+                                 :parameters (copy-list (word-parameters old-word)))))
+        (setf (word-inlineable? new-word) (word-inlineable? old-word)
+              (word-inline-forms new-word) (word-inline-forms old-word)
+              (word-does> new-word) (word-does> old-word))
+        (add-and-register-word fs new-word)))))
