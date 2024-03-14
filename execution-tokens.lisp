@@ -36,12 +36,25 @@
       (when xt
         (values (xt-token xt) (xt-word xt))))))
 
+(defmethod verify-execution-token ((xts execution-tokens) token)
+  (with-slots (token-to-xt-map) xts
+    (let ((xt (gethash token token-to-xt-map)))
+      (when (null xt)
+        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token)))))
+  
 (defmethod execute ((xts execution-tokens) token fs)
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
       (forth-call fs (xt-word xt)))))
+
+(defmethod find-word ((xts execution-tokens) token)
+  (with-slots (token-to-xt-map) xts
+    (let ((xt (gethash token token-to-xt-map)))
+      (when (null xt)
+        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
+      (xt-word xt))))
 
 (defmethod find-body ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts

@@ -1368,6 +1368,97 @@
   (execute execution-tokens (stack-pop data-stack) fs))
 
 
+;;; 5.1.2 Single Function Pointers
+
+(defun execute-parameter (fs &rest parameters)
+  (with-forth-system (fs)
+    (when (null (first parameters))
+      (forth-exception :defer-not-set))
+    (execute execution-tokens (first parameters) fs)))
+
+(define-word defer (:word "DEFER")
+  "DEFER <name>"
+  "Create a definition for NAME that will execute the execution token stored in NAME via IS or DEFER!"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (make-word name #'execute-parameter :deferring-word? t :parameters (list nil))))
+      (add-and-register-word fs word))))
+
+(define-word defer! (:word "DEFER!")
+  "(xt2 xt1 - )"
+  "Set the word XT1 to execute XT2. XT1 must be the execution token of a word created by DEFER"
+  (let* ((xt1 (stack-pop data-stack))
+         (word (find-word execution-tokens xt1))
+         (xt2 (stack-pop data-stack)))
+    (unless (word-deferring-word? word)
+      (forth-exception :not-defer "~A was not created by DEFER" (word-name word)))
+    (verify-execution-token execution-tokens xt2)
+    (setf (first (word-parameters word)) xt2)))
+
+(define-word defer@ (:word "DEFER@")
+  "( xt1 – xt2 )"
+  "XT2 is the execution token XT1 is set to execute. XT1 must be the execution token of a word created by DEFER"
+  (let* ((xt1 (stack-pop data-stack))
+         (word (find-word execution-tokens xt1)))
+    (unless (word-deferring-word? word)
+      (forth-exception :not-defer "~A was not created by DEFER" (word-name word)))
+    (let ((xt (first (word-parameters word))))
+      (when (null xt)
+        (forth-exception :defer-not-set))
+      (stack-push data-stack xt))))
+
+(define-word is (:word "IS" :immediate? t)
+  "IS <name>" "( xt - )"
+  "If interpreting, set NAME to execute XT"
+  "If compiling, add code to the current definition to set NAME to execute XT"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (unless (word-deferring-word? word)
+        (forth-exception :not-defer "~A was not created by DEFER" name))
+      (case (state fs)
+        (:interpreting
+         (let ((xt (stack-pop data-stack)))
+           (verify-execution-token execution-tokens xt)
+           (setf (first (word-parameters word)) xt)))
+        (:compiling
+         (add-to-definition fs
+           `(let ((xt (stack-pop data-stack)))
+              (verify-execution-token execution-tokens xt)
+              (setf (first (word-parameters ,word)) xt))))))))
+
+
+(define-word action-of (:word "ACTION-OF" :immediate? t)
+  "ACTION-OF <name>" "( - xt )"
+  "If interpreted, place the execution token (xt) that NAME is set to execute onto the stack"
+  "If compiled, add code to the current definition to place the execution token that NAME is set to execute"
+  "when this definition is executed onto the stack"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (unless (word-deferring-word? word)
+        (forth-exception :not-defer "~A was not created by DEFER" name))
+      (case (state fs)
+        (:interpreting
+         (let ((xt (first (word-parameters word))))
+           (when (null xt)
+             (forth-exception :defer-not-set))
+           (stack-push data-stack xt)))
+        (:compiling
+         (add-to-definition fs
+           `(let ((xt (first (word-parameters ,word))))
+              (when (null xt)
+                (forth-exception :defer-not-set))
+              (stack-push data-stack xt))))))))
+
+
 ;;; 5.3 Exception Handling
 
 (define-word abort (:word "ABORT")

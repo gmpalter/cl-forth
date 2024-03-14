@@ -244,7 +244,7 @@
                                (append (reverse (word-inline-forms ,word))
                                        (word-inline-forms (definition-word definition))))
                         `(push '(forth-call fs ,word) (word-inline-forms (definition-word definition))))))
-               (word-inline-forms (definition-word definition)))))
+               (word-inline-forms (definition-word definition))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
         ;; (forth-exception :invalid-postpone))

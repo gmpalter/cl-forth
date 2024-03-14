@@ -107,6 +107,8 @@
   (:definitions-stack-overflow -268 "Too many DOES> words in definition")
   (:definitions-stack-underflow -269 "Internal error: definitions stack underflow")
   (:save-restore-input-mismatch -270 "Saved input source doesn't match current source")
+  (:not-defer -271 "Not a DEFER definition")
+  (:defer-not-set -272 "Execution token not set in DEFER definition")
   )
 
 (define-condition forth-exception (error)
