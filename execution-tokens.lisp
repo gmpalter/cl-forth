@@ -20,8 +20,16 @@
       (let ((xt (make-xt :token address :word word :>body here)))
         (when (word-name word)
           (setf (gethash (word-name word) name-to-xt-map) xt))
-        (setf (gethash address token-to-xt-map) xt))
+        (setf (gethash address token-to-xt-map) xt)
+        (setf (word-execution-token word) xt))
       address)))
+
+(defmethod reregister-execution-token ((xts execution-tokens) xt)
+  (with-slots (name-to-xt-map token-to-xt-map) xts
+    (let ((word (xt-word xt)))
+      (when (word-name word)
+        (setf (gethash (word-name word) name-to-xt-map) xt))
+      (setf (gethash (xt-token xt) token-to-xt-map) xt))))
 
 (defmethod find-xt ((xts execution-tokens) name)
   (with-slots (name-to-xt-map) xts
@@ -64,6 +72,12 @@
       (when (null (word-creating-word? (xt-word xt)))
         (forth-exception :invalid->body))
       (xt->body xt))))
+
+(defmethod delete-execution-token ((xts execution-tokens) word)
+  (with-slots (name-to-xt-map token-to-xt-map) xts
+    (when (word-name word)
+      (remhash (word-name word) name-to-xt-map))
+    (remhash (word-execution-token word) token-to-xt-map)))
 
 (defmethod space-reset ((sp execution-tokens))
   (with-slots (high-water-mark name-to-xt-map token-to-xt-map

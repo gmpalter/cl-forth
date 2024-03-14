@@ -1762,7 +1762,23 @@
 
 ;;; 6.5 Overlays
 
-;;;---*** MARKER
+(defun do-marker (fs &rest parameters)
+  (with-forth-system (fs)
+    (execute-marker word-lists execution-tokens (first parameters))))
+
+(define-word marker (:word "MARKER")
+  "MARKER <name>"
+  "Define NAME which restores all dictionary allocation and search order pointers to the state they had just prior"
+  "to the definition of NAME. Remove the definition of NAME and all subsequent definitions. Restoration of any structures"
+  "still existing that could refer to deleted definitions or deallocated data space is not necessarily provided."
+  "No other contextual information such as numeric base is affected"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (make-word name #'do-marker))
+          (marker (register-marker word-lists)))
+      (add-and-register-word fs word)
+      (setf (word-parameters word) (list marker)))))
 
 
 ;;; 6.6.2 Managing Word Lists

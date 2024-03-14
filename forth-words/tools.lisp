@@ -216,3 +216,8 @@
               (word-inline-forms new-word) (word-inline-forms old-word)
               (word-does> new-word) (word-does> old-word))
         (add-and-register-word fs new-word)))))
+
+;;;---*** NAME>COMPILE
+;;;---*** NAME>INTERPRET
+;;;---*** NAME>STRING
+;;;---*** TRAVERSE-WORDLIST

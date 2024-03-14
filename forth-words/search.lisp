@@ -31,3 +31,14 @@
 (define-word pop-search-order (:word "PREVIOUS")
   "Remove the first entry from the search order"
   (previous word-lists))
+
+
+;;; Standard Forth 2012 Words
+
+;;;---*** FORTH-WORDLIST
+;;;---*** GET-CURRENT
+;;;---*** GET-ORDER
+;;;---*** SEARCH-WORDLIST
+;;;---*** SET-CURRENT
+;;;---*** SET-ORDER
+;;;---*** WORDLIST

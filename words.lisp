@@ -1,9 +1,12 @@
 (in-package #:forth)
 
+;;; Dictionaries
+
 (defclass dictionary ()
   ((name :accessor dictionary-name :initarg :name)
    (psuedo-address :accessor dictionary-psuedo-address :initarg :psuedo-address)
-   (words :accessor dictionary-words :initform (make-hash-table :test #'equalp)))
+   (words :accessor dictionary-words :initform (make-hash-table :test #'equalp))
+   (parent :accessor dictionary-parent :initform nil :initarg :parent))
   )
 
 (defmethod print-object ((dict dictionary) stream)
@@ -11,14 +14,28 @@
     (write-string (dictionary-name dict) stream)))
 
 (defmethod add-word ((dict dictionary) word &key override silent)
-  (with-slots (words) dict
+  (with-slots (words parent) dict
     (let ((old (gethash (word-name word) words)))
       (when old
         (unless silent
           (format t "~A isn't unique. " (word-name word)))
         (unless override
           (setf (word-previous word) old)))
+      (note-new-word parent dict word)
       (setf (gethash (word-name word) words) word))))
+
+(defmethod delete-word ((dict dictionary) xts word)
+  (with-slots (words) dict
+    (let ((name (word-name word))
+          (old (word-previous word)))
+      (delete-execution-token xts word)
+      (cond (old
+             (if (eq (word-parent old) dict)
+                 (setf (gethash name words) old)
+                 (remhash name words))
+             (reregister-execution-token xts (word-execution-token word)))
+            (t
+             (remhash name words))))))
 
 (defmethod show-words ((dict dictionary))
   (let* ((words (dictionary-words dict))
@@ -43,11 +60,9 @@
                (terpri)))))
 
 
-;;;
+;;; Word Lists and the Search Order
 
 (defvar *predefined-words* (make-hash-table :test #'equalp))
-(defvar *saved-search-order* nil)
-(defvar *saved-compilation-word-list* nil)
 
 (defclass word-lists ()
   ((all-word-lists :initform (make-hash-table :test #'equalp))
@@ -56,6 +71,9 @@
    (compilation-word-list :reader word-lists-compilation-word-list :initform nil)
    (next-psuedo-address :initform (make-address #xFF 0))
    (address-to-word-list-map :initform (make-hash-table))
+   (saved-search-order :initform nil)
+   (saved-compilation-word-list :initform nil)
+   (markers :initform (make-array 0 :fill-pointer 0 :adjustable t))
    (context :initform 0)
    (current :initform 0))
   )
@@ -87,23 +105,25 @@
            *predefined-words*))
 
 (defmethod reset-word-lists ((wls word-lists))
-  (with-slots (all-word-lists forth search-order compilation-word-list) wls
+  (with-slots (all-word-lists forth search-order compilation-word-list saved-search-order saved-compilation-word-list markers)
+      wls
     (clrhash all-word-lists)
     ;; At a minimum, this will create the FORTH word list
     (install-predefined-words wls)
     (setf forth (word-list wls "FORTH"))
-    (if *saved-search-order*
-        (setf search-order (loop for wl in *saved-search-order*
+    (if saved-search-order
+        (setf search-order (loop for wl in saved-search-order
                                  append (word-list wls wl :if-not-found :create)))
         (setf search-order (list forth)))
-    (if *saved-compilation-word-list*
+    (if saved-compilation-word-list
         ;; In case the user just creats an empty word list and sets it as the compilation word list before GILDing
-        (setf compilation-word-list (word-list wls *saved-compilation-word-list* :if-not-found :create))
+        (setf compilation-word-list (word-list wls saved-compilation-word-list :if-not-found :create))
         (setf compilation-word-list forth))
+    (setf markers (make-array 0 :fill-pointer 0 :adjustable t))
     (update-psuedo-state-variables wls)))
 
 (defmethod save-word-lists-state ((wls word-lists))
-  (with-slots (all-word-lists search-order compilation-word-list) wls
+  (with-slots (all-word-lists search-order compilation-word-list saved-search-order saved-compilation-word-list) wls
     (clrhash *predefined-words*)
     (maphash #'(lambda (name dictionary)
                  (declare (ignore name))
@@ -111,15 +131,15 @@
                               (setf (gethash forth-name *predefined-words*) wl-and-word))
                           dictionary))
              all-word-lists)
-    (setf *saved-search-order* (map 'list #'dictionary-name search-order))
-    (setf *saved-compilation-word-list* (dictionary-name compilation-word-list))))
+    (setf saved-search-order (map 'list #'dictionary-name search-order))
+    (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
 
 (defmethod word-list ((wls word-lists) name &key (if-not-found :error))
   (with-slots (all-word-lists address-to-word-list-map next-psuedo-address) wls
     (or (gethash name all-word-lists)
         (case if-not-found
           (:create
-           (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address)))
+           (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address :parent wls)))
              (setf (gethash name all-word-lists) word-list
                    (gethash next-psuedo-address address-to-word-list-map) word-list)
              (incf next-psuedo-address +cell-size+)
@@ -174,8 +194,7 @@
           (replace-top-of-search-order wls word-list)
           (forth-exception :unknown-word-list "~14,'0X is not the address of a word list" psuedo-address)))))
 
-
-;;;
+;;; Words
 
 (defclass word ()
   ((name :accessor word-name :initarg :name)
@@ -189,7 +208,9 @@
    (code :accessor word-code :initarg :code :initform nil)
    (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
    (parameters :accessor word-parameters :initarg :parameters :initform nil)
-   (does> :accessor word-does> :initform nil))
+   (does> :accessor word-does> :initform nil)
+   (parent :accessor word-parent :initform nil)
+   (execution-token :accessor word-execution-token :initform nil))
   )
 
 (defmethod print-object ((word word) stream)
@@ -235,3 +256,46 @@
                        :creating-word? creating-word?
                        :deferring-word? deferring-word?
                        :parameters (copy-list parameters)))
+
+
+;;; MARKER support
+
+(defclass marker ()
+  ((search-order :reader marker-search-order :initarg :search-order :initform nil)
+   (compilation-word-list :reader marker-compilation-word-list :initarg :compilation-word-list :initform nil)
+   (words :initform nil))
+  )
+
+(defmethod add-word-to-marker ((marker marker) word)
+  (with-slots (words) marker
+    (push word words)))
+
+(defmethod remove-words ((marker marker) xts)
+  (with-slots (words) marker
+    (map  nil #'(lambda (word) (delete-word (word-parent word) xts word)) words)
+    (setf words nil)))
+
+(defmethod register-marker ((wls word-lists))
+  (with-slots (search-order compilation-word-list markers) wls
+    (let ((marker (make-instance 'marker :search-order (copy-list search-order) :compilation-word-list compilation-word-list)))
+      (vector-push-extend marker markers)
+      marker)))
+
+(defmethod execute-marker ((wls word-lists) xts (marker marker))
+  (with-slots (search-order compilation-word-list markers) wls
+    (let ((position (position marker markers)))
+      ;; Ignore stale markers
+      (when position
+        (setf search-order (copy-list (marker-search-order marker))
+              compilation-word-list (marker-compilation-word-list marker))
+        (remove-words marker xts)
+        (loop for i from position below (fill-pointer markers)
+              do (setf (aref markers i) nil))
+        (setf (fill-pointer markers) position)))))
+
+(defmethod note-new-word ((wls word-lists) (dict dictionary) (word word))
+  (with-slots (markers) wls
+    (setf (word-parent word) dict)
+    (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
+
+
