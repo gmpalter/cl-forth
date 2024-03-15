@@ -1715,7 +1715,11 @@
 
 ;;; 6.3.1 The Forth Compiler
 
-;;;---*** COMPILE,
+(define-word compile-comma (:word "COMPILE,")
+  "( xt – )"
+  "Append the execution semantics of the definition represented by XT to the execution semantics of the current definition"
+  (let ((xt (stack-pop data-stack)))
+    (compile-comma fs xt)))
 
 (define-state-word state)
 

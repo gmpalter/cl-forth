@@ -3,7 +3,8 @@
 (defstruct definition
   word
   exit-branch
-  >body-address)
+  >body-address
+  (in-progress? t))
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
@@ -191,7 +192,7 @@
 (define-forth-method add-and-register-word (fs word &optional >body-address)
   ;; Ensure that IMMEDIATE and DOES> will find this word
   (let ((>body-address (or >body-address (data-space-high-water-mark memory))))
-    (setf definition (make-definition :word word :>body-address >body-address))
+    (setf definition (make-definition :word word :>body-address >body-address :in-progress? nil))
     (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
     (register-execution-token execution-tokens word >body-address)))
 
@@ -218,7 +219,8 @@
              (setf (word-code (definition-word definition)) (compile nil thunk)))
            ;; Keep the forms for SHOW-DEFINITION
            ;;(setf (word-inline-forms (definition-word definition)) nil)
-           (setf (word-smudge? (definition-word definition)) nil)))
+           (setf (word-smudge? (definition-word definition)) nil
+                 (definition-in-progress? definition) nil)))
     (finish-definition)
     (loop while (plusp (stack-depth definitions-stack))
           do (let ((does>-word (definition-word definition)))
@@ -249,6 +251,11 @@
         ;;(t
         ;; (forth-exception :invalid-postpone))
         ))
+
+(define-forth-method compile-comma (fs xt)
+  (when (definition-in-progress? definition)
+    (add-to-definition fs
+      `(execute execution-tokens ,xt fs))))
 
 (define-forth-method compile-does> (fs)
   (let ((does>-word (make-word (symbol-name (gensym "DOES>")) nil)))
