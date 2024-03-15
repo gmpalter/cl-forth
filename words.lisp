@@ -59,6 +59,10 @@
              (when (> column 2)
                (terpri)))))
 
+(defmethod search-dictionary ((dict dictionary) name)
+  (with-slots (words) dict
+    (gethash name words)))
+
 
 ;;; Word Lists and the Search Order
 
@@ -67,10 +71,11 @@
 (defclass word-lists ()
   ((all-word-lists :initform (make-hash-table :test #'equalp))
    (forth :reader word-lists-forth-word-list :initform nil)
-   (search-order :reader  word-lists-search-order :initform nil)
-   (compilation-word-list :reader word-lists-compilation-word-list :initform nil)
+   (search-order :accessor  word-lists-search-order :initform nil)
+   (compilation-word-list :accessor word-lists-compilation-word-list :initform nil)
    (next-psuedo-address :initform (make-address #xFF 0))
-   (address-to-word-list-map :initform (make-hash-table))
+   (wid-to-word-list-map :initform (make-hash-table))
+   (nt-to-word-map :initform (make-hash-table))
    (saved-search-order :initform nil)
    (saved-compilation-word-list :initform nil)
    (markers :initform (make-array 0 :fill-pointer 0 :adjustable t))
@@ -105,9 +110,12 @@
            *predefined-words*))
 
 (defmethod reset-word-lists ((wls word-lists))
-  (with-slots (all-word-lists forth search-order compilation-word-list saved-search-order saved-compilation-word-list markers)
+  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map
+               saved-search-order saved-compilation-word-list markers)
       wls
     (clrhash all-word-lists)
+    (clrhash wid-to-word-list-map)
+    (clrhash nt-to-word-map)
     ;; At a minimum, this will create the FORTH word list
     (install-predefined-words wls)
     (setf forth (word-list wls "FORTH"))
@@ -135,18 +143,24 @@
     (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
 
 (defmethod word-list ((wls word-lists) name &key (if-not-found :error))
-  (with-slots (all-word-lists address-to-word-list-map next-psuedo-address) wls
-    (or (gethash name all-word-lists)
-        (case if-not-found
-          (:create
-           (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address :parent wls)))
-             (setf (gethash name all-word-lists) word-list
-                   (gethash next-psuedo-address address-to-word-list-map) word-list)
-             (incf next-psuedo-address +cell-size+)
-             word-list))
-          (:error
-           (forth-exception :unknown-word-list "Word list ~A does not exist" name))
-          (otherwise nil)))))
+  (with-slots (all-word-lists wid-to-word-list-map next-psuedo-address) wls
+    (let ((name (or name (gensym "WL"))))
+      (or (gethash name all-word-lists)
+          (case if-not-found
+            (:create
+             (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address :parent wls)))
+               (setf (gethash name all-word-lists) word-list
+                     (gethash next-psuedo-address wid-to-word-list-map) word-list)
+               (incf next-psuedo-address +cell-size+)
+               word-list))
+            (:error
+             (forth-exception :unknown-word-list "Word list ~A does not exist" name))
+            (otherwise nil))))))
+
+(defmethod lookup-wid ((wls word-lists) wid)
+  (with-slots (wid-to-word-list-map) wls
+    (or (gethash wid wid-to-word-list-map)
+        (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid))))
 
 (defmethod lookup ((wls word-lists) token)
   (with-slots (search-order) wls
@@ -155,6 +169,11 @@
                           while word
                             thereis (and (not (word-smudge? word)) word)))))
 
+(defmethod lookup-nt ((wls word-lists) nt)
+  (with-slots (nt-to-word-map) wls
+    (or (gethash nt nt-to-word-map)
+        (forth-exception :not-a-name-token "~14,'0X is not a name token" nt))))
+        
 (defmethod also ((wls word-lists))
   (with-slots (search-order) wls
     (push (first search-order) search-order)))
@@ -188,11 +207,27 @@
     (update-psuedo-state-variables wls)))
 
 (defmethod replace-top-of-search-order ((wls word-lists) (psuedo-address integer))
-  (with-slots (search-order address-to-word-list-map) wls
-    (let ((word-list (gethash psuedo-address address-to-word-list-map)))
+  (with-slots (search-order wid-to-word-list-map) wls
+    (let ((word-list (gethash psuedo-address wid-to-word-list-map)))
       (if word-list
           (replace-top-of-search-order wls word-list)
           (forth-exception :unknown-word-list "~14,'0X is not the address of a word list" psuedo-address)))))
+
+
+;;; Support for Forth 2012
+
+(defmethod traverse-wordlist ((wls word-lists) wl function)
+  (maphash #'(lambda (name word)
+               (declare (ignore name))
+               (if (funcall function (word-name-token word))
+                   (loop for old = (word-previous word) then (word-previous old)
+                         while old
+                         do (when (eq (word-parent old) wl)
+                              (unless (funcall function (word-name-token old))
+                                (return-from traverse-wordlist))))
+                   (return-from traverse-wordlist)))
+           (dictionary-words wl)))
+
 
 ;;; Words
 
@@ -210,7 +245,9 @@
    (parameters :accessor word-parameters :initarg :parameters :initform nil)
    (does> :accessor word-does> :initform nil)
    (parent :accessor word-parent :initform nil)
-   (execution-token :accessor word-execution-token :initform nil))
+   (execution-token :accessor word-execution-token :initform nil)
+   (compile-token :accessor word-compile-token :initform nil)
+   (name-token :accessor word-name-token :initform nil))
   )
 
 (defmethod print-object ((word word) stream)
@@ -294,8 +331,9 @@
         (setf (fill-pointer markers) position)))))
 
 (defmethod note-new-word ((wls word-lists) (dict dictionary) (word word))
-  (with-slots (markers) wls
-    (setf (word-parent word) dict)
+  (with-slots (next-psuedo-address nt-to-word-map markers) wls
+    (setf (word-parent word) dict
+          (word-name-token word) next-psuedo-address
+          (gethash next-psuedo-address nt-to-word-map) word)
+    (incf next-psuedo-address +cell-size+)
     (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
-
-

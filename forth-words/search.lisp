@@ -33,12 +33,77 @@
   (previous word-lists))
 
 
-;;; Standard Forth 2012 Words
+;;; Forth 2012 Words
 
-;;;---*** FORTH-WORDLIST
-;;;---*** GET-CURRENT
-;;;---*** GET-ORDER
-;;;---*** SEARCH-WORDLIST
-;;;---*** SET-CURRENT
-;;;---*** SET-ORDER
-;;;---*** WORDLIST
+(define-word forth-wordlist (:word "FORTH-WORDLIST")
+  "( – wid)"
+  "Return WID, the identifier of the word list that includes all standard words provided by the implementation."
+  "This word list is initially the compilation word list and is part of the initial search order"
+  (stack-push data-stack (dictionary-psuedo-address (word-lists-forth-word-list word-lists))))
+
+(define-word get-current (:word "GET-CURRENT")
+  "( – wid)"
+  "Return WID, the identifier of the compilation word list"
+  (stack-push data-stack (dictionary-psuedo-address (word-lists-compilation-word-list word-lists))))
+
+(define-word get-order (:word "GET-ORDER")
+  "( – widn ... wid1 n )"
+  "Returns the number of word lists N in the search order and the word list identifiers WIDn . . . WID1 identifying these"
+  "word lists. WID1 identifies the word list that is searched first, and WIDn the word list that is searched last"
+  (let ((wids nil))
+    (dolist (wl (word-lists-search-order word-lists))
+      (push (dictionary-psuedo-address wl) wids))
+    (dolist (wid wids)
+      (stack-push data-stack wid))
+    (stack-push data-stack (length wids))))
+  
+(define-word search-wordlist (:word "SEARCH-WORDLIST")
+  "( c-addr u wid – 0 | xt 1 | xt -1 )"
+  "Find the definition identified by the string C-ADDR U in the word list identified by WID."
+  "If the definition is not found, return zero. If the definition is found, return its execution token XT"
+  "and one (1) if the definition is immediate, minus-one (-1) otherwise"
+  (let ((wl (lookup-wid word-lists (stack-pop data-stack)))
+        (count (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp count)
+      (forth-exception :invalid-numeric-argument "Word name length must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (let* ((name (forth-string-to-native forth-memory offset count))
+             (word (search-dictionary wl name)))
+        (cond (word
+               (stack-push data-stack (xt-token (word-execution-token word)))
+               (stack-push data-stack (if (word-immediate? word) 1 -1)))
+              (t
+               (stack-push data-stack 0)))))))
+
+(define-word set-current (:word "SET-CURRENT")
+  "( wid – )"
+  "Set the compilation word list to the word list identified by WID"
+  (let ((wl (lookup-wid word-lists (stack-pop data-stack))))
+    (setf (word-lists-compilation-word-list word-lists) wl)))
+
+(define-word set-order (:word "SET-ORDER")
+  "( widn ... wid1 n – )"
+  "Set the search order to the word lists identified by WIDn . . . WID1."
+  "Subsequently, word list WID1 will be searched first, and word list WIDn searched last."
+  "If N is zero, empty the search order. If N is minus one, set the search order to the"
+  "implementation-defined minimum search order"
+  (let ((n (cell-signed (stack-pop data-stack))))
+    (cond ((plusp n)
+           (let ((new-search-order nil))
+             (dotimes (i n)
+               (push (lookup-wid word-lists (stack-pop data-stack)) new-search-order))
+             (setf (word-lists-search-order word-lists) (reverse new-search-order))))
+          ((zerop n)
+           (setf (word-lists-search-order word-lists) nil))
+          ((= n -1)
+           (only word-lists))
+          (t
+           (forth-exception :invalid-numeric-argument)))))
+
+(define-word new-wordlist (:word "WORDLIST")
+  "( – wid )"
+  "Create a new empty word list, returning its word list identifier WID"
+  (let ((wl (word-list word-lists nil :if-not-found :create)))
+    (stack-push data-stack (dictionary-psuedo-address wl))))

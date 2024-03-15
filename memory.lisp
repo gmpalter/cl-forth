@@ -20,18 +20,20 @@
 (defconstant +data-space-size+ (expt 2 20))
 (defconstant +pad-and-temp-space-size+ 1024)
 (defconstant +pictured-buffer-size+ 256)
- 
+(defconstant +name>string-space-size+ 256)
+
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
    (data-space :initform (make-instance 'data-space :initial-size +data-space-size+))
    (pad :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
    (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
    (pictured-buffer :reader memory-pictured-buffer
-                    :initform (make-instance 'pictured-buffer :initial-size +pictured-buffer-size+)))
+                    :initform (make-instance 'pictured-buffer :initial-size +pictured-buffer-size+))
+   (name>string-space :initform (make-instance 'data-space :initial-size +name>string-space-size+)))
   )
 
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
-  (with-slots (all-spaces data-space pad temp-space pictured-buffer) memory
+  (with-slots (all-spaces data-space pad temp-space pictured-buffer name>string-space) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
       (setup (make-instance 'data-space :initial-size 0))
@@ -40,7 +42,8 @@
       ;; FILL, MOVE, ERASE, and BLANK all check the high water mark to decide if the operation is valid
       (setf (space-high-water-mark pad) +pad-and-temp-space-size+)
       (setup temp-space)
-      (setup pictured-buffer))))
+      (setup pictured-buffer)
+      (setup name>string-space))))
 
 (defmethod print-object ((memory memory) stream)
   (with-slots (all-spaces) memory
@@ -94,6 +97,15 @@
   (with-slots (temp-space) memory
     (space-reset temp-space)
     (space-allocate temp-space n-bytes)))
+
+(defmethod name>string-space-base-address ((memory memory))
+  (with-slots (name>string-space) memory
+    (make-address (space-prefix name>string-space) 0)))
+
+(defmethod ensure-name>string-space-holds ((memory memory) n-bytes)
+  (with-slots (name>string-space) memory
+    (space-reset name>string-space)
+    (space-allocate name>string-space n-bytes)))
 
 (defmethod state-slot-address ((memory memory) slot)
   (with-slots (all-spaces) memory

@@ -192,7 +192,7 @@
   (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
 
-;;; Standard Forth 2012 Words
+;;; Forth 2012 Words
 
 (define-word synonym (:word "SYNONYM")
   "SYNONYM <newname> <oldname>"
@@ -217,7 +217,51 @@
               (word-does> new-word) (word-does> old-word))
         (add-and-register-word fs new-word)))))
 
-;;;---*** NAME>COMPILE
-;;;---*** NAME>INTERPRET
-;;;---*** NAME>STRING
-;;;---*** TRAVERSE-WORDLIST
+(define-word nt-to-compile-xt (:word "NAME>COMPILE")
+  "( nt – x xt )"
+  "X XT represents the compilation semantics of the word NT. The returned XT has the stack effect ( i*x x – j*x )."
+  "Executing XT consumes X and performs the compilation semantics of the word represented by NT"
+  (let ((word (lookup-nt word-lists (stack-pop data-stack))))
+    (multiple-value-bind (data xt)
+        (create-compile-execution-token fs word)
+      (stack-push data-stack data)
+      (stack-push data-stack xt))))
+
+(define-word nt-to-interpret-xt (:word "NAME>INTERPRET")
+  "( nt – xt | 0 )"
+  "XT represents the interpretation semantics of the word NT. If NT has no interpretation semantics, NAME>INTERPRET returns 0"
+  (let ((word (lookup-nt word-lists (stack-pop data-stack))))
+    (if (word-compile-only? word)
+        (stack-push data-stack 0)
+        (stack-push data-stack (xt-token (word-execution-token word))))))
+
+(define-word nt-to-string (:word "NAME>STRING")
+  "( nt - c-addr u )"
+  "NAME>STRING returns the name of the word NT in the character string C-ADDR U"
+  (let ((word (lookup-nt word-lists (stack-pop data-stack))))
+    (ensure-name>string-space-holds memory (length (word-name word)))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory (name>string-space-base-address memory))
+      (native-into-forth-string (word-name word) forth-memory offset)
+      (stack-push data-stack (name>string-space-base-address memory))
+      (stack-push data-stack (length (word-name word))))))
+
+(define-word traverse-wordlist (:word "TRAVERSE-WORDLIST")
+  "( i*x xt wid – j*x )"
+  "Remove WID and XT from the stack. Execute XT once for every word in the wordlist WID, passing the name token NT of the word"
+  "to XT, until the wordlist is exhausted or until XT returns false."
+  "The invoked XT has the stack effect ( k*x nt – l*x flag )."
+  "If FLAG is true, TRAVERSE-WORDLIST will continue with the next name, otherwise it will return. TRAVERSE-WORDLIST does not"
+  "put any items other than NT on the stack when calling XT, so that XT can access and modify the rest of the stack."
+  "TRAVERSE-WORDLIST may visit words in any order, with one exception: words with the same name are called in the order"
+  "newest-to-oldest (possibly with other words in between)"
+  (let* ((wid (stack-pop data-stack))
+         (xt (stack-pop data-stack))
+         (wl (lookup-wid word-lists wid)))
+    (verify-execution-token execution-tokens xt)
+    (flet ((do-nt (nt)
+             (stack-push data-stack nt)
+             (execute execution-tokens xt fs)
+             (truep (stack-pop data-stack))))
+      (traverse-wordlist word-lists wl #'do-nt))))
+

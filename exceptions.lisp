@@ -109,6 +109,7 @@
   (:save-restore-input-mismatch -270 "Saved input source doesn't match current source")
   (:not-defer -271 "Not a DEFER definition")
   (:defer-not-set -272 "Execution token not set in DEFER definition")
+  (:not-a-name-token -273 "Not a name token")
   )
 
 (define-condition forth-exception (error)

@@ -6,92 +6,68 @@
   (>body))
 
 (defclass execution-tokens (space)
-  ((name-to-xt-map :initform (make-hash-table :test #'equalp))
-   (token-to-xt-map :initform (make-hash-table))
+  ((token-to-xt-map :initform (make-hash-table))
    (saved-high-water-mark :initform 0)
-   (saved-name-to-xt-map :initform nil)
    (saved-token-to-xt-map :initform nil))
   )
 
 (defmethod register-execution-token ((xts execution-tokens) word here)
-  (with-slots (prefix high-water-mark name-to-xt-map token-to-xt-map) xts
+  (with-slots (prefix high-water-mark token-to-xt-map) xts
     (let ((address (make-address prefix high-water-mark)))
       (incf high-water-mark +cell-size+)
       (let ((xt (make-xt :token address :word word :>body here)))
-        (when (word-name word)
-          (setf (gethash (word-name word) name-to-xt-map) xt))
         (setf (gethash address token-to-xt-map) xt)
         (setf (word-execution-token word) xt))
       address)))
 
 (defmethod reregister-execution-token ((xts execution-tokens) xt)
-  (with-slots (name-to-xt-map token-to-xt-map) xts
-    (let ((word (xt-word xt)))
-      (when (word-name word)
-        (setf (gethash (word-name word) name-to-xt-map) xt))
-      (setf (gethash (xt-token xt) token-to-xt-map) xt))))
-
-(defmethod find-xt ((xts execution-tokens) name)
-  (with-slots (name-to-xt-map) xts
-    (let ((xt (gethash name name-to-xt-map)))
-      (when (null xt)
-        (forth-exception :no-execution-token "No execution token for ~A" name))
-      (xt-token xt))))
-
-(defmethod find-xt-and-word ((xts execution-tokens) name)
-  (with-slots (name-to-xt-map) xts
-    (let ((xt (gethash name name-to-xt-map)))
-      (when xt
-        (values (xt-token xt) (xt-word xt))))))
+  (with-slots (token-to-xt-map) xts
+    (setf (gethash (xt-token xt) token-to-xt-map) xt)))
 
 (defmethod verify-execution-token ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
-        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token)))))
+        (forth-exception :no-execution-token "~14,'0X is not an execution token" token)))))
   
 (defmethod execute ((xts execution-tokens) token fs)
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
-        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
+        (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
       (forth-call fs (xt-word xt)))))
 
 (defmethod find-word ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
-        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
+        (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
       (xt-word xt))))
 
 (defmethod find-body ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
-        (forth-exception :no-execution-token "~14,'0X is not the address of an execution token" token))
+        (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
       (when (null (word-creating-word? (xt-word xt)))
         (forth-exception :invalid->body))
       (xt->body xt))))
 
 (defmethod delete-execution-token ((xts execution-tokens) word)
-  (with-slots (name-to-xt-map token-to-xt-map) xts
-    (when (word-name word)
-      (remhash (word-name word) name-to-xt-map))
+  (with-slots (token-to-xt-map) xts
     (remhash (word-execution-token word) token-to-xt-map)))
 
 (defmethod space-reset ((sp execution-tokens))
-  (with-slots (high-water-mark name-to-xt-map token-to-xt-map
-               saved-high-water-mark saved-name-to-xt-map saved-token-to-xt-map) sp
+  (with-slots (high-water-mark token-to-xt-map
+               saved-high-water-mark saved-token-to-xt-map) sp
     (setf high-water-mark saved-high-water-mark
-          name-to-xt-map (or saved-name-to-xt-map (make-hash-table :test #'equalp))
           token-to-xt-map (or saved-token-to-xt-map (make-hash-table))))
   nil)
 
 (defmethod save-space-state ((xts execution-tokens))
-  (with-slots (high-water-mark name-to-xt-map token-to-xt-map
-               saved-high-water-mark saved-name-to-xt-map saved-token-to-xt-map) xts
+  (with-slots (high-water-mark token-to-xt-map
+               saved-high-water-mark saved-token-to-xt-map) xts
     (setf saved-high-water-mark high-water-mark
-          saved-name-to-xt-map name-to-xt-map
           saved-token-to-xt-map token-to-xt-map))
   nil)
 

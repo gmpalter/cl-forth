@@ -1346,7 +1346,7 @@
     (let ((word (lookup word-lists name)))
       (when (null word)
         (forth-exception :undefined-word "~A is not defined" name))
-      (stack-push data-stack (find-xt execution-tokens name)))))
+      (stack-push data-stack (xt-token (word-execution-token word))))))
 
 (define-word lookup-xt-compiled (:word "[']" :immediate? t :compile-only? t)
   "' <name>" "( - xt )"
@@ -1357,9 +1357,8 @@
     (let ((word (lookup word-lists name)))
       (when (null word)
         (forth-exception :undefined-word "~A is not defined" name))
-      (let ((token (find-xt execution-tokens name)))
-        (add-to-definition fs
-          `(stack-push data-stack ,token))))))
+      (add-to-definition fs
+        `(stack-push data-stack ,(xt-token (word-execution-token word)))))))
 
 (define-word execute (:word "EXECUTE")
   "( i*x xt - j*x )"
@@ -1667,11 +1666,10 @@
   "otherwise also return minus-one (-1)"
   (multiple-value-bind (forth-memory offset)
       (memory-decode-address memory (stack-cell data-stack 0))
-    (multiple-value-bind (xt word)
-        (find-xt-and-word execution-tokens (forth-counted-string-to-native forth-memory offset))
-      (cond (xt
+    (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
+      (cond (word
              (stack-pop data-stack)
-             (stack-push data-stack xt)
+             (stack-push data-stack (xt-token (word-execution-token word)))
              (stack-push data-stack (if (word-immediate? word) 1 -1)))
             (t
              (stack-push data-stack 0))))))
