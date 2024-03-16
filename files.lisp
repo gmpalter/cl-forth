@@ -235,7 +235,7 @@
 
 ;;; Special simplified parsing method used only by S\" --
 ;;;  The delimiter is always double quote (")
-;;;  Recognizes the escape sequences defined in Section 6.2.2266 of the Forth Standard 2012
+;;;  Recognizes the escape sequences defined in Section 6.2.2266 of the Forth 2012 specification
 (defmethod escaped-parse ((f files))
   (with-slots (>in buffer) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
@@ -254,7 +254,7 @@
                                                  (parse-integer buffer :start (+ >in 2) :end (+ >in 4) :radix 16))))
                                  (vector-push-extend (code-char hex) parsed)
                                  (incf >in 4))
-                                ;; Forth Standard 2012 states that the escape characters are case sensitive
+                                ;; Forth 2012 states that the escape characters are case sensitive
                                 ;;  (I.e. '\a' is recognized while '\A' is not)
                                 ((setf translation (cadr (find escapee *escape-translations* :key #'car)))
                                  (if (listp translation)

@@ -22,7 +22,7 @@
                                (:file "tools")
                                (:file "double")
                                #+ignore (:file "float")
-                               #+ignore (:file "strings")
+                               (:file "strings")
                                #+ignore (:file "exceptions")
                                (:file "search")
                                #+ignore (:file "facility")

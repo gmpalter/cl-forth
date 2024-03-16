@@ -588,16 +588,6 @@
   "Push the contents of the cell at the address A-ADDR onto the data stack"
   (stack-push data-stack (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
-(define-word write-blanks (:word "BLANK")
-  "( c-addr u - )"
-  "Set a region of memory, at address C-ADDR and of length U, to ASCII blanks"
-  (let ((count (stack-pop data-stack))
-        (address (stack-pop data-stack)))
-    (unless (plusp count)
-      (forth-exception :invalid-numeric-argument "Count to BLANK can't be negative"))
-    ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
-    (memory-fill memory address count +forth-char-space+)))
-
 (define-word write-char (:word "C!")
   "( char a-addr - )"
   "Store the character CHAR at the address A-ADDR"
@@ -762,7 +752,7 @@
   "S\" <text>\"" "( - a-addr u )"
   "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
   "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
-  "Process escape sequences in the text according to Section 6.2.2266 of the Forth Standard 2012 "
+  "Process escape sequences in the text according to Section 6.2.2266 of the Forth 2012 specification"
   (let* ((text (escaped-parse files))
          (text-size (length text)))
     (case (state fs)
