@@ -46,3 +46,71 @@
 (defun forth-counted-string-to-native (forth-memory offset)
   ;; Length of a counted string is always a single byte regardless of character size
   (forth-string-to-native forth-memory (1+ offset) (aref forth-memory offset)))
+
+
+;;; REPLACES/SUBSTITUTE support
+
+(defconstant +native-char-escape+ #\%)
+(defconstant +forth-char-escape+ #.(forth-char #\%))
+
+(defclass replacements ()
+  ;; Forth 2012 doesn't state whether or not replacement processing is case insensitive
+  ;;  We'll presume it should be case insensitive and, consequently, use an EQUALP hash table
+  ((table :initform (make-hash-table :test #'equalp)))
+  )
+
+(defmethod register-replacement ((replacements replacements) name substitution)
+  (with-slots (table) replacements
+    (unless (null (position +native-char-escape+ name :test #'char-equal))
+      (forth-exception :replaces-exception "Substition name cannot include escape character (~A)" +native-char-escape+))
+    (setf (gethash name table) substitution)))
+
+(defmethod perform-substitute ((replacements replacements) input)
+  (with-slots (table) replacements
+    (let ((output (make-array (length input) :element-type 'character :fill-pointer 0 :adjustable t))
+          (n-replacements 0))
+      (flet ((add-substring (start end)
+               (let* ((output-start (fill-pointer output))
+                      (output-end (+ output-start (- end start))))
+                 (if (> output-end (array-total-size output))
+                     (adjust-array output output-end :fill-pointer output-end)
+                     (setf (fill-pointer output) output-end))
+                 (replace output input :start1 output-start :end1 output-end :start2 start :end2 end)))
+             (add-substitution (substitution)
+               (let* ((output-start (fill-pointer output))
+                      (output-end (+ output-start (length substitution))))
+                 (if (> output-end (array-total-size output))
+                     (adjust-array output output-end :fill-pointer output-end)
+                     (setf (fill-pointer output) output-end))
+                 (replace output substitution :start1 output-start :end1 output-end))))
+        (loop with start = 0
+              with end = (length input)
+              while (< start end)
+              do (let ((next (position +native-char-escape+ input :start start :test #'char-equal)))
+                   (if next
+                       (let ((name-end nil))
+                         (when (> next start)
+                           (add-substring start next))
+                         (cond ((= next (1- end))
+                                (vector-push-extend +native-char-escape+ output)
+                                (setf start end))
+                               ((setf name-end (position +native-char-escape+ input :start (1+ next) :test #'char-equal))
+                                (if (= name-end (1+ next))
+                                    (vector-push +native-char-escape+ output)
+                                    (let* ((name (subseq input (1+ next) name-end))
+                                           (substitution (gethash name table)))
+                                      (if substitution
+                                          (progn
+                                            (add-substitution substitution)
+                                            (incf n-replacements))
+                                          ;; No substition with that name -- Treat as ordinary text
+                                          (add-substring next (1+ name-end)))))
+                                (setf start (1+ name-end)))
+                               (t
+                                ;; Treat a single escape character in middle of the string as ordinary text
+                                (add-substring next end)
+                                (setf start end))))
+                       (when (< start end)
+                         (add-substring start end)
+                         (setf start end)))))
+        (values output n-replacements)))))

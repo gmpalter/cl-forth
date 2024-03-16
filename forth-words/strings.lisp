@@ -166,11 +166,63 @@
                `(stack-push data-stack ,runtime-address)
                `(stack-push data-stack ,count)))))))
 
-(defconstant +escape-char+ #.(forth-char #\%))
+(define-word replaces (:word "REPLACES")
+  "( c-addr1 u1 c-addr2 u2 – )"
+  "Set the string C-ADDR1 U1 as the text to substitute for the substitution named by C-ADDR2 U2."
+  "If the substitution does not exist it is created"
+  (let ((count2 (cell-signed (stack-pop data-stack)))
+        (address2 (stack-pop data-stack))
+        (count1 (cell-signed (stack-pop data-stack)))
+        (address1 (stack-pop data-stack)))
+    (when (minusp count1)
+      (forth-exception :invalid-numeric-argument "Substitution's length in REPLACES can't be negative"))
+    (unless (plusp count2)
+      (forth-exception :invalid-numeric-argument "Original's length in REPLACES must be positive"))
+    (multiple-value-bind (region1 offset1)
+        (memory-decode-address memory address1)
+      (multiple-value-bind (region2 offset2)
+          (memory-decode-address memory address2)
+        (let ((substitution (forth-string-to-native region1 offset1 count1))
+              (name (forth-string-to-native region2 offset2 count2)))
+          (register-replacement replacements name substitution))))))
 
-;;;---*** REPLACES
-;;;---*** SUBSTITUTE
-
+(define-word substitute (:word "SUBSTITUTE")
+  "( c-addr1 u1 c-addr2 u2 – c-addr2 u3 n )"
+  "Perform substitution on the string C-ADDR1 U1 placing the result at string C-ADDR2 U3, where U3 is the length"
+  "of the resulting string. An error occurs if the resulting string will not fit into C-ADDR2 U2 or if C-ADDR2 is"
+  "the same as C-ADDR1. The return value N is positive or 0 on success and indicates the number of substitutions made."
+  "A negative value for N indicates that an error occurred, leaving C-ADDR2 U3 undefined"
+  (let ((count2 (cell-signed (stack-pop data-stack)))
+        (address2 (stack-pop data-stack))
+        (count1 (cell-signed (stack-pop data-stack)))
+        (address1 (stack-pop data-stack)))
+    (when (or (minusp count1) (minusp count2))
+      (forth-exception :invalid-numeric-argument "Count in SUBSTITUTE can't be negative"))
+    ;; Don't have to check for overlapping input and output as we perform the substitution in
+    ;; a temporary area and then move the result into the output buffer
+    (multiple-value-bind (region1 offset1)
+        (memory-decode-address memory address1)
+      (multiple-value-bind (region2 offset2)
+          (memory-decode-address memory address2)
+        (let ((input (forth-string-to-native region1 offset1 count1)))
+          (multiple-value-bind (output n-replacements)
+              (perform-substitute replacements input)
+            (let ((output-length (length output)))
+              (cond ((minusp n-replacements)
+                     ;; Negative replacement count indicates and error
+                     (stack-push data-stack 0)
+                     (stack-push data-stack 0)
+                     (stack-push data-stack n-replacements))
+                    ((> output-length count2)
+                     (stack-push data-stack 0)
+                     (stack-push data-stack 0)
+                     (stack-push data-stack (forth-exception-key-to-code :substitute-exception)))
+                    (t
+                     (native-into-forth-string output region2 offset2)
+                     (stack-push data-stack address2)
+                     (stack-push data-stack output-length)
+                     (stack-push data-stack n-replacements))))))))))
+                   
 (define-word unescape (:word "UNESCAPE")
   "( c-addr1 u1 c-addr2 – c-addr2 u2 )"
   "Replace each ‘%’ character in the input string C-ADDR1 U1 by two ‘%’ characters. The output is represented by C-ADDR2 U2"
@@ -186,8 +238,8 @@
                (let ((ch (memory-byte memory (+ address1 i1))))
                  (setf (memory-byte memory (+ address2 i2)) ch)
                  (incf i2)
-                 (when (= ch +escape-char+)
-                   (setf (memory-byte memory (+ address2 i2)) +escape-char+)
+                 (when (= ch +forth-char-escape+)
+                   (setf (memory-byte memory (+ address2 i2)) +forth-char-escape+)
                    (incf i2))))
              (stack-push data-stack address2)
              (stack-push data-stack i2))))))

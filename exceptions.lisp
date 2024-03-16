@@ -126,3 +126,17 @@
         (destructuring-bind (code default-phrase) entry
           (error 'forth-exception :key key :code code :phrase (or phrase default-phrase)))
         (error 'forth-exception :key :bad-exception-key :code -999 :phrase (format nil "Unrecognized exception key ~S" key)))))
+
+(defun forth-exception-key-to-code (key)
+  (let ((entry (gethash key *forth-exceptions-map*)))
+    (and entry
+        (destructuring-bind (code default-phrase) entry
+          (declare (ignore default-phrase))
+          code))))
+
+(defun forth-exception-key-to-phrase (key)
+  (let ((entry (gethash key *forth-exceptions-map*)))
+    (and entry
+        (destructuring-bind (code default-phrase) entry
+          (declare (ignore code))
+          default-phrase))))

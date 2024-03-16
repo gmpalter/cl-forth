@@ -26,6 +26,7 @@
    (word-lists :initform (make-instance 'word-lists))
    (files :initform (make-instance 'files))
    (execution-tokens :initform (make-instance 'execution-tokens))
+   (replacements :initform (make-instance 'replacements))
    (base :initform 10)
    state
    (definition :initform nil)
@@ -61,7 +62,7 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack float-stack definitions-stack
-                word-lists files execution-tokens base state definition compiling-paused?
+                word-lists files execution-tokens replacements base state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
      ,@body))
