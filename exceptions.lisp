@@ -110,6 +110,7 @@
   (:not-defer -271 "Not a DEFER definition")
   (:defer-not-set -272 "Execution token not set in DEFER definition")
   (:not-a-name-token -273 "Not a name token")
+  (:exception-stack-underflow -274 "Exception stack underflow")
   )
 
 (define-condition forth-exception (error)
@@ -140,3 +141,15 @@
         (destructuring-bind (code default-phrase) entry
           (declare (ignore code))
           default-phrase))))
+
+(defun forth-exception-by-code (code)
+  (let ((key (block find-key
+               (maphash #'(lambda (key entry) (when (= (car entry) code) (return-from find-key key))) *forth-exceptions-map*)
+               nil)))
+    (cond (key
+           (forth-exception key))
+          ((plusp code)
+           (error 'forth-exception :key :user-defined :code code :phrase (format nil "User defined exception code ~D" code)))
+          (t
+           (error 'forth-exception :key :system-defined :code code
+                                   :phrase (format nil "Unrecognized system exception code ~D" code))))))

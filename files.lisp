@@ -85,7 +85,6 @@
    (verbose :accessor files-verbose :initform nil)
    (source-id-map :initform (make-hash-table))
    (last-source-id :initform 0)
-   (input-stack :initform nil)
    (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
@@ -332,18 +331,18 @@
     (let* ((count (length buffer))
            (address (space-allocate saved-buffer-space count)))
       (multiple-value-bind (data offset)
-          (space-decode-address saved-buffer-space address)
+          (space-decode-address saved-buffer-space (address-address address))
         (native-into-forth-string buffer data offset))
       (values address count))))
 
 (defmethod restore-buffer ((f files) address count)
   (with-slots (buffer saved-buffer-space) f
     (multiple-value-bind (data offset)
-        (space-decode-address saved-buffer-space address)
+        (space-decode-address saved-buffer-space (address-address address))
       (setf buffer (forth-string-to-native data offset count)))))
 
-(defmethod save-input ((f files))
-  (with-slots (source-id >in buffer source-address source-id-map) f
+(defmethod save-input ((f files) &key for-catch?)
+  (with-slots (source-id >in buffer source-address source-id-map source-stack) f
     (let ((state-vector (make-array 16 :fill-pointer 0 :adjustable t)))
       (vector-push-extend source-id state-vector)
       (vector-push-extend >in state-vector)
@@ -351,7 +350,12 @@
              ;; EVALUATE supplies the address of the input buffer which we'll use to verify the subsequent restore
              (vector-push-extend source-address state-vector))
             ((zerop source-id)
-             nil)
+             ;; For console input, save the current buffer so we can restore it later after a THROW
+             (when for-catch?
+               (multiple-value-bind (address count)
+                   (save-buffer-for-restore f)
+                 (vector-push-extend address state-vector)
+                 (vector-push-extend count state-vector))))
             ((plusp source-id)
              (let ((stream (gethash source-id source-id-map)))
                (when stream
@@ -360,38 +364,53 @@
                  ;; We can't just reposition the file's stream and read the line back into the buffer as the stream
                  ;; is positioned after the line which is in the input buffer
                  (multiple-value-bind (address count)
-                     (save-buffer-for-restore buffer)
+                     (save-buffer-for-restore f)
                    (vector-push-extend address state-vector)
                    (vector-push-extend count state-vector))))))
+      (when for-catch?
+        (vector-push (stack-depth source-stack) state-vector))
       state-vector)))
 
-(defmethod restore-input ((f files) state-vector)
-  (with-slots (source-id >in buffer source-address source-id-map) f
+(defmethod restore-input ((f files) state-vector &key for-throw?)
+  (with-slots (source-id >in buffer source-address source-id-map source-stack) f
     (let ((saved-source-id (aref state-vector 0))
           (saved->in (aref state-vector 1)))
-      (unless (= source-id saved-source-id)
+      (unless (or (= source-id saved-source-id) for-throw?)
         (forth-exception :save-restore-input-mismatch))
-      (cond ((= saved-source-id -1)
-             (let ((saved-source-address (aref state-vector 2)))
-               (unless (= source-address saved-source-address)
-                 (forth-exception :save-restore-input-mismatch))
-               (setf >in saved->in)
-               t))
-            ((zerop saved-source-id)
-             nil)
-            (t
-             (let ((stream (gethash saved-source-id source-id-map))
-                   (saved-file-position (aref state-vector 2))
-                   (saved-buffer-address (aref state-vector 3))
-                   (saved-buffer-count (aref state-vector 4)))
-               (when stream
-                 (handler-case
-                     (progn
-                       (file-position stream saved-file-position)
-                       (restore-buffer f saved-buffer-address saved-buffer-count)
-                       (setf >in saved->in)
-                       t)
-                   (file-error () nil)))))))))
+      (setf source-id saved-source-id)
+      (prog1
+          (cond ((= saved-source-id -1)
+                 (let ((saved-source-address (aref state-vector 2)))
+                   (unless (or (= source-address saved-source-address) for-throw?)
+                     (forth-exception :save-restore-input-mismatch))
+                   (setf >in saved->in)
+                   t))
+                ((zerop saved-source-id)
+                 (when for-throw?
+                   (let ((saved-buffer-address (aref state-vector 2))
+                         (saved-buffer-count (aref state-vector 3)))
+                     (restore-buffer f saved-buffer-address saved-buffer-count)
+                     (setf >in saved->in))))
+                (t
+                 (let ((stream (gethash saved-source-id source-id-map))
+                       (saved-file-position (aref state-vector 2))
+                       (saved-buffer-address (aref state-vector 3))
+                       (saved-buffer-count (aref state-vector 4)))
+                   (when stream
+                     (handler-case
+                         (progn
+                           (file-position stream saved-file-position)
+                           (restore-buffer f saved-buffer-address saved-buffer-count)
+                           (setf >in saved->in)
+                           t)
+                       (file-error () nil))))))
+        (when for-throw?
+          (let ((target-depth (aref state-vector (1- (length state-vector)))))
+            (loop while (> (stack-depth source-stack) target-depth)
+                  do (let* ((source (stack-pop source-stack))
+                            (saved-source-id (saved-source-id source)))
+                       (when (and (plusp saved-source-id) (/= saved-source-id source-id))
+                         (forth-close-file f (saved-source-id source)))))))))))
 
 
 ;;;

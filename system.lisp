@@ -16,6 +16,10 @@
                                                        :initial-size 128
                                                        :underflow-key :control-flow-stack-underflow
                                                        :overflow-key :control-flow-stack-overflow))
+   (exception-stack :initform (make-instance 'stack :name "Exception"
+                                                    :initial-size 128
+                                                    :underflow-key :exception-stack-underflow
+                                                    :overflow-key :exception-stack-overflow))
    (float-stack :initform (make-instance 'stack :name "Float"
                                                 :initial-size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
@@ -61,7 +65,7 @@
   value)
          
 (defmacro with-forth-system ((fs) &body body)
-  `(with-slots (memory data-stack return-stack control-flow-stack float-stack definitions-stack
+  `(with-slots (memory data-stack return-stack control-flow-stack exception-stack float-stack definitions-stack
                 word-lists files execution-tokens replacements base state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
@@ -76,6 +80,7 @@
   (stack-reset data-stack)
   (stack-reset return-stack)
   (stack-reset control-flow-stack)
+  (stack-reset exception-stack)
   (stack-reset float-stack)
   (stack-reset definitions-stack)
   (reset-input files)
@@ -373,4 +378,28 @@
     (forth-exception :not-compiling))
   (push (branch-reference-tag branch) (word-inline-forms (definition-word definition)))
   nil)
+
+;;;
+
+(defstruct (exception-frame (:constructor %make-exception-frame))
+  data-stack-depth
+  return-stack-depth
+  control-flow-stack-depth
+  float-stack-depth
+  input-state
+  )
+
+(define-forth-method make-exception-frame (fs)
+  (%make-exception-frame :data-stack-depth (stack-depth data-stack)
+                         :return-stack-depth (stack-depth return-stack)
+                         :control-flow-stack-depth (stack-depth control-flow-stack)
+                         :float-stack-depth (stack-depth float-stack)
+                         :input-state (save-input files :for-catch? t)))
+
+(define-forth-method apply-exception-frame (fs frame)
+  (setf (stack-depth data-stack) (exception-frame-data-stack-depth frame)
+        (stack-depth return-stack) (exception-frame-return-stack-depth frame)
+        (stack-depth control-flow-stack) (exception-frame-control-flow-stack-depth frame)
+        (stack-depth float-stack) (exception-frame-float-stack-depth frame))
+  (restore-input files (exception-frame-input-state frame) :for-throw? t))
 
