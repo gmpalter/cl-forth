@@ -442,25 +442,25 @@
   (with-slots (active?) sp
     (setf active? t)))
   
-(defmethod (setf cell-at) (value (sp transient-data-space) address)
+(defmethod (setf cell-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
       (forth-exception :write-to-read-only-memory))))
 
-(defmethod (setf cell-unsigned-at) (value (sp transient-data-space) address)
+(defmethod (setf cell-unsigned-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
       (forth-exception :write-to-read-only-memory))))
 
-(defmethod (setf byte-at) (value (sp transient-data-space) address)
+(defmethod (setf byte-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
       (forth-exception :write-to-read-only-memory))))
 
-(defmethod space-fill ((sp transient-data-space) address count byte)
+(defmethod space-fill :before ((sp transient-data-space) address count byte)
   (declare (ignore address count byte))
   (with-slots (active?) sp
     (unless active?
