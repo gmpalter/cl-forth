@@ -13,9 +13,9 @@
     (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)))
 
 (defmethod print-object ((sp stack) stream)
-  (with-slots (name) sp
+  (with-slots (name cells) sp
     (print-unreadable-object (sp stream :type t :identity t)
-      (write-string name stream))))
+      (format stream "~A (~D cell~:P)" name (length cells)))))
 
 (declaim (inline stack-underflow-check))
 (defun stack-underflow-check (st &optional (minimum-depth 1))
@@ -69,6 +69,9 @@
 
 (defmethod stack-depth ((st stack))
   (fill-pointer (stack-cells st)))
+
+(defmethod (setf stack-depth) (depth (st stack))
+  (setf (fill-pointer (stack-cells st)) depth))
 
 (defmethod stack-drop ((st stack))
   "( x - )"
