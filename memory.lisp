@@ -18,32 +18,42 @@
 ;;;
 
 (defconstant +data-space-size+ (expt 2 20))
-(defconstant +pad-and-temp-space-size+ 1024)
+(defconstant +pad-space-size+ 1024)
+(defconstant +transient-space-size+ 1024)
 (defconstant +pictured-buffer-size+ 256)
 (defconstant +name>string-space-size+ 256)
+;; Forth 2012 states that there must be at least two transient buffers available for S" and S\"
+(defconstant +number-of-string-spaces+ 4)
 
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
    (data-space :initform (make-instance 'data-space :initial-size +data-space-size+))
-   (pad :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
-   (temp-space :initform (make-instance 'data-space :initial-size +pad-and-temp-space-size+))
+   (pad :initform (make-instance 'data-space :initial-size +pad-space-size+))
+   (word-space :reader word-space :initform (make-instance 'transient-data-space :initial-size +transient-space-size+))
    (pictured-buffer :reader memory-pictured-buffer
                     :initform (make-instance 'pictured-buffer :initial-size +pictured-buffer-size+))
-   (name>string-space :initform (make-instance 'data-space :initial-size +name>string-space-size+)))
+   (name>string-space :reader name>string-space
+                      :initform (make-instance 'transient-data-space :initial-size +name>string-space-size+))
+   (string-spaces :initform (make-array 0 :fill-pointer 0 :adjustable t))
+   (current-string-space-index :initform 0))
   )
 
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
-  (with-slots (all-spaces data-space pad temp-space pictured-buffer name>string-space) memory
+  (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
       (setup (make-instance 'data-space :initial-size 0))
       (setup data-space)
       (setup pad)
       ;; FILL, MOVE, ERASE, and BLANK all check the high water mark to decide if the operation is valid
-      (setf (space-high-water-mark pad) +pad-and-temp-space-size+)
-      (setup temp-space)
+      (setf (space-high-water-mark pad) +pad-space-size+)
+      (setup word-space)
       (setup pictured-buffer)
-      (setup name>string-space))))
+      (setup name>string-space)
+      (dotimes (i +number-of-string-spaces+)
+        (let ((space (make-instance 'transient-data-space :initial-size +transient-space-size+)))
+          (vector-push-extend space string-spaces)
+          (setup space))))))
 
 (defmethod print-object ((memory memory) stream)
   (with-slots (all-spaces) memory
@@ -89,23 +99,24 @@
   (with-slots (pad) memory
     (make-address (space-prefix pad) 0)))
 
-(defmethod temp-space-base-address ((memory memory))
-  (with-slots (temp-space) memory
-    (make-address (space-prefix temp-space) 0)))
+(defmethod transient-space-base-address ((memory memory) space)
+  (make-address (space-prefix space) 0))
 
-(defmethod ensure-temp-space-holds ((memory memory) n-bytes)
-  (with-slots (temp-space) memory
-    (space-reset temp-space)
-    (space-allocate temp-space n-bytes)))
+(defmethod ensure-transient-space-holds ((memory memory) space n-bytes)
+  (space-reset space)
+  (space-unseal space)
+  (space-allocate space n-bytes))
 
-(defmethod name>string-space-base-address ((memory memory))
-  (with-slots (name>string-space) memory
-    (make-address (space-prefix name>string-space) 0)))
+(defmethod seal-transient-space ((memory memory) space)
+  (space-seal space))
 
-(defmethod ensure-name>string-space-holds ((memory memory) n-bytes)
-  (with-slots (name>string-space) memory
-    (space-reset name>string-space)
-    (space-allocate name>string-space n-bytes)))
+(defmethod reserve-string-space ((memory memory))
+  (with-slots (string-spaces current-string-space-index) memory
+    (prog1
+        (aref string-spaces current-string-space-index)
+      (incf current-string-space-index)
+      (when (= current-string-space-index +number-of-string-spaces+)
+        (setf current-string-space-index 0)))))
 
 (defmethod state-slot-address ((memory memory) slot)
   (with-slots (all-spaces) memory
@@ -270,6 +281,11 @@
 (defgeneric space-reset (space))
 (defgeneric save-space-state (space))
 
+(defgeneric space-seal (space)
+  (:method ((sp space)) nil))
+(defgeneric space-unseal (space)
+  (:method ((sp space)) nil))
+
 (defgeneric space-allocate (space n-bytes))
 (defgeneric space-deallocate (space n-bytes))
 (defgeneric space-unused (space)
@@ -410,7 +426,56 @@
 
 ;;;
 
-(defclass pictured-buffer (data-space)
+(defclass transient-data-space (data-space)
+  ((active? :accessor transient-space-active? :initform nil))
+  )
+
+(defmethod space-reset :after ((sp transient-data-space))
+  (with-slots (active?) sp
+    (setf active? nil)))
+
+(defmethod space-seal ((sp transient-data-space))
+  (with-slots (active?) sp
+    (setf active? nil)))
+  
+(defmethod space-unseal ((sp transient-data-space))
+  (with-slots (active?) sp
+    (setf active? t)))
+  
+(defmethod (setf cell-at) (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf cell-unsigned-at) (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf byte-at) (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod space-fill ((sp transient-data-space) address count byte)
+  (declare (ignore address count byte))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod space-copy :before ((ssp data-space) source-address (dsp transient-data-space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (with-slots (active?) dsp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+
+;;;
+
+(defclass pictured-buffer (transient-data-space)
   ((active? :accessor pictured-buffer-active? :initform nil)
    (used :initform 0))
   )

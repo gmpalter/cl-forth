@@ -238,13 +238,16 @@
 (define-word nt-to-string (:word "NAME>STRING")
   "( nt - c-addr u )"
   "NAME>STRING returns the name of the word NT in the character string C-ADDR U"
-  (let ((word (lookup-nt word-lists (stack-pop data-stack))))
-    (ensure-name>string-space-holds memory (length (word-name word)))
+  (let* ((word (lookup-nt word-lists (stack-pop data-stack)))
+         (name>string-space (name>string-space memory))
+         (address (transient-space-base-address memory name>string-space)))
+    (ensure-transient-space-holds memory name>string-space (length (word-name word)))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory (name>string-space-base-address memory))
-      (native-into-forth-string (word-name word) forth-memory offset)
-      (stack-push data-stack (name>string-space-base-address memory))
-      (stack-push data-stack (length (word-name word))))))
+        (memory-decode-address memory address)
+      (native-into-forth-string (word-name word) forth-memory offset))
+    (stack-push data-stack address)
+    (stack-push data-stack (length (word-name word)))
+    (seal-transient-space memory name>string-space)))
 
 (define-word traverse-wordlist (:word "TRAVERSE-WORDLIST")
   "( i*x xt wid – j*x )"

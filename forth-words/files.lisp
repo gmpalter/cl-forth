@@ -22,7 +22,7 @@
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (multiple-value-bind (file-id ior)
-          (create-file files (forth-string-to-native forth-memory offset length) fam)
+          (forth-create-file files (forth-string-to-native forth-memory offset length) fam)
         (stack-push data-stack file-id)
         (stack-push data-stack ior)))))
 
