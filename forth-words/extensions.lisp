@@ -1,10 +1,130 @@
 (in-package #:forth)
 
-;;; Words defined by SwiftForth (https://www.forth.com/swiftforth/)
+;;; Words defined as "Common Usage" in the Forth Programmer's Handbook, 3rd Edition
 
-(define-word bye ()
-  "Exit the Forth interpreter"
-  (throw 'bye nil))
+(define-word allocate-counted-string (:word ",\"")
+  ",\" <text>\""
+  "Compile TEXT as a counted string. User is responsible for keeping track of its address in data space"
+  (let* ((text (parse files #\"))
+         (text-size (* (length text) +char-size+))
+         ;; Length of a counted string is always a single byte regardless of character size
+         (address (allocate-memory memory (1+ text-size))))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (native-into-forth-counted-string text forth-memory offset))))
+
+(define-word add-two (:word "2+")
+  "( n1 - n2 )"
+  (stack-push data-stack (cell-signed (+ (cell-signed (stack-pop data-stack)) 2))))
+
+(define-word subtract-two (:word "2-")
+  "( n1 - n2 )"
+  (stack-push data-stack (cell-signed (- (cell-signed (stack-pop data-stack)) 2))))
+
+(define-word incf-char (:word "C+!")
+  "( char a-addr - )"
+  "Add CHAR to the contents of the character at A-ADDR and store the result back into A-ADDR"
+  (let ((address (stack-pop data-stack))
+        (char (extract-char (stack-pop data-stack))))
+    (setf (memory-char memory address) (extract-char (+ (memory-char memory address) char)))))
+
+(define-word create-char (:word "C,")
+  "( char - )"
+  "Allocate space for one character in data space and store CHAR"
+  (let ((value (stack-pop data-stack))
+        (address (allocate-memory memory +char-size+)))
+    (setf (memory-char memory address) (extract-char value))))
+
+(define-state-word context :word "CONTEXT")
+
+(define-state-word current :word "CURRENT")
+
+(define-word cvariable (:word "CVARIABLE")
+  "CVARIABLE <name>"
+  "Allocate space for a character (currently 1 byte) in data space and create a dictionary entry"
+  "for <name> which returns the address of that character"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let* ((address (allocate-memory memory +char-size+))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word address))))
+
+(define-word subtract-double-single (:word "M-")
+  "( d1 n - d2 )"
+  "Subtract the single N from the double D1, producing the double result D2"
+  (let ((n (cell-signed (stack-pop data-stack)))
+        (d1 (stack-pop-double data-stack)))
+    (stack-push-double data-stack (- d1 n))))
+
+(define-word divide-double-single (:word "M/")
+  "( d n1 - n2 )"
+  "Divide the double D by the single N1, producing the single quotient N2"
+  (let ((n1 (cell-signed (stack-pop data-stack)))
+        (d (stack-pop-double data-stack)))
+    (if (zerop n1)
+        (forth-exception :divide-by-zero)
+        (stack-push data-stack (cell-signed (truncate d n1))))))
+
+(define-word not (:word "NOT")
+  "( n - flag )"
+  "Identical to 0=, used for program clarity to reverse the results of a previous test"
+  (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +true+ +false+)))
+
+(define-word simple-parse-number (:word "NUMBER" :inlineable? nil)
+  "( c-addr u - n | d )"
+  "Attempt to convert the string at C-ADDR of length U into an integer. If the string contains punctuation, return the"
+  "double integer D. If the string does not contain punctuation, return the single integer N. If the conversion fails, ABORT"
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of string must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (type value)
+          (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil)
+        (case type
+          (:double
+           (stack-push-double data-stack value))
+          (:single
+           (stack-push data-stack value))
+          (otherwise
+           (forth-exception :parse-integer-failure)))))))
+
+(define-word maybe-parse-number (:word "NUMBER?" :inlineable? nil)
+  "( c-addr u - 0 | n 1 | d 2 )"
+  "Similar to NUMBER above but does not abort. If conversion fails, push 0 onto the top of the data stack."
+  "If conversion suceeds, push the value and then push 1 if a single integer and 2 if a double integer."
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of string must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (type value)
+          (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil :signal-overflow? nil)
+        (case type
+          (:double
+           (stack-push-double data-stack value)
+           (stack-push data-stack 2))
+          (:single
+           (stack-push data-stack value)
+           (stack-push data-stack 1))
+          (otherwise
+           (stack-push data-stack 0)))))))
+
+(define-word create-word-list (:word "VOCABULARY")
+  "VOCABULARY <name>"
+  "Create an empty word list and define NAME to replace the first word list in the sarch order with this new list"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let* ((dict (vocabulary word-lists name))
+           (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (list dict))))
+      (add-and-register-word fs word))))
+
+
+;;; Words defined by SwiftForth (https://www.forth.com/swiftforth/)
 
 ;;; 3.1 Interpreting Source Files
 
@@ -82,7 +202,7 @@
         reset-redefinition-warnings? t))
 
 
-;;; Words not defined in either Standard Forth or SwiftForth
+;;; Words defined by CL-Forth
 
 (define-word break (:immediate? t)
   "Enter a Lisp debug break loop"

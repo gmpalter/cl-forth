@@ -1,39 +1,26 @@
 (in-package #:forth)
 
-;;; Paragraph numbers refer to the Forth Programmer's Handbook, 3rd Edition
-
-;;; 6.6.2 Managing Word Lists
-
-(define-word duplicate-top (:word "ALSO")
-  "Duplicate the first word list in the search order, increasing the size of the search order by 1."
-  "Commonly used in the phrase \"ALSO <name>\" to add NAME to the top of the search order"
-  (also word-lists))
+;;; Search-Order words as defined in Section 16 of the Forth 2012 specification
 
 (define-word change-compilation-word-list (:word "DEFINITIONS")
   "Change the compilation word list to be the same as the first word list in the search order"
   (definitions word-lists))
 
-(define-word forth-on-top (:word "FORTH")
-  "Replace the first the word list in the search order with the FORTH word list"
-  (replace-top-of-search-order word-lists (word-lists-forth-word-list word-lists)))
-
-(define-word reset-search-order (:word "ONLY")
-  "Reduce the search order to the minimum set of word lists. (I.e., just FORTH)"
-  (only word-lists))
-
-(define-word display-search-order (:word "ORDER" :inlineable? nil)
-  "Display the name of all word lists in the search order as well as the name of the compilation word list"
-  (format t "~& Context: ")
-  (dolist (dict (word-lists-search-order word-lists))
-    (format t "~A " (dictionary-name dict)))
-  (format t "~& Current: ~A~%" (dictionary-name (word-lists-compilation-word-list word-lists))))
-
-(define-word pop-search-order (:word "PREVIOUS")
-  "Remove the first entry from the search order"
-  (previous word-lists))
-
-
-;;; Forth 2012 Words
+(define-word find (:word "FIND")
+  "( c-addr - c-addr 0 | xt 1 | xt -1)"
+  "Find the definition named in the counted string at C-ADDR. If the definition is not found after searching all"
+  "the word lists in the search order, return C-ADDR and zero."
+  "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
+  "otherwise also return minus-one (-1)"
+  (multiple-value-bind (forth-memory offset)
+      (memory-decode-address memory (stack-cell data-stack 0))
+    (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
+      (cond (word
+             (stack-pop data-stack)
+             (stack-push data-stack (xt-token (word-execution-token word)))
+             (stack-push data-stack (if (word-immediate? word) 1 -1)))
+            (t
+             (stack-push data-stack 0))))))
 
 (define-word forth-wordlist (:word "FORTH-WORDLIST")
   "( – wid)"
@@ -107,3 +94,30 @@
   "Create a new empty word list, returning its word list identifier WID"
   (let ((wl (word-list word-lists nil :if-not-found :create)))
     (stack-push data-stack (dictionary-psuedo-address wl))))
+
+
+;;; Search-Order extension words as defined in Section 16 of the Forth 2012 specification
+
+(define-word duplicate-top (:word "ALSO")
+  "Duplicate the first word list in the search order, increasing the size of the search order by 1."
+  "Commonly used in the phrase \"ALSO <name>\" to add NAME to the top of the search order"
+  (also word-lists))
+
+(define-word forth-on-top (:word "FORTH")
+  "Replace the first the word list in the search order with the FORTH word list"
+  (replace-top-of-search-order word-lists (word-lists-forth-word-list word-lists)))
+
+(define-word reset-search-order (:word "ONLY")
+  "Reduce the search order to the minimum set of word lists. (I.e., just FORTH)"
+  (only word-lists))
+
+(define-word display-search-order (:word "ORDER" :inlineable? nil)
+  "Display the name of all word lists in the search order as well as the name of the compilation word list"
+  (format t "~& Context: ")
+  (dolist (dict (word-lists-search-order word-lists))
+    (format t "~A " (dictionary-name dict)))
+  (format t "~& Current: ~A~%" (dictionary-name (word-lists-compilation-word-list word-lists))))
+
+(define-word pop-search-order (:word "PREVIOUS")
+  "Remove the first entry from the search order"
+  (previous word-lists))

@@ -1,6 +1,10 @@
 (in-package #:forth)
 
-;;; File-Access Words as defined in Section 11 of the Forth 2012 specification
+;;; File-Access words as defined in Section 11 of the Forth 2012 specification
+
+(define-word comment (:word "(" :immediate? t)
+  "Ignore all text up to and including the next close parenthesis"
+  (word files #\) :multiline? t))
 
 (define-word binary-access-method (:word "BIN")
   "( fam1 - fam2 )"
@@ -199,6 +203,32 @@
       (forth-exception :invalid-numeric-argument "RESIZE-FILE size can't be negative"))
     (stack-push data-stack (forth-file-resize files fileid size))))
 
+(define-word string (:word "S\"" :immediate? t :inlineable? nil)
+  "S\" <text>\"" "( - a-addr u )"
+  "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
+  "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
+  (let* ((text (parse files #\"))
+         (text-size (* (length text) +char-size+)))
+    (case (state fs)
+      (:interpreting
+       (let* ((string-space (reserve-string-space memory))
+              (address (transient-space-base-address memory string-space)))
+         (ensure-transient-space-holds memory string-space text-size)
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (stack-push data-stack address)
+           (stack-push data-stack text-size)
+           (seal-transient-space memory string-space))))
+      (:compiling
+       (let ((address (allocate-memory memory text-size)))
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (add-to-definition fs
+             `(stack-push data-stack ,address)
+             `(stack-push data-stack ,text-size))))))))
+
 (define-word source-id (:word "SOURCE-ID")
   "( - 0 | -1 | fileid )"
   "Return 0 if the input source is the console, -1 if it is a string (EVALUATE), or the FILEID if it is a file"
@@ -368,3 +398,30 @@
                  (forth-exception :file-i/o-exception "Can't open ~A" filename))
                 (t
                  (forth-exception :file-not-found "~A not found" filename))))))))
+
+(define-word escaped-string (:word "S\\\"" :immediate? t :inlineable? nil)
+  "S\" <text>\"" "( - a-addr u )"
+  "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
+  "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
+  "Process escape sequences in the text according to Section 6.2.2266 of the Forth 2012 specification"
+  (let* ((text (escaped-parse files))
+         (text-size (length text)))
+    (case (state fs)
+      (:interpreting
+       (let* ((string-space (reserve-string-space memory))
+              (address (transient-space-base-address memory string-space)))
+         (ensure-transient-space-holds memory string-space text-size)
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (stack-push data-stack address)
+           (stack-push data-stack text-size)
+           (seal-transient-space memory string-space))))
+      (:compiling
+       (let ((address (allocate-memory memory text-size)))
+         (multiple-value-bind (forth-memory offset)
+             (memory-decode-address memory address)
+           (native-into-forth-string text forth-memory offset)
+           (add-to-definition fs
+             `(stack-push data-stack ,address)
+             `(stack-push data-stack ,text-size))))))))

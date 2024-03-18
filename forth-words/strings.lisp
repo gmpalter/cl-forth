@@ -1,6 +1,6 @@
 (in-package #:forth)
 
-;;; String Word Set as defined in Section 17 of the Forth 2012 specification
+;;; String words as defined in Section 17 of the Forth 2012 specification
 
 (define-word trailing-spaces (:word "-TRAILING")
   "( c-addr u1 – c-addr u2 )"
@@ -165,6 +165,9 @@
              (add-to-definition fs
                `(stack-push data-stack ,runtime-address)
                `(stack-push data-stack ,count)))))))
+
+
+;;; String extension words as defined in Section 17 of the Forth 2012 specification
 
 (define-word replaces (:word "REPLACES")
   "( c-addr1 u1 c-addr2 u2 – )"

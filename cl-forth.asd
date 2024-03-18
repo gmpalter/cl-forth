@@ -14,6 +14,7 @@
                (:file "files")
                (:file "execution-tokens")
                (:file "system")
+               (:file "helpers")
                (:module "forth-words"
                   :serial nil
                   :components ((:file "core")
