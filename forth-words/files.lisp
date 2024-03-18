@@ -86,10 +86,6 @@
     (multiple-value-bind (forth-memory offset)
         (memory-decode-address memory address)
       (let ((filename (forth-string-to-native forth-memory offset length)))
-        ;; NOTE: Unlike INCLUDE, do not add the ".4th" file type to the filename
-        ;;(unless (let ((pos (search ".4th" filename :from-end t)))
-        ;;          (and pos (= pos (- (length filename) (length ".4th")))))
-        ;;  (setf filename (concatenate 'string filename ".4th")))
         (multiple-value-bind (fileid ior)
             (forth-open-file files filename +read-direction+)
           (cond ((zerop ior)
@@ -263,23 +259,42 @@
   (stack-push data-stack (forth-flush-file files (stack-pop data-stack))))
 
 (define-word include (:word "INCLUDE")
-  "INCLUDE <filename>"
+  "INCLUDE <filename>" "( i*x - j*x )"
   "Skip leading white space and parse NAME delimited by a white space character. Push the address and length"
   "of the NAME on the stack and perform the function of INCLUDED"
   (let ((filename (word files #\Space)))
     (when (null filename)
       (forth-exception :zero-length-name "Filename must be supplied"))
-    (unless (let ((pos (search ".4th" filename :from-end t)))
-              (and pos (= pos (- (length filename) (length ".4th")))))
-      (setf filename (concatenate 'string filename ".4th")))
-    (multiple-value-bind (fileid ior)
-        (forth-open-file files filename +read-direction+)
-      (cond ((zerop ior)
-             (source-push files :fileid fileid))
-            ((probe-file filename)
-             (forth-exception :file-i/o-exception "Can't open ~A" filename))
+    (labels ((has-suffix (suffix)
+               (let ((pos (search suffix filename :from-end t)))
+                 (and pos (= pos (- (length filename) (length suffix))))))
+             (try (fail-if-not-found? &optional suffix)
+               (let ((filename (if suffix
+                                   (if (has-suffix suffix)
+                                       filename
+                                       (concatenate 'string filename suffix))
+                                   filename)))
+                 (multiple-value-bind (fileid ior)
+                     (forth-open-file files filename +read-direction+)
+                   (cond ((zerop ior)
+                          (source-push files :fileid fileid)
+                          t)
+                         ((probe-file filename)
+                          (forth-exception :file-i/o-exception "Can't open ~A" filename))
+                         (fail-if-not-found?
+                          (forth-exception :file-not-found "~A not found" filename))
+                         (t nil))))))
+      (cond ((has-suffix ".fth")
+             (try t))
+            ((has-suffix ".4th")
+             (try t))
+            ((has-suffix ".f")
+             (try t))
             (t
-             (forth-exception :file-not-found "~A not found" filename))))))
+             (or (try nil)
+                 (try nil ".fth")
+                 (try nil ".4th")
+                 (try t ".f")))))))
     
 (define-word refill (:word "REFILL")
   "Attempt to fill the input buffer from the input source, returning a TRUE flag if successful."
@@ -309,5 +324,18 @@
                                                   (forth-string-to-native old-region old-offset old-length)
                                                   (forth-string-to-native new-region new-offset new-length)))))))
 
-;;;---*** REQUIRE
-;;;---*** REQUIRED
+#||
+(define-word require (:word "REQUIRE")
+  "REQUIRE <name>"   "(i*x – i*x )"
+  "Skip leading white space and parse NAME delimited by a white space character. Push the address and length of the NAME"
+  "on the stack and perform the function of REQUIRED"
+  ;;;---*** FINISH ME
+  )
+
+(define-word required (:word "REQUIRED")
+  "(i*x c-addr u – i*x )"
+  "If the file specified by C-ADDR U has been INCLUDED or REQUIRED already, but not between the definition and execution"
+  "of a marker (or equivalent usage of FORGET), discard C-ADDR U; otherwise, perform the function of INCLUDED"
+  ;;;---*** FINISH ME
+  )
+||#
