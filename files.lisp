@@ -480,6 +480,28 @@
               (values fileid +file-operation-success+))
             (values 0 +file-operation-failure+))))))
 
+(defmethod forth-delete-file ((f files) pathname)
+  (handler-case
+      (progn
+        (delete-file pathname)
+        +file-operation-success+)
+    (file-error () +file-operation-failure+)))
+
+(defmethod forth-rename-file ((f files) old-pathname new-pathname)
+  (handler-case
+      (progn
+        (rename-file old-pathname new-pathname)
+        +file-operation-success+)
+    (file-error () +file-operation-failure+)))
+  
+(defmethod forth-file-status ((f files) pathname)
+  (handler-case
+      (let ((probe (probe-file pathname)))
+        (if probe
+            (values +true+ +file-operation-success+)
+            (values +false+ +file-operation-failure+)))
+    (file-error () (values +false+ +file-operation-failure+))))
+
 (defmethod forth-close-file ((f files) fileid)
   (with-slots (source-id-map) f
     (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
@@ -595,5 +617,23 @@
       (handler-case
           (progn
             (write-line line stream)
+            +file-operation-success+)
+        (file-error () +file-operation-failure+)))))
+
+(defmethod forth-flush-file ((f files) fileid)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (progn
+            (force-output stream)
+            +file-operation-success+)
+        (file-error () +file-operation-failure+)))))
+
+(defmethod forth-file-resize ((f files) fileid size)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (progn
+            (ccl::stream-length stream size)
             +file-operation-success+)
         (file-error () +file-operation-failure+)))))

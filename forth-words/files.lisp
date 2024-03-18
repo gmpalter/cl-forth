@@ -32,7 +32,16 @@
         (stack-push data-stack fileid)
         (stack-push data-stack ior)))))
 
-;;;---*** DELETE-FILE
+(define-word delete-file (:word "DELETE-FILE")
+  "(c-addr u – ior)"
+  "Delete the file named in the character string specified by C-ADDR U. IOR is the implementation-defined I/O result code"
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (stack-push data-stack (forth-delete-file files (forth-string-to-native forth-memory offset length))))))
 
 (define-word file-position (:word "FILE-POSITION")
   "( fileid – ud ior )"
@@ -183,7 +192,14 @@
       (forth-exception :invalid-numeric-argument "REPOSITION-FILE position can't be negative"))
     (stack-push data-stack (forth-file-reposition files fileid position))))
 
-;;;---*** RESIZE-FILE
+(define-word resize-file (:word "RESIZE-FILE")
+  "(ud fileid – ior )"
+  "Set the size of the file identified by FILEID to UD. IOR is the implementation-defined I/O result code"
+  (let ((fileid (stack-pop data-stack))
+        (size (stack-pop-double data-stack)))
+    (when (minusp size)
+      (forth-exception :invalid-numeric-argument "RESIZE-FILE size can't be negative"))
+    (stack-push data-stack (forth-file-resize files fileid size))))
 
 (define-word source-id (:word "SOURCE-ID")
   "( - 0 | -1 | fileid )"
@@ -224,8 +240,27 @@
 
 ;;; File-Access extension words as defined in Section 11 of the Forth 2012 specification
 
-;;;---*** FILE-STATUS
-;;;---*** FLUSH-FILE
+(define-word file-status (:word "FILE-STATUS")
+  "( c-add ru – x ior )"
+  "Return the status of the file identified by the character string C-ADDR U. If the file exists, IOR is zero;"
+  "otherwise IOR is the implementation-defined I/O result code. X contains implementation-defined information about the file"
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
+    (multiple-value-bind (region offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (status ior)
+          (forth-file-status files (forth-string-to-native region offset length))
+        (stack-push data-stack status)
+        (stack-push data-stack ior)))))
+
+(define-word flush-file (:word "FLUSH-FILE")
+  "( fileid – ior )"
+  "Attempt to force any buffered information written to the file referred to by FILEID to be written to mass storage,"
+  "and the size information for the file to be recorded in the storage directory if changed. If the operation is successful,"
+  "IOR is zero. Otherwise, it is an implementation-defined I/O result code"
+  (stack-push data-stack (forth-flush-file files (stack-pop data-stack))))
 
 (define-word include (:word "INCLUDE")
   "INCLUDE <filename>"
@@ -256,6 +291,23 @@
   "the result the current input buffer, set >IN to zero, and return TRUE. Otherwise return FALSE"
   (stack-push data-stack (if (refill files) +true+ +false+)))
 
-;;;---*** RENAME-FILE
+(define-word rename-file (:word "RENAME-FILE")
+  "( c-addr1 u1 c-addr2 u2 – ior )"
+  "Rename the file named by the character string C-ADDR1 U1 to the name in the character string C-ADDR2 U2."
+  "IOR is the implementation-defined I/O result code"
+  (let ((new-length (cell-signed (stack-pop data-stack)))
+        (new-address (stack-pop data-stack))
+        (old-length (cell-signed (stack-pop data-stack)))
+        (old-address (stack-pop data-stack)))
+    (unless (and (plusp old-length) (plusp new-length))
+      (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
+    (multiple-value-bind (old-region old-offset)
+        (memory-decode-address memory old-address)
+      (multiple-value-bind (new-region new-offset)
+          (memory-decode-address memory new-address)
+        (stack-push data-stack (forth-rename-file files
+                                                  (forth-string-to-native old-region old-offset old-length)
+                                                  (forth-string-to-native new-region new-offset new-length)))))))
+
 ;;;---*** REQUIRE
 ;;;---*** REQUIRED
