@@ -44,7 +44,14 @@
       (stack-push-double data-stack position)
       (stack-push data-stack ior))))
 
-;;;---*** FILE-SIZE
+(define-word file-size (:word "FILE-SIZE")
+  "( fileid – ud ior )"
+  "UD is the size, in characters, of the file identified by FILEID. IOR is the implementation-defined I/O result code"
+  (let ((fileid (stack-pop data-stack)))
+    (multiple-value-bind (size ior)
+        (forth-file-size files fileid)
+      (stack-push-double data-stack size)
+      (stack-push data-stack ior))))
 
 (define-word include-file (:word "INCLUDE-FILE")
   "( i*x fileid - j*x )"
@@ -111,7 +118,27 @@
   "FAM is the implementation-defined value for selecting the 'read/write' file access method"
   (stack-push data-stack (logior +read-direction+ +write-direction+)))
 
-;;;---*** READ-FILE
+(define-word read-file (:word "READ-FILE")
+  "( c-addr u1 fileid – u2 ior )"
+  "Read U1 consecutive characters to C-ADDR from the current position of the file identified by FILEID."
+  "If U1 characters are read without an exception, IOR is zero and U2 is equal to U1."
+  "If the end of the file is reached before U1 characters are read, IOR is zero and U2 is the"
+  "number of characters actually read."
+  "If the operation is initiated when the value returned by FILE-POSITION is equal to the"
+  "value returned by FILE-SIZE for the file identified by fileid, IOR is zero and U2 is zero."
+  "If an exception occurs, IOR is the implementation-defined I/O result code, and U2 is the"
+  "number of characters transferred to C-ADDR without an exception"
+  (let ((fileid (stack-pop data-stack))
+        (count (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-exception :invalid-numeric-argument "Count to READ-FILE can't be negative"))
+    (multiple-value-bind (region offset)
+        (memory-decode-address memory address)
+      (multiple-value-bind (read-count ior)
+          (forth-read-file files fileid region offset count)
+        (stack-push data-stack read-count)
+        (stack-push data-stack ior)))))
 
 (define-word read-line (:word "READ-LINE")
   "( c-addr u1 fileid – u2 flag ior )"
@@ -147,7 +174,15 @@
              (stack-push data-stack +false+)))
       (stack-push data-stack ior))))
 
-;;;---*** REPOSITION-FILE
+(define-word reposition-file (:word "REPOSITION-FILE")
+  "( ud fileid – ior )"
+  "Reposition the file identified by FILEID to UD. IOR is the implementation-defined I/O result code"
+  (let ((fileid (stack-pop data-stack))
+        (position (stack-pop-double data-stack)))
+    (when (minusp position)
+      (forth-exception :invalid-numeric-argument "REPOSITION-FILE position can't be negative"))
+    (stack-push data-stack (forth-file-reposition files fileid position))))
+
 ;;;---*** RESIZE-FILE
 
 (define-word source-id (:word "SOURCE-ID")
@@ -160,7 +195,18 @@
   "FAM is the implementation-defined value for selecting the 'write only' file access method"
   (stack-push data-stack +write-direction+))
 
-;;;---*** WRITE-FILE
+(define-word write-file (:word "WRITE-FILE")
+  "( c-addr u fileid – ior )"
+  "Write U characters from C-ADDR to the file identified by FILEID starting at its current position."
+  "IOR is the implementation-defined I/O result code"
+  (let ((fileid (stack-pop data-stack))
+        (count (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (when (minusp count)
+      (forth-exception :invalid-numeric-argument "Count to READ-FILE can't be negative"))
+    (multiple-value-bind (region offset)
+        (memory-decode-address memory address)
+      (stack-push data-stack (forth-write-file files fileid region offset count)))))
 
 (define-word write-line (:word "WRITE-LINE")
   "( c-addr u fileid – ior )"

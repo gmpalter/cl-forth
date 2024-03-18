@@ -79,11 +79,12 @@
 
 (defstruct (file (:constructor %make-file) (:copier nil))
   %stream
+  binary?
   buffer)
 
 (declaim (inline make-file))
-(defun make-file (stream)
-  (%make-file :%stream stream :buffer nil))
+(defun make-file (stream binary?)
+  (%make-file :%stream stream :binary? binary? :buffer nil))
 
 (defclass files ()
   ((source-id :reader source-id :initform 0)
@@ -99,7 +100,7 @@
    (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+)))
   )
 
-(defparameter +no-file+ (make-file nil))
+(defparameter +no-file+ (make-file nil nil))
 
 (declaim (inline file-stream))
 (defun file-stream (fileid map)
@@ -449,18 +450,19 @@
                  (forth-exception :file-i/o-exception "Unknown file access method")))
           (if (logtest fam +binary-mode+)
               '(unsigned-byte 8)
-              'character)))
+              'character)
+          (logtest fam +binary-mode+)))
 
 ;;; Forth's definition of OPEN-FILE specifies that the file must exist. It also specifies that the file be positioned
 ;;; to the beginning of the file. (It doesn't say what should happen if opening for output.)
 (defmethod forth-open-file ((f files) pathname fam)
   (with-slots (source-id-map last-source-id) f
-    (multiple-value-bind (direction element-type)
+    (multiple-value-bind (direction element-type binary?)
         (interpret-file-access-method fam)
       (let ((stream (open pathname :direction direction :element-type element-type :if-exists :append :if-does-not-exist nil)))
         (if stream
             (let ((fileid (incf last-source-id)))
-              (setf (gethash fileid source-id-map) (make-file stream))
+              (setf (gethash fileid source-id-map) (make-file stream binary?))
               (file-position stream 0)
               (values fileid +file-operation-success+))
             (values 0 +file-operation-failure+))))))
@@ -468,13 +470,13 @@
 ;; Forth's definition of CREATE-FILE specifies that it replaces an existing file
 (defmethod forth-create-file ((f files) pathname fam)
   (with-slots (source-id-map last-source-id) f
-    (multiple-value-bind (direction element-type)
+    (multiple-value-bind (direction element-type binary?)
         (interpret-file-access-method fam)
       (let ((stream (open pathname :direction direction :element-type element-type :if-exists :supersede
                                    :if-does-not-exist :create)))
         (if stream
             (let ((fileid (incf last-source-id)))
-              (setf (gethash fileid source-id-map) (make-file stream))
+              (setf (gethash fileid source-id-map) (make-file stream binary?))
               (values fileid +file-operation-success+))
             (values 0 +file-operation-failure+))))))
 
@@ -495,11 +497,66 @@
           (values (file-position stream) +file-operation-success+)
         (file-error () (values 0 +file-operation-failure+))))))
 
+(defmethod forth-file-reposition ((f files) fileid position)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (let ((success (file-position stream position)))
+            (if success +file-operation-success+ +file-operation-failure+))
+        (file-error () +file-operation-failure+)))))
+
+(defmethod forth-file-size ((f files) fileid)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (values (file-length stream) +file-operation-success+)
+        (file-error () (values 0 +file-operation-failure+))))))
+
+(defmethod forth-read-file ((f files) fileid buffer offset count)
+  (with-slots (source-id-map) f
+    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+           (file (gethash fileid source-id-map)))
+      (cond  ((file-binary? file)
+              (handler-case
+                  (let* ((end (+ offset count))
+                         (position (read-sequence buffer stream :start offset :end end)))
+                    (values (- position offset) +file-operation-success+))
+                (file-error () (values 0 +file-operation-failure+))))
+             (t
+              (let ((data (make-array count :element-type 'character :initial-element #\Null :fill-pointer count))
+                    (updated-offset offset)
+                    (updated-count count)
+                    (read-count 0))
+                (when (file-buffer file)
+                  ;; For a charaacter file, previous call(s) to READ-LINE may read a line that was too large than the user's
+                  ;; buffer. If so, the remainder of  was saved in the FILE-BUFFER slot. We'll return that and, if needed,
+                  ;; keep reading to satisfy the requested COUNT
+                  (let ((amount (min updated-count (length (file-buffer file)))))
+                    (replace data (file-buffer file) :start1 0 :end1 amount :start2 0 :end2 amount)
+                    (when (> (length (file-buffer file)) amount)
+                      (setf (file-buffer file) (subseq (file-buffer file) amount)))
+                    (incf updated-offset amount)
+                    (decf updated-count amount)
+                    (setf read-count amount)))
+                (when (plusp updated-count)
+                  ;; Still have room left to read more of the file ...
+                  (handler-case
+                      (let* ((end (+ updated-offset updated-count))
+                             (position (read-sequence data stream :start updated-offset :end end)))
+                        (setf read-count (- position offset)))
+                    (file-error ()
+                      (return-from forth-read-file (values 0 +file-operation-failure+)))))
+                ;; Convert the buffer to a Forth string
+                (setf (fill-pointer data) read-count)
+                (native-into-forth-string data buffer offset)
+                (values read-count +file-operation-success+)))))))
+                  
+
 (defmethod forth-read-line ((f files) fileid buffer-size)
   (with-slots (source-id-map) f
     (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
            (file (gethash fileid source-id-map)))
-      ;; Previous call(s) to READ-LINE may read a line that was large than the user's buffer. If so, the remainder of
+      ;; Previous call(s) to READ-LINE may read a line that was too large than the user's buffer. If so, the remainder of
       ;; that line was saved in the FILE-BUFFER slot. We'll return that rather than reading another line from the file.
       (let ((line (or (file-buffer file)
                       (handler-case
@@ -514,6 +571,24 @@
                   (setf (file-buffer file) nil))
               (values line nil +file-operation-success+)))))))
   
+(defmethod forth-write-file ((f files) fileid buffer offset count)
+  (with-slots (source-id-map) f
+    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+           (file (gethash fileid source-id-map)))
+      (cond  ((file-binary? file)
+              (handler-case
+                  (let ((end (+ offset count)))
+                    (write-sequence buffer stream :start offset :end end)
+                    +file-operation-success+)
+                (file-error () +file-operation-failure+)))
+             (t
+              (let ((data (forth-string-to-native buffer offset count)))
+                (handler-case
+                    (progn
+                      (write-sequence data stream)
+                      +file-operation-success+)
+                  (file-error () +file-operation-failure+))))))))
+
 (defmethod forth-write-line ((f files) fileid line)
   (with-slots (source-id-map) f
     (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
