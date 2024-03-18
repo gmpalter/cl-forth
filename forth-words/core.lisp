@@ -1543,11 +1543,6 @@
 
 ;;; 6.1.1 Input Sources
 
-(define-word source-id (:word "SOURCE-ID")
-  "( - 0 | -1 | file-id )"
-  "Return 0 if the input source is the console, -1 if it is a string (EVALUATE), or the FILE-ID if it is a file"
-  (stack-push data-stack (source-id files)))
-
 
 ;;; 6.1.2 Input Source Management
 
@@ -1573,11 +1568,6 @@
   "Empty the data and return stacks, reset the input source to the terminal, restart the interpreter loop."
   "Do not display a message."
   (forth-exception :quit))
-
-(define-word refill (:word "REFILL")
-  "( - flag )"
-  "Attempt to fill the input buffer from the current input source, returning true if successful"
-  (stack-push data-stack (if (refill files) +true+ +false+)))
 
 (define-word restore-input (:word "RESTORE-INPUT")
   "( x1 ... xn n - flag )"

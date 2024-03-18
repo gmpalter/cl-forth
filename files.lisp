@@ -77,6 +77,14 @@
 
 ;;;
 
+(defstruct (file (:constructor %make-file) (:copier nil))
+  %stream
+  buffer)
+
+(declaim (inline make-file))
+(defun make-file (stream)
+  (%make-file :%stream stream :buffer nil))
+
 (defclass files ()
   ((source-id :reader source-id :initform 0)
    (>in)
@@ -90,6 +98,12 @@
    (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
    (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+)))
   )
+
+(defparameter +no-file+ (make-file nil))
+
+(declaim (inline file-stream))
+(defun file-stream (fileid map)
+  (file-%stream (gethash fileid map +no-file+)))
 
 (defstruct saved-source
   (id 0)
@@ -288,15 +302,15 @@
             ((zerop source-id)
              (fillup *standard-input*))
             (t
-             (fillup (gethash source-id source-id-map)))))))
+             (fillup (file-stream source-id source-id-map)))))))
 
-(defmethod source-push ((f files) &key file-id evaluate ((:source-address source-address-override)))
-  (assert (not (and file-id evaluate)) () "Pass ~S or ~S but not both to ~S" :file-id :evaluate 'source-push)
+(defmethod source-push ((f files) &key fileid evaluate ((:source-address source-address-override)))
+  (assert (not (and fileid evaluate)) () "Pass ~S or ~S but not both to ~S" :fileid :evaluate 'source-push)
   (with-slots (source-id >in buffer source-address source-stack source-as-space) f
     (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer :source-address source-address)))
       (stack-push source-stack ss)
       ;; SOURCE-ID for EVALUATE is always -1
-      (setf source-id (or file-id -1)
+      (setf source-id (or fileid -1)
             >in 0
             buffer (or evaluate "")
             ;; SOURCE should return the user's buffer address for EVALUATE
@@ -357,7 +371,7 @@
                  (vector-push-extend address state-vector)
                  (vector-push-extend count state-vector))))
             ((plusp source-id)
-             (let ((stream (gethash source-id source-id-map)))
+             (let ((stream (file-stream source-id source-id-map)))
                (when stream
                  (vector-push-extend (file-position stream) state-vector)
                  ;; For a file input source, save the current input buffer so we can restore it later
@@ -392,7 +406,7 @@
                      (restore-buffer f saved-buffer-address saved-buffer-count)
                      (setf >in saved->in))))
                 (t
-                 (let ((stream (gethash saved-source-id source-id-map))
+                 (let ((stream (file-stream saved-source-id source-id-map))
                        (saved-file-position (aref state-vector 2))
                        (saved-buffer-address (aref state-vector 3))
                        (saved-buffer-count (aref state-vector 4)))
@@ -445,10 +459,10 @@
         (interpret-file-access-method fam)
       (let ((stream (open pathname :direction direction :element-type element-type :if-exists :append :if-does-not-exist nil)))
         (if stream
-            (let ((file-id (incf last-source-id)))
-              (setf (gethash file-id source-id-map) stream)
+            (let ((fileid (incf last-source-id)))
+              (setf (gethash fileid source-id-map) (make-file stream))
               (file-position stream 0)
-              (values file-id +file-operation-success+))
+              (values fileid +file-operation-success+))
             (values 0 +file-operation-failure+))))))
 
 ;; Forth's definition of CREATE-FILE specifies that it replaces an existing file
@@ -459,17 +473,52 @@
       (let ((stream (open pathname :direction direction :element-type element-type :if-exists :supersede
                                    :if-does-not-exist :create)))
         (if stream
-            (let ((file-id (incf last-source-id)))
-              (setf (gethash file-id source-id-map) stream)
-              (values file-id +file-operation-success+))
+            (let ((fileid (incf last-source-id)))
+              (setf (gethash fileid source-id-map) (make-file stream))
+              (values fileid +file-operation-success+))
             (values 0 +file-operation-failure+))))))
 
-(defmethod forth-close-file ((f files) file-id)
+(defmethod forth-close-file ((f files) fileid)
   (with-slots (source-id-map) f
-    (let* ((stream (or (gethash file-id source-id-map) (forth-exception :file-i/o-exception "Invalid FILE-ID"))))
-      (remhash file-id source-id-map)
+    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (remhash fileid source-id-map)
       (handler-case
           (progn
             (close stream)
+            +file-operation-success+)
+        (file-error () +file-operation-failure+)))))
+
+(defmethod forth-file-position ((f files) fileid)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (values (file-position stream) +file-operation-success+)
+        (file-error () (values 0 +file-operation-failure+))))))
+
+(defmethod forth-read-line ((f files) fileid buffer-size)
+  (with-slots (source-id-map) f
+    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+           (file (gethash fileid source-id-map)))
+      ;; Previous call(s) to READ-LINE may read a line that was large than the user's buffer. If so, the remainder of
+      ;; that line was saved in the FILE-BUFFER slot. We'll return that rather than reading another line from the file.
+      (let ((line (or (file-buffer file)
+                      (handler-case
+                          (read-line stream nil :eof)
+                        (file-error () (values "" nil +file-operation-failure+))))))
+        (if (eq line :eof)
+            (values "" t +file-operation-success+)
+            (let ((line-size (length line)))
+              (if (> line-size buffer-size)
+                  (setf (file-buffer file) (subseq line buffer-size)
+                        line (subseq line 0 buffer-size))
+                  (setf (file-buffer file) nil))
+              (values line nil +file-operation-success+)))))))
+  
+(defmethod forth-write-line ((f files) fileid line)
+  (with-slots (source-id-map) f
+    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+      (handler-case
+          (progn
+            (write-line line stream)
             +file-operation-success+)
         (file-error () +file-operation-failure+)))))
