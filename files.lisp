@@ -97,7 +97,8 @@
    (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
-   (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+)))
+   (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+))
+   (included-files :initform (make-hash-table :test #'equal)))
   )
 
 (defparameter +no-file+ (make-file nil nil))
@@ -141,6 +142,8 @@
     (if (plusp source-id)
         (source-pop f)
         (flush-input-line f))))
+
+;;;
 
 (defmethod word ((f files) delimiter &key multiline? forth-values?)
   (with-slots (source-id >in buffer) f
@@ -338,6 +341,19 @@
       (update-source-data-space source-as-space))
     (values (or source-address (make-address (space-prefix source-as-space) 0)) (space-high-water-mark source-as-space))))
 
+(defmethod note-included-file ((f files) wls fileid)
+  (with-slots (source-id-map included-files) f
+    (let ((file (gethash fileid source-id-map)))
+      (when file
+        (let* ((included-file (truename (file-%stream file)))
+               (included? (gethash included-file included-files)))
+          (unless included?
+            (note-new-included-file wls included-file)
+            (setf (gethash included-file included-files) t)))))))
+
+(defmethod forget-included-file ((f files) included-file)
+  (with-slots (included-files) f
+    (remhash included-file included-files)))
 
 ;;;
 

@@ -89,6 +89,8 @@
         (multiple-value-bind (fileid ior)
             (forth-open-file files filename +read-direction+)
           (cond ((zerop ior)
+                 ;; Forth 2012 states that only REQUIRED skips the file if it's already been included
+                 (note-included-file files word-lists fileid)
                  (source-push files :fileid fileid))
                 ((probe-file filename)
                  (forth-exception :file-i/o-exception "Can't open ~A" filename))
@@ -258,6 +260,41 @@
   "IOR is zero. Otherwise, it is an implementation-defined I/O result code"
   (stack-push data-stack (forth-flush-file files (stack-pop data-stack))))
 
+;;; Try to open the given FILENAME on behalf of INCLUDE/REQUIRE --
+;;;  If the filename has one of the well known suffices (".fth", ".4th", ".f"), just try that one name
+;;;  If the filename doesn't have one of the suffices and does not exist, try again with each of the suffices in order
+;;;   and fail if and only if not of the suffices work
+(defun open-maybe-adding-suffix (files filename)
+  (labels ((has-suffix (suffix)
+             (let ((pos (search suffix filename :from-end t)))
+               (and pos (= pos (- (length filename) (length suffix))))))
+           (try (fail-if-not-found? &optional suffix)
+             (let ((filename (if suffix
+                                 (if (has-suffix suffix)
+                                     filename
+                                     (concatenate 'string filename suffix))
+                                 filename)))
+               (multiple-value-bind (fileid ior)
+                   (forth-open-file files filename +read-direction+)
+                 (cond ((zerop ior)
+                        fileid)
+                       ((probe-file filename)
+                        (forth-exception :file-i/o-exception "Can't open ~A" filename))
+                       (fail-if-not-found?
+                        (forth-exception :file-not-found "~A not found" filename))
+                       (t nil))))))
+    (cond ((has-suffix ".fth")
+           (try t))
+          ((has-suffix ".4th")
+           (try t))
+          ((has-suffix ".f")
+           (try t))
+          (t
+           (or (try nil)
+               (try nil ".fth")
+               (try nil ".4th")
+               (try t ".f"))))))
+  
 (define-word include (:word "INCLUDE")
   "INCLUDE <filename>" "( i*x - j*x )"
   "Skip leading white space and parse NAME delimited by a white space character. Push the address and length"
@@ -265,36 +302,10 @@
   (let ((filename (word files #\Space)))
     (when (null filename)
       (forth-exception :zero-length-name "Filename must be supplied"))
-    (labels ((has-suffix (suffix)
-               (let ((pos (search suffix filename :from-end t)))
-                 (and pos (= pos (- (length filename) (length suffix))))))
-             (try (fail-if-not-found? &optional suffix)
-               (let ((filename (if suffix
-                                   (if (has-suffix suffix)
-                                       filename
-                                       (concatenate 'string filename suffix))
-                                   filename)))
-                 (multiple-value-bind (fileid ior)
-                     (forth-open-file files filename +read-direction+)
-                   (cond ((zerop ior)
-                          (source-push files :fileid fileid)
-                          t)
-                         ((probe-file filename)
-                          (forth-exception :file-i/o-exception "Can't open ~A" filename))
-                         (fail-if-not-found?
-                          (forth-exception :file-not-found "~A not found" filename))
-                         (t nil))))))
-      (cond ((has-suffix ".fth")
-             (try t))
-            ((has-suffix ".4th")
-             (try t))
-            ((has-suffix ".f")
-             (try t))
-            (t
-             (or (try nil)
-                 (try nil ".fth")
-                 (try nil ".4th")
-                 (try t ".f")))))))
+    (let ((fileid (open-maybe-adding-suffix files filename)))
+      ;; Forth 2012 states that only REQUIRED skips the file if it's already been included
+      (note-included-file files word-lists fileid)
+      (source-push files :fileid fileid))))
     
 (define-word refill (:word "REFILL")
   "Attempt to fill the input buffer from the input source, returning a TRUE flag if successful."
@@ -324,18 +335,36 @@
                                                   (forth-string-to-native old-region old-offset old-length)
                                                   (forth-string-to-native new-region new-offset new-length)))))))
 
-#||
 (define-word require (:word "REQUIRE")
   "REQUIRE <name>"   "(i*x – i*x )"
   "Skip leading white space and parse NAME delimited by a white space character. Push the address and length of the NAME"
   "on the stack and perform the function of REQUIRED"
-  ;;;---*** FINISH ME
-  )
+  (let ((filename (word files #\Space)))
+    (when (null filename)
+      (forth-exception :zero-length-name "Filename must be supplied"))
+        (let ((fileid (open-maybe-adding-suffix files filename)))
+      (if (note-included-file files word-lists fileid)
+          (source-push files :fileid fileid)
+          (forth-close-file files fileid)))))
 
 (define-word required (:word "REQUIRED")
   "(i*x c-addr u – i*x )"
   "If the file specified by C-ADDR U has been INCLUDED or REQUIRED already, but not between the definition and execution"
   "of a marker (or equivalent usage of FORGET), discard C-ADDR U; otherwise, perform the function of INCLUDED"
-  ;;;---*** FINISH ME
-  )
-||#
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory address)
+      (let ((filename (forth-string-to-native forth-memory offset length)))
+        (multiple-value-bind (fileid ior)
+            (forth-open-file files filename +read-direction+)
+          (cond ((zerop ior)
+                 (if (note-included-file files word-lists fileid)
+                     (source-push files :fileid fileid)
+                     (forth-close-file files fileid)))
+                ((probe-file filename)
+                 (forth-exception :file-i/o-exception "Can't open ~A" filename))
+                (t
+                 (forth-exception :file-not-found "~A not found" filename))))))))

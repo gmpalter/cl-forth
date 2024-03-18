@@ -300,7 +300,8 @@
 (defclass marker ()
   ((search-order :reader marker-search-order :initarg :search-order :initform nil)
    (compilation-word-list :reader marker-compilation-word-list :initarg :compilation-word-list :initform nil)
-   (words :initform nil))
+   (words :initform nil)
+   (included-files :initform nil))
   )
 
 (defmethod add-word-to-marker ((marker marker) word)
@@ -312,13 +313,22 @@
     (map  nil #'(lambda (word) (delete-word (word-parent word) xts word)) words)
     (setf words nil)))
 
+(defmethod add-included-file-to-marker ((marker marker) included-file)
+  (with-slots (included-files) marker
+    (push included-file included-files)))
+
+(defmethod remove-included-files ((marker marker) files)
+  (with-slots (included-files) marker
+    (map nil #'(lambda (included-file) (forget-included-file files included-file)) included-files)
+    (setf included-files nil)))
+
 (defmethod register-marker ((wls word-lists))
   (with-slots (search-order compilation-word-list markers) wls
     (let ((marker (make-instance 'marker :search-order (copy-list search-order) :compilation-word-list compilation-word-list)))
       (vector-push-extend marker markers)
       marker)))
 
-(defmethod execute-marker ((wls word-lists) xts (marker marker))
+(defmethod execute-marker ((wls word-lists) xts files (marker marker))
   (with-slots (search-order compilation-word-list markers) wls
     (let ((position (position marker markers)))
       ;; Ignore stale markers
@@ -326,6 +336,7 @@
         (setf search-order (copy-list (marker-search-order marker))
               compilation-word-list (marker-compilation-word-list marker))
         (remove-words marker xts)
+        (remove-included-files marker files)
         (loop for i from position below (fill-pointer markers)
               do (setf (aref markers i) nil))
         (setf (fill-pointer markers) position)))))
@@ -337,3 +348,7 @@
           (gethash next-psuedo-address nt-to-word-map) word)
     (incf next-psuedo-address +cell-size+)
     (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
+
+(defmethod note-new-included-file ((wls word-lists) truename)
+  (with-slots (markers) wls
+    (map nil #'(lambda (marker) (add-included-file-to-marker marker truename)) markers)))

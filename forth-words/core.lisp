@@ -1752,7 +1752,7 @@
 
 (defun do-marker (fs &rest parameters)
   (with-forth-system (fs)
-    (execute-marker word-lists execution-tokens (first parameters))))
+    (execute-marker word-lists execution-tokens files (first parameters))))
 
 (define-word marker (:word "MARKER")
   "MARKER <name>"
