@@ -3,14 +3,17 @@
 (defclass stack ()
   ((name :initarg :name :initform "<unnamed>")
    (cells :accessor stack-cells)
+   (initial-size :accessor stack-initial-size :initarg :initial-size)
    (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
    (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)))
 
-(defmethod initialize-instance :after ((st stack) &key initial-size &allow-other-keys)
-  (with-slots (cells underflow-key overflow-key) st
-    (setf cells (make-array initial-size :adjustable t :fill-pointer 0))
+(defmethod initialize-instance :after ((st stack) &key &allow-other-keys)
+  (with-slots (cells initial-size underflow-key overflow-key) st
+    (assert (and (numberp initial-size) (plusp initial-size)) ((stack-initial-size st))
+            "Value of ~S must be a positive integer" :initial-size)
     (assert (keywordp underflow-key) ((stack-underflow-key st)) "Value of ~S must be a keyword" :underflow-key)
-    (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)))
+    (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)
+    (setf cells (make-array initial-size :adjustable t :fill-pointer 0))))
 
 (defmethod print-object ((sp stack) stream)
   (with-slots (name cells) sp

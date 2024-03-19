@@ -11,9 +11,11 @@
 
 (defconstant +most-positive-single-cell+ (1- (dpb 1 (byte 1 63) 0)))
 (defconstant +most-negative-single-cell+ (- (dpb 1 (byte 1 63) 0)))
+(defconstant +maximum-unsigned-single-cell+ (1- (dpb 1 (byte 1 64) 0)))
 
 (defconstant +most-positive-double-cell+ (1- (dpb 1 (byte 1 127) 0)))
 (defconstant +most-negative-double-cell+ (- (dpb 1 (byte 1 127) 0)))
+(defconstant +maximum-unsigned-double-cell+ (1- (dpb 1 (byte 1 128) 0)))
 
 (defun interpret-number (thing base &key (allow-floats? nil) (signal-overflow? t))
   (flet ((interpret-base-prefix ()

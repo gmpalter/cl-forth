@@ -206,12 +206,12 @@
     (setf (first search-order) dict)
     (update-psuedo-state-variables wls)))
 
-(defmethod replace-top-of-search-order ((wls word-lists) (psuedo-address integer))
+(defmethod replace-top-of-search-order ((wls word-lists) (wid integer))
   (with-slots (search-order wid-to-word-list-map) wls
-    (let ((word-list (gethash psuedo-address wid-to-word-list-map)))
+    (let ((word-list (gethash wid wid-to-word-list-map)))
       (if word-list
           (replace-top-of-search-order wls word-list)
-          (forth-exception :unknown-word-list "~14,'0X is not the address of a word list" psuedo-address)))))
+          (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid)))))
 
 
 ;;; Support for Forth 2012
