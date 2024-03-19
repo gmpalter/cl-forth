@@ -18,6 +18,7 @@
                (:module "forth-words"
                   :serial nil
                   :components ((:file "core")
+                               (:file "environment")
                                (:file "files")
                                (:file "tools")
                                (:file "double")

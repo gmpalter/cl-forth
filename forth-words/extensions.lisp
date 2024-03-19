@@ -28,13 +28,6 @@
         (char (extract-char (stack-pop data-stack))))
     (setf (memory-char memory address) (extract-char (+ (memory-char memory address) char)))))
 
-(define-word create-char (:word "C,")
-  "( char - )"
-  "Allocate space for one character in data space and store CHAR"
-  (let ((value (stack-pop data-stack))
-        (address (allocate-memory memory +char-size+)))
-    (setf (memory-char memory address) (extract-char value))))
-
 (define-state-word context :word "CONTEXT")
 
 (define-state-word current :word "CURRENT")

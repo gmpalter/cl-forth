@@ -2,8 +2,6 @@
 
 ;;; Core words as defined in Section 6 of the Forth 2012 specification
 
-;;; Paragraph numbers refer to the Forth Programmer's Handbook, 3rd Edition
-
 (define-word write-cell (:word "!")
   "( x a-addr - )"
   "Store the cell X at the address A-ADDR"
@@ -59,7 +57,7 @@
         (forth-exception :undefined-word "~A is not defined" name))
       (stack-push data-stack (xt-token (word-execution-token word))))))
 
-;;; ) extended by the File-Access word set
+;;; ( extended by the File-Access word set
 
 (define-word multiply (:word "*")
   "( n1 n2 - n3 )"
@@ -409,6 +407,13 @@
         (char (extract-char (stack-pop data-stack))))
     (setf (memory-char memory address) char)))
 
+(define-word create-char (:word "C,")
+  "( char - )"
+  "Allocate space for one character in data space and store CHAR"
+  (let ((value (stack-pop data-stack))
+        (address (allocate-memory memory +char-size+)))
+    (setf (memory-char memory address) (extract-char value))))
+
 (define-word read-char (:word "C@")
   "( a-addr - char )"
   "Push the character at the address A-ADDR onto the data stack"
@@ -531,7 +536,7 @@
   "Type the character CHAR on the terminal"
   (write-char (native-char (extract-char (stack-pop data-stack)))))
 
-;;;---*** ENVIRONMENT?
+;;; ENVIRONMENT? is defined in forth-words/environment.lisp
 
 (define-word evaluate-string (:word "EVALUATE")
   "( i*x c-addr u – j*x )"
