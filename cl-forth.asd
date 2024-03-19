@@ -18,7 +18,6 @@
                (:module "forth-words"
                   :serial nil
                   :components ((:file "core")
-                               #+ignore (:file "memory")
                                (:file "files")
                                (:file "tools")
                                (:file "double")
@@ -26,7 +25,8 @@
                                (:file "strings")
                                (:file "exceptions")
                                (:file "search")
-                               #+ignore (:file "facility")
+                               (:file "facility")
+                               #+ignore (:file "memory")
                                (:file "extensions")))
                ;;---*** TODO: Temporary
                (:file "test")))
