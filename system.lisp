@@ -214,19 +214,21 @@
   (unless (zerop (stack-depth control-flow-stack))
     (forth-exception :control-mismatch))
   (flet ((finish-definition ()
-           (let ((thunk `(lambda (fs &rest parameters)
-                           (declare (ignorable parameters))
-                           (with-forth-system (fs)
-                             (tagbody
-                                ,@(reverse (word-inline-forms (definition-word definition)))
-                                ,(branch-reference-tag (definition-exit-branch definition)))))))
+           (let* ((word (definition-word definition))
+                  (name (intern (or (string-upcase (word-name word)) (symbol-name (gensym "XT"))) *forth-words-package*))
+                  (thunk `(lambda (fs &rest parameters)
+                            (declare (ignorable parameters))
+                            (with-forth-system (fs)
+                              (tagbody
+                                 ,@(reverse (word-inline-forms word))
+                                 ,(branch-reference-tag (definition-exit-branch definition)))))))
              (when (not (zerop show-definition-code?))
-               (format t "~&Code for ~A:~%  ~:W~%" (or (word-name (definition-word definition)) "<execution token>") thunk))
-             (setf (word-code (definition-word definition)) (compile nil thunk)))
-           ;; Keep the forms for SHOW-DEFINITION
-           ;;(setf (word-inline-forms (definition-word definition)) nil)
-           (setf (word-smudge? (definition-word definition)) nil
-                 (definition-in-progress? definition) nil)))
+               (format t "~&Code for ~A:~%  ~:W~%" name thunk))
+             (setf (word-code word) (ccl::compile-named-function thunk :name name :keep-symbols t))
+             ;; Keep the forms for SHOW-DEFINITION
+             ;;(setf (word-inline-forms (definition-word definition)) nil)
+             (setf (word-smudge? word) nil
+                   (definition-in-progress? definition) nil))))
     (finish-definition)
     (loop while (plusp (stack-depth definitions-stack))
           do (let ((does>-word (definition-word definition)))
@@ -298,7 +300,7 @@
 
 (define-forth-method show-definition (fs word)
   (cond ((word-inline-forms word)
-         (let ((thunk `(defun ,(make-symbol (string-upcase (word-name word))) (fs &rest parameters)
+         (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs &rest parameters)
                          (declare (ignorable parameters))
                          (with-forth-system (fs)
                            (tagbody

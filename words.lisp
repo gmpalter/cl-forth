@@ -1,5 +1,8 @@
 (in-package #:forth)
 
+(defparameter *forth-words-package* (find-package '#:forth-words))
+
+
 ;;; Dictionaries
 
 (defclass dictionary ()
@@ -262,17 +265,18 @@
                      while (stringp (car forms))
                      do (pop forms)
                      finally (return forms)))
-         (thunk `(lambda (fs &rest parameters)
-                   (declare (ignorable parameters))
-                   (with-forth-system (fs)
-                     ,@body))))
+         (thunk `(nfunction ,(intern forth-name *forth-words-package*)
+                   (lambda (fs &rest parameters)
+                     (declare (ignorable parameters))
+                     (with-forth-system (fs)
+                       ,@body)))))
     `(eval-when (:load-toplevel :execute)
        (let ((,word (make-instance 'word
                                    :name ,forth-name
                                    :immediate? ,immediate?
                                    :compile-only? ,compile-only?
                                    :inlineable? ,inlineable?
-                                   :code (compile nil ,thunk)
+                                   :code ,thunk
                                    :inline-forms ',(when inlineable?
                                                      (copy-tree body)))))
          (setf (gethash ,forth-name *predefined-words*) (cons ,word-list ,word))))))
