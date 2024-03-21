@@ -2,7 +2,8 @@
 
 (defpackage #:forth
   (:use #:common-lisp #:ccl)
-  (:shadow #:toplevel))
-
+  (:shadow #:toplevel)
+  (:export #:forth-system
+           #:toplevel))
 (defpackage #:forth-words
   (:use))

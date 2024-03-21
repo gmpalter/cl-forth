@@ -44,7 +44,8 @@
              (let ((tests-dir (component-pathname c)))
                (uiop:with-current-directory (tests-dir)
                  (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
-                   (let ((*standard-input* text)
-                         (fs (make-instance (find-symbol "FORTH-SYSTEM" "FORTH"))))
+                   ;; Allow input from the console if any test raises a Forth exception
+                   (let ((*standard-input* (make-concatenated-stream text *standard-input*))
+                         (fs (make-instance (find-symbol* '#:forth-system '#:forth))))
                      (symbol-call '#:forth '#:toplevel
                                   fs :evaluate "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))
