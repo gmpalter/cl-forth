@@ -30,10 +30,21 @@
                                #+ignore (:file "memory")
                                (:file "extensions")))
                ;;---*** TODO: Temporary
-               (:file "test")))
+               (:file "test"))
+  :in-order-to ((test-op (test-op #:cl-forth/test))))
 
 (defsystem #:cl-forth/application
   )
 
 (defsystem #:cl-forth/test
-  )
+  :description "Test Forth interpreter"
+  :version "0.9"
+  :pathname "tests/src"
+  :perform (test-op (o c)
+             (let ((tests-dir (component-pathname c)))
+               (uiop:with-current-directory (tests-dir)
+                 (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
+                   (let ((*standard-input* text)
+                         (fs (make-instance (find-symbol "FORTH-SYSTEM" "FORTH"))))
+                     (symbol-call '#:forth '#:toplevel
+                                  fs :evaluate "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))

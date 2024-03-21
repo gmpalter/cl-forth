@@ -265,7 +265,7 @@
                      while (stringp (car forms))
                      do (pop forms)
                      finally (return forms)))
-         (thunk `(nfunction ,(intern forth-name *forth-words-package*)
+         (thunk `(ccl:nfunction ,(intern forth-name *forth-words-package*)
                    (lambda (fs &rest parameters)
                      (declare (ignorable parameters))
                      (with-forth-system (fs)
