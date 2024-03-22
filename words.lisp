@@ -124,7 +124,7 @@
     (setf forth (word-list wls "FORTH"))
     (if saved-search-order
         (setf search-order (loop for wl in saved-search-order
-                                 append (word-list wls wl :if-not-found :create)))
+                                 collect (word-list wls wl :if-not-found :create)))
         (setf search-order (list forth)))
     (if saved-compilation-word-list
         ;; In case the user just creats an empty word list and sets it as the compilation word list before GILDing
@@ -137,10 +137,9 @@
   (with-slots (all-word-lists search-order compilation-word-list saved-search-order saved-compilation-word-list) wls
     (clrhash *predefined-words*)
     (maphash #'(lambda (name dictionary)
-                 (declare (ignore name))
-                 (maphash #'(lambda (forth-name wl-and-word)
-                              (setf (gethash forth-name *predefined-words*) wl-and-word))
-                          dictionary))
+                 (maphash #'(lambda (forth-name word)
+                              (setf (gethash forth-name *predefined-words*) (cons name word)))
+                          (dictionary-words dictionary)))
              all-word-lists)
     (setf saved-search-order (map 'list #'dictionary-name search-order))
     (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
@@ -278,7 +277,7 @@
                                    :inlineable? ,inlineable?
                                    :code ,thunk
                                    :inline-forms ',(when inlineable?
-                                                     (copy-tree body)))))
+                                                     (reverse body)))))
          (setf (gethash ,forth-name *predefined-words*) (cons ,word-list ,word))))))
 
 (defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)

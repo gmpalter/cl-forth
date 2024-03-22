@@ -231,3 +231,8 @@
                   (word-inlineable? old-word) (word-inlineable? new-word)
                   (word-inline-forms old-word) (word-inline-forms new-word))
             (add-word (word-list word-lists word-list) new-word :override t))))))
+
+(define-word inlineable (:word "INLINEABLE")
+  "Make the most recent definition an inlineable word"
+  (when definition
+    (setf (word-inlineable? (definition-word definition)) t)))

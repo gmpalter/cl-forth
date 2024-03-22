@@ -142,8 +142,7 @@
                                  (forth-call fs value))
                                 ((word-inlineable? value)
                                  (setf (word-inline-forms (definition-word definition))
-                                       (append (reverse (word-inline-forms value))
-                                               (word-inline-forms (definition-word definition)))))
+                                       (append (word-inline-forms value) (word-inline-forms (definition-word definition)))))
                                 (t
                                  (push `(forth-call fs ,value) (word-inline-forms (definition-word definition))))))
                          (:single
@@ -251,8 +250,7 @@
                   (:compiling
                    ,(if (word-inlineable? word)
                         `(setf (word-inline-forms (definition-word definition))
-                               (append (reverse (word-inline-forms ,word))
-                                       (word-inline-forms (definition-word definition))))
+                               (append (word-inline-forms ,word) (word-inline-forms (definition-word definition))))
                         `(push '(forth-call fs ,word) (word-inline-forms (definition-word definition))))))
                (word-inline-forms (definition-word definition))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
@@ -287,7 +285,7 @@
           (when (definition-in-progress? definition)
             (if (word-inlineable? word)
                 (setf (word-inline-forms (definition-word definition))
-                      (append (reverse (word-inline-forms word)) (word-inline-forms (definition-word definition))))
+                      (append (word-inline-forms word) (word-inline-forms (definition-word definition))))
                 (push `(forth-call fs ,word) (word-inline-forms (definition-word definition)))))))))
 
 (define-forth-method create-compile-execution-token (fs word)
