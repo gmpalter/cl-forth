@@ -5,5 +5,6 @@
   (:shadow #:toplevel)
   (:export #:forth-system
            #:toplevel))
+
 (defpackage #:forth-words
   (:use))

@@ -28,7 +28,7 @@
                                                       :underflow-key :definitions-stack-underflow
                                                       :overflow-key :definitions-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))
-   (files :initform (make-instance 'files))
+   (files :reader forth-system-files :initform (make-instance 'files))
    (execution-tokens :initform (make-instance 'execution-tokens))
    (replacements :initform (make-instance 'replacements))
    (base :initform 10)

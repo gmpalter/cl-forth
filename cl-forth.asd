@@ -1,8 +1,9 @@
 (in-package #:asdf/user)
 
 (defsystem #:cl-forth
+  :long-name "CL-Forth"
   :description "Forth interpreter"
-  :version "0.9"
+  :version (:read-file-line "version.text")
   :serial t
   :components ((:file "packages")
                (:file "exceptions")
@@ -29,6 +30,7 @@
                                (:file "facility")
                                #+ignore (:file "memory")
                                (:file "extensions")))
+               (:file "asdf-support")
                ;;---*** TODO: Temporary
                (:file "test"))
   :in-order-to ((test-op (test-op #:cl-forth/test))))
@@ -38,7 +40,6 @@
 
 (defsystem #:cl-forth/test
   :description "Test Forth interpreter"
-  :version "0.9"
   :pathname "tests/src"
   :perform (test-op (o c)
              (let ((tests-dir (component-pathname c)))

@@ -88,8 +88,8 @@
 
 (defclass files ()
   ((source-id :reader source-id :initform 0)
-   (>in)
-   (buffer)
+   >in
+   buffer
    (source-address :initform nil)
    (verbose :accessor files-verbose :initform nil)
    (source-id-map :initform (make-hash-table))
