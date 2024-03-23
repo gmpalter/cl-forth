@@ -4,7 +4,7 @@
 
 (define-word comment (:word "(" :immediate? t)
   "Ignore all text up to and including the next close parenthesis"
-  (word files #\) :multiline? t))
+  (parse files #\) :multiline? t))
 
 (define-word binary-access-method (:word "BIN")
   "( fam1 - fam2 )"
@@ -299,11 +299,12 @@
              (let ((pos (search suffix filename :from-end t)))
                (and pos (= pos (- (length filename) (length suffix))))))
            (try (fail-if-not-found? &optional suffix)
-             (let ((filename (if suffix
-                                 (if (has-suffix suffix)
-                                     filename
-                                     (concatenate 'string filename suffix))
-                                 filename)))
+             (let* ((original-filename filename)
+                    (filename (if suffix
+                                  (if (has-suffix suffix)
+                                      filename
+                                      (concatenate 'string filename suffix))
+                                  filename)))
                (multiple-value-bind (fileid ior)
                    (forth-open-file files filename +read-direction+)
                  (cond ((zerop ior)
@@ -311,7 +312,7 @@
                        ((probe-file filename)
                         (forth-exception :file-i/o-exception "Can't open ~A" filename))
                        (fail-if-not-found?
-                        (forth-exception :file-not-found "~A not found" filename))
+                        (forth-exception :file-not-found "~A not found" original-filename))
                        (t nil))))))
     (cond ((has-suffix ".fth")
            (try t))

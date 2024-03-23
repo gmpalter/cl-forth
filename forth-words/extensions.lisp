@@ -140,7 +140,7 @@
 (define-word extended-comment (:word "{" :immediate? t)
   "Ignore all text up to and including the next right brace"
   "Useful for large comment blocks that contain parentheses (e.g., documenting stack behavior)"
-  (word files #\} :multiline? t))
+  (parse files #\} :multiline? t))
 
 (define-word rest-of-file-comment (:word "\\\\" :immediate? t)
   "Ignore all text in the rest of the file"

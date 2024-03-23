@@ -941,7 +941,7 @@
   "Skip any leading occurences of the delimiter character CHAR. Parse TEXT delimited by CHAR."
   "Return C-ADDR, the address of a temporary location containing the parsed text as a counted string"
   (let* ((char (stack-pop data-stack))
-         (text (word files (native-char char)))
+         (text (or (word files (native-char char)) ""))
          (length (length text))
          (word-space (word-space memory))
          (address (transient-space-base-address memory word-space)))
@@ -996,7 +996,7 @@
 
 (define-word displayed-comment (:word ".(" :immediate? t)
   "Display without interpretation all text up to the next close parenthesis on the console"
-  (let ((comment (word files #\))))
+  (let ((comment (parse files #\))))
     (write-string comment)))
 
 (define-word print-tos-in-field (:word ".R")

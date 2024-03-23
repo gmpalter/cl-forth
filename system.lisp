@@ -161,7 +161,9 @@
                ((terminal-input-p files)
                 (throw 'bye nil))
                (t
-                (source-pop files))))))
+                (source-pop files)
+                (when (and (eq (state fs) :interpreting) (terminal-input-p files))
+                  (write-line "OK.")))))))
 
 (defun forth-call (fs word)
   (with-forth-system (fs)
