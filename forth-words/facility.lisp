@@ -9,19 +9,6 @@
 
 ;;; Facility extension words as defined in Section 10 of the Forth 2012 specification
 
-(defstruct (forth-structure (:conc-name #:fs-))
-  (size 0)
-  (word nil)
-  (fields nil))
-
-(defun push-structure-size-from-parameter (fs &rest parameters)
-  (with-forth-system (fs)
-    (stack-push data-stack (fs-size (first parameters)))))
-
-(defun push-field-address-from-parameter (fs &rest parameters)
-  (with-forth-system (fs)
-    (stack-push data-stack (+ (stack-pop data-stack) (first parameters)))))
-
 (define-word +field (:word "+FIELD")
   "+FIELD <name>" "( n1 n2 - n3 )"
   "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME with the execution semantics"

@@ -34,4 +34,18 @@
   (with-forth-system (fs)
     (replace-top-of-search-order word-lists (first parameters))))
 
+;;;
+
+(defstruct (forth-structure (:conc-name #:fs-))
+  (size 0)
+  (word nil)
+  (fields nil))
+
+(defun push-structure-size-from-parameter (fs &rest parameters)
+  (with-forth-system (fs)
+    (stack-push data-stack (fs-size (first parameters)))))
+
+(defun push-field-address-from-parameter (fs &rest parameters)
+  (with-forth-system (fs)
+    (stack-push data-stack (+ (stack-pop data-stack) (first parameters)))))
 
