@@ -1,0 +1,87 @@
+(in-package #:forth)
+
+;;; Floating-Point words as defined in Section 12 of the Forth 2012 specification
+
+;;;---*** >FLOAT
+;;;---*** D>F
+;;;---*** F!
+;;;---*** F*
+;;;---*** F+
+;;;---*** F-
+;;;---*** F/
+;;;---*** F0<
+;;;---*** F0=
+;;;---*** F<
+;;;---*** F>D
+;;;---*** F@
+;;;---*** FALIGN
+;;;---*** FALIGNED
+;;;---*** FCONSTANT
+;;;---*** FDEPTH
+;;;---*** DROP
+;;;---*** FDUP
+;;;---*** FLITERAL
+;;;---*** FLOAT+
+;;;---*** FLOATS
+;;;---*** FLOOR
+;;;---*** FMAX
+;;;---*** FMIN
+;;;---*** FNEGATE
+;;;---*** FOVER
+;;;---*** FROT
+;;;---*** FROUND
+;;;---*** FSWAP
+;;;---*** FVARIABLE
+;;;---*** REPRESENT
+
+
+;;; Floating-Point extension  words as defined in Section 12 of the Forth 2012 specification
+
+;;;---*** DF!
+;;;---*** DF@
+;;;---*** DFALIGN
+;;;---*** DFALIGNED
+;;;---*** DFFIELD:
+;;;---*** DFLOAT+
+;;;---*** DFLOATS
+;;;---*** F**
+;;;---*** F.
+;;;---*** F>S
+;;;---*** FABS
+;;;---*** FACOS
+;;;---*** FACOSH
+;;;---*** FALOG
+;;;---*** FASIN
+;;;---*** FASINH
+;;;---*** FATAN
+;;;---*** FATAN2
+;;;---*** FATANH
+;;;---*** FCOS
+;;;---*** FCOSH
+;;;---*** FE.
+;;;---*** FEXP
+;;;---*** FEXPM1
+;;;---*** FFIELD:
+;;;---*** FLN
+;;;---*** FLNP1
+;;;---*** FLOG
+;;;---*** FS.
+;;;---*** FSIN
+;;;---*** FSINCOS
+;;;---*** FSINH
+;;;---*** FSQRT
+;;;---*** FTAN
+;;;---*** FTANH
+;;;---*** FTRUNC
+;;;---*** FVALUE
+;;;---*** F~
+;;;---*** PRECISION
+;;;---*** S>F
+;;;---*** SET-PRECISION
+;;;---*** SF!
+;;;---*** SF@
+;;;---*** SFALIGN
+;;;---*** SFALIGNED
+;;;---*** SFFIELD:
+;;;---*** SFLOAT+
+;;;---*** SFLOATS
