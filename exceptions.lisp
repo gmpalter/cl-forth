@@ -17,7 +17,7 @@
   (:stack-underflow -4 "Stack underflow")
   (:return-stack-overflow -5 "Return stack overflow")
   (:return-stack-underflow -6 "Return stack underflow")
-  (:do-loops-nesting -7 "DO-loops nested too deeply during execution")
+  (:do-loops-nesting -7 "DO loops nested too deeply during execution")
   (:dictionary-overflow -8 "Dictionary overflow")
   (:invalid-memory -9 "Invalid memory address")
   (:divide-by-zero -10 "Division by zero")
@@ -111,6 +111,7 @@
   (:defer-not-set -272 "Execution token not set in DEFER definition")
   (:not-a-name-token -273 "Not a name token")
   (:exception-stack-underflow -274 "Exception stack underflow")
+  (:loop-stack-underflow -275 "DO loops stack underflow")
   )
 
 (define-condition forth-exception (error)

@@ -106,11 +106,11 @@
         (done (stack-cell control-flow-stack 1)))
     (execute-branch-when fs again
       (let* ((increment (cell-signed (stack-pop data-stack)))
-             (limit (cell-signed (stack-cell return-stack 1)))
-             (before (cell-signed (stack-cell return-stack 0)))
+             (limit (cell-signed (stack-cell loop-stack 1)))
+             (before (cell-signed (stack-cell loop-stack 0)))
              (after (+ before increment))
              (after-signed (cell-signed after)))
-        (setf (stack-cell return-stack 0) after)
+        (setf (stack-cell loop-stack 0) after)
         (cond ((plusp increment)
                (if (= after after-signed)
                    (not (and (< before limit) (>= after limit)))
@@ -129,8 +129,8 @@
                      (not (and (>= before-unsigned limit-unsigned) (< after-unsigned limit-unsigned))))))
               (t t))))
     (add-to-definition fs
-      `(stack-pop return-stack)
-      `(stack-pop return-stack))
+      `(stack-pop loop-stack)
+      `(stack-pop loop-stack))
     (stack-pop control-flow-stack)
     (stack-pop control-flow-stack)
     (resolve-branch fs done)))
@@ -500,8 +500,8 @@
     (add-to-definition fs
       `(let ((n2 (cell-signed (stack-pop data-stack)))
              (n1 (cell-signed (stack-pop data-stack))))
-         (stack-push return-stack n1)
-         (stack-push return-stack n2)))
+         (stack-push loop-stack n1)
+         (stack-push loop-stack n2)))
     (resolve-branch fs again)))
 
 (define-word does> (:word "DOES>" :immediate? t :compile-only? t)
@@ -607,7 +607,7 @@
   "( - n )"
   "Push a copy of the current value of the index onto the data stack"
   (add-to-definition fs
-    `(stack-push data-stack (stack-cell return-stack 0))))
+    `(stack-push data-stack (stack-cell loop-stack 0))))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag - )"
@@ -634,7 +634,7 @@
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
   (add-to-definition fs
-    `(stack-push data-stack (stack-cell return-stack 2))))
+    `(stack-push data-stack (stack-cell loop-stack 2))))
 
 ;;;---*** KEY
 
@@ -642,8 +642,8 @@
   "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
   (let ((done (control-structure-find fs :do 1)))
     (add-to-definition fs
-      `(stack-pop return-stack)
-      `(stack-pop return-stack))
+      `(stack-pop loop-stack)
+      `(stack-pop loop-stack))
     (execute-branch fs done)))
 
 (define-word literal (:word "LITERAL" :immediate? t :compile-only? t)
@@ -661,12 +661,12 @@
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
     (add-to-definition fs
-      `(incf (stack-cell return-stack 0)))
+      `(incf (stack-cell loop-stack 0)))
     (execute-branch-when fs again
-      (< (stack-cell return-stack 0) (stack-cell return-stack 1)))
+      (< (stack-cell loop-stack 0) (stack-cell loop-stack 1)))
     (add-to-definition fs
-      `(stack-pop return-stack)
-      `(stack-pop return-stack))
+      `(stack-pop loop-stack)
+      `(stack-pop loop-stack))
     (stack-pop control-flow-stack)
     (stack-pop control-flow-stack)
     (resolve-branch fs done)))
@@ -904,8 +904,8 @@
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
   (add-to-definition fs
-    `(stack-pop return-stack)
-    `(stack-pop return-stack)))
+    `(stack-pop loop-stack)
+    `(stack-pop loop-stack)))
 
 (define-word until (:word "UNTIL" :immediate? t :compile-only? t)
   "If X is zero, branch back to the location immediately following the nearest previous BEGIN; otherwise, continue"
@@ -1073,8 +1073,8 @@
     (add-to-definition fs
       `(let ((n2 (stack-pop data-stack))
              (n1 (stack-pop data-stack)))
-         (stack-push return-stack n1)
-         (stack-push return-stack n2)))
+         (stack-push loop-stack n1)
+         (stack-push loop-stack n2)))
     (resolve-branch fs again)))
 
 (define-word action-of (:word "ACTION-OF" :immediate? t)

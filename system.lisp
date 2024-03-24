@@ -20,6 +20,9 @@
                                                     :initial-size 128
                                                     :underflow-key :exception-stack-underflow
                                                     :overflow-key :exception-stack-overflow))
+   (loop-stack :initform (make-instance 'stack :name "Loop Control"
+                                               :initial-size 32
+                                               :underflow-key :loop-stack-underflow :overflow-key :do-loops-nesting))
    (float-stack :initform (make-instance 'stack :name "Float"
                                                 :initial-size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
@@ -65,7 +68,7 @@
   value)
          
 (defmacro with-forth-system ((fs) &body body)
-  `(with-slots (memory data-stack return-stack control-flow-stack exception-stack float-stack definitions-stack
+  `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
                 word-lists files execution-tokens replacements base state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
@@ -81,6 +84,7 @@
   (stack-reset return-stack)
   (stack-reset control-flow-stack)
   (stack-reset exception-stack)
+  (stack-reset loop-stack)
   (stack-reset float-stack)
   (stack-reset definitions-stack)
   (reset-input files)
