@@ -35,6 +35,7 @@
    (execution-tokens :initform (make-instance 'execution-tokens))
    (replacements :initform (make-instance 'replacements))
    (base :initform 10)
+   (float-precision :initform 16)
    state
    (definition :initform nil)
    (compiling-paused? :initform nil)
@@ -69,7 +70,7 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
-                word-lists files execution-tokens replacements base state definition compiling-paused?
+                word-lists files execution-tokens replacements base float-precision state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
      ,@body))

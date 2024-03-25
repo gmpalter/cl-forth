@@ -118,7 +118,18 @@
                     addr
                     (+ addr (- +cell-size+ (mod addr +native-float-cell-size+)))))))
 
-;;;---*** FCONSTANT
+(define-word f-constant (:word "FCONSTANT")
+  "FCONSTANT <name>" "(F: r – )"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME with the execution semantics"
+  "defined below. NAME is referred to as an \"f-constant\""
+  "NAME Execution: ( – ) ( F: – r )"
+  "Place R on the floating-point stack"
+  (let ((name (word files #\Space))
+        (value (stack-pop float-stack)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (make-word name #'push-parameter-as-float :parameters (list value))))
+      (add-and-register-word fs word (data-space-high-water-mark memory)))))
 
 (define-word float-stack-depth (:word "FDEPTH")
   "( – +n )"
@@ -135,7 +146,14 @@
   "Duplicate R"
   (stack-dup float-stack))
 
-;;;---*** FLITERAL
+(define-word float-literal (:word "FLITERAL" :immediate? t :compile-only? t)
+  "Compilation: (F: r – )"
+  "Append the run-time semantics given below to the current definition"
+  "Run-time: (F: – r)"
+  "Place R on the floating-point stack"
+  (let ((value (stack-pop float-stack)))
+    (add-to-definition fs
+      `(stack-push float-stack ,value))))
 
 (define-word float-plus (:word "FLOAT+")
   "( f-addr1 – f-addr2 )"
@@ -187,7 +205,22 @@
   "Exchange the top two floating-point stack items"
   (stack-swap float-stack))
 
-;;;---*** FVARIABLE
+(define-word float-variable (:word "FVARIABLE")
+  "FVARIABLE <name>"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME with the execution semantics"
+  "defined below. Reserve 1 FLOATS address units of data space at a float-aligned address."
+  "NAME is referred to as an \"f-variable\""
+  "NAME Execution: ( – f-addr )"
+  "F-ADDR is the address of the data space reserved by FVARIABLE when it created NAME."
+  "A program is responsible for initializing the contents of the reserved space"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (align-memory memory +native-float-cell-size+)
+    (let* ((address (allocate-memory memory +native-float-cell-size+))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+      (add-and-register-word fs word address))))
+
 ;;;---*** REPRESENT
 
 
@@ -449,7 +482,24 @@
   "Round R1 to an integral value using the \"round towards zero\" rule, giving R2"
   (stack-push float-stack (native-float (truncate (stack-pop float-stack)))))
 
-;;;---*** FVALUE
+(define-word float-value (:word "FVALUE")
+  "FVALUE <name>" "(F: r – )"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME with the execution semantics"
+  "defined below, with an initial value equal to R. NAME is referred to as a \"f-value\""
+  "NAME Execution: (F: – r )"
+  "Place R on the floating point stack. The value of R is that given when NAME was created, until the phrase"
+  "\"r TO name\" is executed, causing a new value of R to be assigned to NAME"
+  "TO name Run-time: (F: r – )"
+  "Assign the value R to NAME"
+  (let ((name (word files #\Space))
+        (value (stack-pop float-stack)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (align-memory memory +native-float-cell-size+)
+    (let* ((address (allocate-memory memory +native-float-cell-size+))
+           (word (make-word name #'push-value :parameters (list address :fvalue) :creating-word? t)))
+      (setf (memory-native-float memory address) value)
+      (add-and-register-word fs word address))))
 
 (define-word float-proximate (:word "F~")
   "( – flag ) (F: r1 r2 r3 – )"
@@ -475,7 +525,10 @@
                  (stack-push data-stack +true+)
                  (stack-push data-stack +false+)))))))
                
-;;;---*** PRECISION
+(define-word float-precision (:word "PRECISION")
+  "( – u )"
+  "Return the number of significant digits currently used by F., FE., or FS. as U"
+  (stack-push data-stack float-precision))
 
 (define-word single-to-float (:word "S>F")
   "( n – ) (F: – r)"
@@ -486,7 +539,13 @@
       (forth-exception :loss-of-precision))
     (stack-push float-stack float)))
 
-;;;---*** SET-PRECISION
+(define-word set-float-precision (:word "SET-PRECISION")
+  "( u – )"
+  "Set the number of significant digits currently used by F., FE., or FS. to U"
+  (let ((precision (cell-signed (stack-pop data-stack))))
+    (when (minusp precision)
+      (forth-exception :invalid-numeric-argument))
+    (setf float-precision precision)))
 
 (define-word short-float-store (:word "SF!")
   "(sf-addr – ) (F: r – )"

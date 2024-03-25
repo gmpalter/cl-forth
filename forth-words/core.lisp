@@ -1347,9 +1347,10 @@
 ;;; SOURCE-ID extended by the File-Access word set
 
 (define-word to (:word "TO" :immediate? t :inlineable? nil)
-  "TO <name>" "( x | x1 x2 - )"
+  "TO <name>" "( x | x1 x2 - ) or (F: r - )"
   "Store X in the data space associated with <name> which must have been created with VALUE or"
-  "store X1 X2 in the data space associated with <name> which must have been created with 2VALUE"
+  "store X1 X2 in the data space associated with <name> which must have been created with 2VALUE or"
+  "store R in the data space associated with <name> which must have been created with FVALUE"
   (case (state fs)
     (:interpreting
      (let* ((name (word files #\Space))
@@ -1360,13 +1361,15 @@
          (forth-exception :undefined-word "~A is not defined" name))
        (let ((address (first (word-parameters word)))
              (type (second (word-parameters word))))
-         (unless (member type '(:value :2value))
-           (forth-exception :invalid-name-argument "~A was not created by VALUE or 2VALUE" name))
+         (unless (member type '(:value :2value :fvalue))
+           (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
          (case type
            (:value
             (setf (memory-cell memory address) (stack-pop data-stack)))
            (:2value
-            (setf (memory-double-cell memory address) (stack-pop-double data-stack)))))))
+            (setf (memory-double-cell memory address) (stack-pop-double data-stack)))
+           (:fvalue
+            (setf (memory-native-float memory address) (stack-pop float-stack)))))))
     (:compiling
      (let* ((name (word files #\Space))
             (word (lookup word-lists name)))
@@ -1377,14 +1380,17 @@
        (let ((address (first (word-parameters word)))
              (type (second (word-parameters word))))
          (unless (member type '(:value :2value))
-           (forth-exception :invalid-name-argument "~A was not created by VALUE or 2VALUE" name))
+           (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
          (case type
            (:value
             (add-to-definition fs
               `(setf (memory-cell memory ,address) (stack-pop data-stack))))
            (:2value
             (add-to-definition fs
-              `(setf (memory-double-cell memory ,address) (stack-pop-double data-stack))))))))))
+              `(setf (memory-double-cell memory ,address) (stack-pop-double data-stack))))
+           (:fvalue
+            (add-to-definition fs
+              `(setf (memory-native-float memory ,address) (stack-pop float-stack))))))))))
 
 (define-word true (:word "TRUE")
   "( - flag )"

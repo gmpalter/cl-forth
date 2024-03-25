@@ -18,7 +18,13 @@
         (:value
          (stack-push data-stack (memory-cell memory address)))
         (:2value
-         (stack-push-double data-stack (memory-double-cell memory address)))))))
+         (stack-push-double data-stack (memory-double-cell memory address)))
+        (:fvalue
+         (stack-push float-stack (memory-native-float memory address)))))))
+
+(defun push-parameter-as-float (fs &rest parameters)
+  (with-forth-system (fs)
+    (stack-push float-stack (first parameters))))
 
 (defun execute-parameter (fs &rest parameters)
   (with-forth-system (fs)
