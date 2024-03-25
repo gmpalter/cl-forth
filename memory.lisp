@@ -3,6 +3,15 @@
 (defconstant +cell-size+ 8)
 (defconstant +byte-to-cell-shift+ -3)
 
+(defconstant +single-float-cell-size+ 4)
+(defconstant +byte-to-single-float-cell-shift+ -2)
+
+(defconstant +double-float-cell-size+ 8)
+(defconstant +byte-to-double-float-cell-shift+ -3)
+
+;;; CL-Forth uses double precision floating point as its internal representation of float values
+(defconstant +native-float-cell-size+ +double-float-cell-size+)
+
 (declaim (inline make-address))
 (defun make-address (prefix address)
   (dpb prefix (byte 8 48) address))
@@ -134,9 +143,9 @@
   (with-slots (data-space) memory
     (space-deallocate data-space n-bytes)))
  
-(defmethod align-memory ((memory memory))
+(defmethod align-memory ((memory memory) &optional (boundary +cell-size+))
   (with-slots (data-space) memory
-    (space-align data-space)))
+    (space-align data-space boundary)))
 
 (defmethod memory-cell ((memory memory) address)
   (with-slots (all-spaces) memory
@@ -237,6 +246,44 @@
            (address (address-address address)))
       (setf (byte-at space address) value))))
 
+(defmethod memory-single-float ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (single-float-at space address))))
+    
+(defmethod (setf memory-single-float) (value (memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (setf (single-float-at space address) value))))
+
+(defmethod memory-double-float ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (double-float-at space address))))
+    
+(defmethod (setf memory-double-float) (value (memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (setf (double-float-at space address) value))))
+
+;;; CL-Forth uses double precision floating point as its internal representation of float values
+
+(declaim (inline memory-native-float))
+(defun memory-native-float (memory address)
+  (memory-double-float memory address))
+
+(declaim (inline (setf memory-native-float)))
+(defun (setf memory-native-float) (value memory address)
+  (setf (memory-double-float memory address) value))
+
 ;;;
 
 (defmethod memory-fill ((memory memory) address count byte)
@@ -290,7 +337,7 @@
 (defgeneric space-deallocate (space n-bytes))
 (defgeneric space-unused (space)
   (:method ((sp space)) 0))
-(defgeneric space-align (space))
+(defgeneric space-align (space &optional boundary))
 
 (defgeneric cell-at (space address))
 (defgeneric (setf cell-at) (value space address))
@@ -300,6 +347,12 @@
 
 (defgeneric byte-at (space address))
 (defgeneric (setf byte-at) (value space address))
+
+(defgeneric single-float-at (space address))
+(defgeneric (setf single-float-at) (value space address))
+
+(defgeneric double-float-at (space address))
+(defgeneric (setf double-float-at) (value space address))
 
 (defgeneric space-fill (space address count byte))
 (defgeneric space-copy (source-space source-address destination-space destination-address count))
@@ -354,10 +407,10 @@
   (with-slots (data high-water-mark) sp
     (- (length data) high-water-mark)))
 
-(defmethod space-align ((sp data-space))
+(defmethod space-align ((sp data-space) &optional (boundary +cell-size+))
   (with-slots (high-water-mark) sp
-    (unless (zerop (mod high-water-mark +cell-size+))
-      (incf high-water-mark (- +cell-size+ (mod high-water-mark +cell-size+))))))
+    (unless (zerop (mod high-water-mark boundary))
+      (incf high-water-mark (- boundary (mod high-water-mark boundary))))))
 
 (defmethod cell-at ((sp data-space) address)
   (with-slots (data high-water-mark) sp
@@ -402,6 +455,40 @@
     (unless (<= address high-water-mark)
       (forth-exception :invalid-memory))
     (setf (aref data address) value)))
+
+(defmethod single-float-at ((sp data-space) address)
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data))
+      (encode-single-float (aref data (ash address +byte-to-single-float-cell-shift+))))))
+
+(defmethod (setf single-float-at) (value (sp data-space) address)
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data))
+      (setf (aref data (ash address +byte-to-single-float-cell-shift+)) (decode-single-float value))
+      value)))
+
+(defmethod double-float-at ((sp data-space) address)
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data))
+      (encode-double-float (aref data (ash address +byte-to-double-float-cell-shift+))))))
+
+(defmethod (setf double-float-at) (value (sp data-space) address)
+  (with-slots (data high-water-mark) sp
+    (unless (<= address high-water-mark)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data))
+      (setf (aref data (ash address +byte-to-double-float-cell-shift+)) (decode-double-float value))
+      value)))
 
 (defmethod space-fill ((sp data-space) address count byte)
   (with-slots (data high-water-mark) sp
@@ -455,6 +542,18 @@
       (forth-exception :write-to-read-only-memory))))
 
 (defmethod (setf byte-at) :before (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf single-float-at) :before (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf double-float-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
@@ -557,9 +656,10 @@
 
 (defmethod space-allocate ((sp state-space) n-bytes)
   (declare (ignore n-bytes))
-  (error "Can't allocate space in ~S" sp))
+  (forth-exception :invalid-memory))
 
-(defmethod space-align ((sp state-space))
+(defmethod space-align ((sp state-space) &optional (boundary +cell-size+))
+  (declare (ignore boundary))
   nil)
 
 (defmethod state-slot-address ((sp state-space) slot)
@@ -604,18 +704,42 @@
       (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
+(defmethod single-float-at ((sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
+
+(defmethod (setf single-float-at) (value (sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
+
+(defmethod double-float-at ((sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
+
+(defmethod (setf double-float-at) (value (sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
+
 (defmethod space-fill ((sp state-space) address count byte)
   (declare (ignore address count byte))
-  (error "Can't space-fill ~S" sp))
+  (forth-exception :invalid-memory))
 
 (defmethod space-copy ((ssp state-space) source-address (dsp space) destination-address count)
   (declare (ignore source-address destination-address count))
-  (error "Can't copy from ~S" ssp))
+  (forth-exception :invalid-memory))
 
 (defmethod space-copy ((ssp space) source-address (dsp state-space) destination-address count)
   (declare (ignore source-address destination-address count))
-  (error "Can't copy to ~S" ssp))
+  (forth-exception :invalid-memory))
 
 (defmethod space-decode-address ((sp state-space) address)
   (declare (ignore address))
-  (error "Can't decode addresses in ~S" sp))
+  (forth-exception :invalid-memory))

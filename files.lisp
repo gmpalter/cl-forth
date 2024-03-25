@@ -22,7 +22,8 @@
   (declare (ignore n-bytes))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-align ((sp source-data-space))
+(defmethod space-align ((sp source-data-space) &optional (boundary +cell-size+))
+  (declare (ignore boundary))
   nil)
 
 (defmethod space-decode-address :before ((sp source-data-space) address)

@@ -75,15 +75,12 @@
 
 
 ;;; Floating-Point word set queries defined in the Forth 2012 specification
-;;;  NOTE: CL-Forth doesn't yet support floating point
 
-#||
 (define-query "FLOATING-STACK"
   (stack-push data-stack (stack-initial-size float-stack)))
 
 (define-query "MAX-FLOAT"
-  (stack-push float-stack most-positive-double-float))
-||#
+  (stack-push float-stack +most-positive-native-float+))
 
 
 ;;; Locals word set queries defined in the Forth 2012 specification

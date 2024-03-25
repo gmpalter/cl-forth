@@ -77,7 +77,8 @@
   (declare (ignore n-bytes))
   (forth-exception :invalid-memory))
 
-(defmethod space-align ((xts execution-tokens))
+(defmethod space-align ((xts execution-tokens) &optional (boundary +cell-size+))
+  (declare (ignore boundary))
   nil)
 
 (defmethod cell-at ((xts execution-tokens) address)

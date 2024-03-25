@@ -17,7 +17,7 @@
 (defconstant +most-negative-double-cell+ (- (dpb 1 (byte 1 127) 0)))
 (defconstant +maximum-unsigned-double-cell+ (1- (dpb 1 (byte 1 128) 0)))
 
-(defun interpret-number (token base &key (allow-floats? nil) (signal-overflow? t))
+(defun interpret-number (token base &key (allow-floats? t) (signal-overflow? t))
   (flet ((interpret-base-prefix ()
            (let ((ch (aref token 0)))
              (cond ((char-equal ch #\#) (values 10 1))
@@ -109,3 +109,71 @@
 (declaim (inline double-cell-unsigned))
 (defun double-cell-unsigned (low-cell high-cell)
   (dpb high-cell (byte 64 64) (ldb (byte 64 0) low-cell)))
+
+;;;
+
+(declaim (inline single-float))
+(defun single-float (x)
+  (float x 1.0d0))
+
+(defun decode-single-float (f)
+  (multiple-value-bind (significand exponent sign)
+      (integer-decode-float f)
+    (let ((exponent (+ exponent 127 23)))
+      (when (and (= exponent 1) (zerop (ldb (byte 1 23) significand)))
+        ;; Denormalized float or zero
+        (setf exponent 0))
+      (dpb (if (minusp sign) 1 0) (byte 1 31) (dpb exponent (byte 8 23) (ldb (byte 23 0) significand))))))
+
+(defun encode-single-float (n)
+  (let ((sign (ldb (byte 1 31) n))
+        (exponent (ldb (byte 8 23) n))
+        (significand (ldb (byte 23 0) n)))
+    (if (zerop exponent)
+        (setf exponent 1)
+        (setf significand (dpb 1 (byte 1 23) significand)))
+    (let ((absolute (scale-float (float significand 1.0e0) (- exponent 127 23))))
+      (if (zerop sign)
+          absolute
+          (- absolute)))))
+
+(declaim (inline double-float))
+(defun double-float (x)
+  (float x 1.0d0))
+
+(defun decode-double-float (f)
+  (multiple-value-bind (significand exponent sign)
+      (integer-decode-float f)
+    (let ((exponent (+ exponent 1023 52)))
+      (when (and (= exponent 1) (zerop (ldb (byte 1 52) significand)))
+        ;; Denormalized float or zero
+        (setf exponent 0))
+      (dpb (if (minusp sign) 1 0) (byte 1 63) (dpb exponent (byte 11 52) (ldb (byte 52 0) significand))))))
+
+(defun encode-double-float (n)
+  (let ((sign (ldb (byte 1 63) n))
+        (exponent (ldb (byte 11 52) n))
+        (significand (ldb (byte 52 0) n)))
+    (if (zerop exponent)
+        (setf exponent 1)
+        (setf significand (dpb 1 (byte 1 52) significand)))
+    (let ((absolute (scale-float (float significand 1.0d0) (- exponent 1023 52))))
+      (if (zerop sign)
+          absolute
+          (- absolute)))))
+
+;;; CL-Forth uses double precision floating point as its internal representation of float values
+
+(defconstant +most-positive-native-float+ most-positive-double-float)
+
+(declaim (inline native-float))
+(defun native-float (x)
+  (float x 1.0d0))
+
+(declaim (inline decode-native-float))
+(defun decode-native-float (f)
+  (decode-double-float f))
+
+(declaim (inline encode-native-float))
+(defun encode-native-float (n)
+  (encode-double-float n))
