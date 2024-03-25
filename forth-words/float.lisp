@@ -4,9 +4,13 @@
 
 ;;; Floating-Point words as defined in Section 12 of the Forth 2012 specification
 
-(defmacro with-float-exceptions (() &body body)
+(defmacro with-float-exceptions ((&key zero-divide-is-out-of-range?) &body body)
   `(handler-case
        (progn ,@body)
+     (division-by-zero ()
+       ,(if zero-divide-is-out-of-range?
+            `(forth-exception :floating-out-of-range)
+            `(forth-exception :floating-divide-by-zero)))
      (floating-point-overflow ()
        (forth-exception :floating-out-of-range))
      (floating-point-underflow ()
@@ -201,8 +205,8 @@
   "( df-addr – ) (F: – r)"
   "Fetch the 64-bit IEEE double-precision number stored at DF-ADDR to the floating-point stack as R in"
   "the internal representation"
-  (with-float-exceptions
-      (stack-push float-stack (native-float (memory-double-float memory (stack-pop data-stack))))))
+  (with-float-exceptions ()
+    (stack-push float-stack (native-float (memory-double-float memory (stack-pop data-stack))))))
 
 (define-word dfloat-align (:word "DFALIGN")
   "If the data-space pointer is not double-float aligned, reserve enough data space to make it so"
@@ -260,24 +264,102 @@
   "N is the single-cell signed-integer equivalent of the integer portion of R, rounded towards zero."
   "The fractional portion of R is discarded."
   (let ((single (truncate (stack-pop float-stack))))
-    (if (<= +most-negative-single-cell+ double +most-positive-single-cell+)
+    (if (<= +most-negative-single-cell+ single +most-positive-single-cell+)
         (stack-push data-stack single)
         (forth-exception :floating-out-of-range))))
 
-;;;---*** FABS
-;;;---*** FACOS
-;;;---*** FACOSH
-;;;---*** FALOG
-;;;---*** FASIN
-;;;---*** FASINH
-;;;---*** FATAN
-;;;---*** FATAN2
-;;;---*** FATANH
-;;;---*** FCOS
-;;;---*** FCOSH
+(define-word float-absolute-value (:word "FABS")
+  "(F: r1 – r2 )"
+  "R2 is the absolute value of R1"
+  (stack-push float-stack (abs (stack-pop float-stack))))
+
+(define-word float-acos (:word "FACOS")
+  "(F: r1 – r2 )"
+  "R2 is the principal radian angle whose cosine is R1"
+  (let ((r1 (stack-pop float-stack)))
+    ;; Lisp will produce a complex result when |R1| > 1.0 which Forth doesn't support
+    (if (<= (abs r1) (native-float 1.0))
+        (stack-push float-stack (acos r1))
+        (forth-exception :floating-out-of-range))))
+
+(define-word float-acosh (:word "FACOSH")
+  "(F: r1 – r2 )"
+  "R2 is the floating-point value whose hyperbolic cosine is R1"
+  (let ((r1 (stack-pop float-stack)))
+    ;; Lisp will produce a complex result when R1 < 1.0 which Forth doesn't support
+    (if (>= r1 (native-float 1.0))
+        (stack-push float-stack (acosh r1))
+        (forth-exception :floating-out-of-range))))
+
+(define-word float-alog (:word "ALOG")
+  "(F: r1 – r2 )"
+  "Raise ten to the power R1, giving R2"
+  (with-float-exceptions ()
+    (stack-push float-stack (expt (native-float 10.0) (stack-pop float-stack)))))
+
+(define-word float-asin (:word "FASIN")
+  "(F: r1 – r2 )"
+  "R2 is the principal radian angle whose sine is R1"
+  (let ((r1 (stack-pop float-stack)))
+    ;; Lisp will produce a complex result when |R1| > 1.0 which Forth doesn't support
+    (if (<= (abs r1) (native-float 1.0))
+        (stack-push float-stack (asin r1))
+        (forth-exception :floating-out-of-range))))
+
+(define-word float-asinh (:word "FASINH")
+  "(F: r1 – r2 )"
+  "R2 is the floating-point value whose hyperbolic sine is R1"
+  (stack-push float-stack (asinh (stack-pop float-stack))))
+
+(define-word float-atan (:word "FATAN")
+  "(F: r1 – r2 )"
+  "R2 is the principal radian angle whose tangent is R1"
+  (with-float-exceptions ()
+    (stack-push float-stack (atan (stack-pop float-stack)))))
+
+(define-word float-atan2 (:word "FATAN2")
+  "(F: r1 r2 - r3)"
+  "R3 is the principal radian angle (between -π and π) whose tangent is R1/R2. A system that returns false for"
+  "\"-0E 0E 0E F~\" shall return a value (approximating) −π when r1 = 0E and r2 is negative"
+  (with-float-exceptions ()
+    (let ((r2 (stack-pop float-stack))
+          (r1 (stack-pop float-stack)))
+      (stack-push float-stack (atan r1 r2)))))
+
+(define-word float-atanh (:word "FATANH")
+  "(F: r1 – r2 )"
+  "R2 is the floating-point value whose hyperbolic tangent is R1"
+  (with-float-exceptions (:zero-divide-is-out-of-range? t)
+    (let ((r1 (stack-pop float-stack)))
+    ;; Lisp will produce a complex result when |R1| > 1.0 which Forth doesn't support
+    (if (<= (abs r1) (native-float 1.0))
+        (stack-push float-stack (atanh r1))
+        (forth-exception :floating-out-of-range)))))
+
+(define-word float-cos (:word "FCOS")
+  "(F: r1 – r2 )"
+  "R2 is the cosine of the radian angle R1"
+  (stack-push float-stack (cos (stack-pop float-stack))))
+
+(define-word float-cosh (:word "FCOSH")
+  "(F: r1 – r2 )"
+  "R2 is the hyperbolic cosine of R1"
+  (with-float-exceptions ()
+    (stack-push float-stack (cosh (stack-pop float-stack)))))
+
 ;;;---*** FE.
-;;;---*** FEXP
-;;;---*** FEXPM1
+
+(define-word float-exp (:word "FEXP")
+  "(F: r1 – r2 )"
+  "Raise e to the power R1, giving R2"
+  (with-float-exceptions ()
+    (stack-push float-stack (exp (stack-pop float-stack)))))
+
+(define-word float-exp-minus-one (:word "FEXPM1")
+  "(F: r1 – r2 )"
+  "Raise e to the power R1 and subtract one, giving R2"
+  (with-float-exceptions ()
+    (stack-push float-stack (1- (exp (stack-pop float-stack))))))
 
 (define-word ffield (:word "FFIELD:")
   "FFIELD: <name>" "( n1 – n2 )"
@@ -297,19 +379,102 @@
       (add-and-register-word fs word)
       (stack-push data-stack (+ offset +double-float-cell-size+)))))
 
-;;;---*** FLN
-;;;---*** FLNP1
-;;;---*** FLOG
+(define-word float-natural-log (:word "FLN")
+  "(F: r1 – r2 )"
+  "R2 is the natural logarithm of R1"
+  (let ((r1 (stack-pop float-stack)))
+    (if (plusp r1)
+        (stack-push float-stack (log r1))
+        (forth-exception :floating-out-of-range))))
+
+(define-word float-plus-one-natural-log (:word "FLNP1")
+  "(F: r1 – r2 )"
+  "R2 is the natural logarithm of the quantity R1 plus one"
+  ;;. An ambiguous condition exists if r1 is less than or equal to negative one
+  (let ((r1 (1+ (stack-pop float-stack))))
+    (if (plusp r1)
+        (stack-push float-stack (log r1))
+        (forth-exception :floating-out-of-range))))
+
+(define-word float-log10 (:word "FLOG")
+  "(F: r1 – r2 )"
+  "R2 is the base-ten logarithm of R1"
+  (let ((r1 (stack-pop float-stack)))
+    (if (plusp r1)
+        (stack-push float-stack (log r1 (native-float 10.0)))
+        (forth-exception :floating-out-of-range))))
+
 ;;;---*** FS.
-;;;---*** FSIN
-;;;---*** FSINCOS
-;;;---*** FSINH
-;;;---*** FSQRT
-;;;---*** FTAN
-;;;---*** FTANH
-;;;---*** FTRUNC
+
+(define-word float-sin (:word "FSIN")
+  "(F: r1 – r2 )"
+  "R2 is the sine of the radian angle R1"
+  (stack-push float-stack (sin (stack-pop float-stack))))
+
+(define-word float-sin-cos (:word "FSINCOS")
+  "(F: r1 – r2 r3 )"
+  "R2 is the sine of the radian angle R1. R3 is the cosine of the radian angle R1"
+  (let ((r1 (stack-pop float-stack)))
+    (stack-push float-stack (sin r1))
+    (stack-push float-stack (cos r1))))
+
+(define-word float-sinh (:word "FSINH")
+  "(F: r1 – r2 )"
+  "R2 is the hyperbolic sine of R1"
+  (with-float-exceptions ()
+    (stack-push float-stack (sinh (stack-pop float-stack)))))
+
+(define-word float-sqrt (:word "FSQRT")
+  "(F: r1 – r2 )"
+  "R2 is the square root of R1"
+  (let ((r1 (stack-pop float-stack)))
+    (if (minusp r1)
+        (forth-exception :floating-out-of-range)
+        (stack-push float-stack (sqrt r1)))))
+
+(define-word float-tangent (:word "FTAN")
+  "(F: r1 – r2 )"
+  "R2 is the tangent of the radian angle R1"
+  ;;. An ambiguous condition exists if cos(r1) is zero
+  (with-float-exceptions ()
+    (stack-push float-stack (tan (stack-pop float-stack)))))
+
+(define-word float-tanh (:word "FTANH")
+  "(F: r1 – r2 )"
+  "R2 is the hyperbolic tangent of R1"
+  (stack-push float-stack (tanh (stack-pop float-stack))))
+
+(define-word float-truncate (:word "FTRUNC")
+  "(F: r1 – r2 )"
+  "Round R1 to an integral value using the \"round towards zero\" rule, giving R2"
+  (stack-push float-stack (native-float (truncate (stack-pop float-stack)))))
+
 ;;;---*** FVALUE
-;;;---*** F~
+
+(define-word float-proximate (:word "F~")
+  "( – flag ) (F: r1 r2 r3 – )"
+  "If R3 is positive, FLAG is true if the absolute value of (R1 minus R2) is less than R3"
+  "If R3 is zero, FLAG is true if the implementation-dependent encoding of R1 and R2 are exactly identical"
+  "(positive and negative zero are unequal if they have distinct encodings)"
+  "If R3 is negative, FLAG is true if the absolute value of (R1 minus R2) is less than the absolute value of"
+  "R3 times the sum of the absolute values of R1 and R2"
+  (with-float-exceptions ()
+    (let ((r3 (stack-pop float-stack))
+          (r2 (stack-pop float-stack))
+          (r1 (stack-pop float-stack)))
+      (cond ((plusp r3)
+             (if (< (abs (- r1 r2)) r3)
+                 (stack-push data-stack +true+)
+                 (stack-push data-stack +false+)))
+            ((zerop r3)
+             (if (= (decode-native-float r1) (decode-native-float r2))
+                 (stack-push data-stack +true+)
+                 (stack-push data-stack +false+)))
+            ((minusp r3)
+             (if (< (abs (- r1 r2)) (* r3 (+ (abs r1) (abs r2))))
+                 (stack-push data-stack +true+)
+                 (stack-push data-stack +false+)))))))
+               
 ;;;---*** PRECISION
 
 (define-word single-to-float (:word "S>F")
