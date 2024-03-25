@@ -166,13 +166,11 @@
 (define-query "FILE-EXT"
   (stack-push data-stack +true+))
 
-;;; CL-Forth does not yet implement the Floating-Point word set
 (define-query "FLOATING"
-  (stack-push data-stack +false+))
+  (stack-push data-stack +true+))
 
-;;; CL-Forth does not yet implement the Floating-Point word set
 (define-query "FLOATING-EXT"
-  (stack-push data-stack +false+))
+  (stack-push data-stack +true+))
 
 ;;; CL-Forth does not yet implement the Locals word set
 (define-query "LOCALS"
