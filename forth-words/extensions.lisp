@@ -236,3 +236,14 @@
   "Make the most recent definition an inlineable word"
   (when definition
     (setf (word-inlineable? (definition-word definition)) t)))
+
+(define-word show-float-stack (:word ".SF")
+  "Show the contents of the floating-point stack"
+  (let ((cells (stack-cells float-stack))
+        (depth (stack-depth float-stack)))
+    (if (zerop depth)
+        (write-line "Floating-point stack empty")
+        (progn
+          (write-line "Contents of floating-point stack:")
+          (dotimes (i depth)
+            (format t "~2D: ~G~%" i (aref cells (- depth i 1))))))))
