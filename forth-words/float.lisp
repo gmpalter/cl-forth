@@ -4,23 +4,28 @@
 
 ;;; Floating-Point words as defined in Section 12 of the Forth 2012 specification
 
-;;;---*** TODO: Add a float exception handling macro
-;;;  (:invalid-floating-base -40 "Invalid BASE for floating point conversion")
-;;;  (:loss-of-precision -41 "Loss of precision")
-;;;  (:floating-divide-by-zero -42 "Floating-point divide by zero")
-;;;  (:floating-out-of-range -43 "Floating-point result out of range")
-;;;  (:float-stack-overflow -44 "Floating-point stack overflow")
-;;;  (:float-stack-underflow -45 "Floating-point stack underflow")
-;;;  (:float-invalid-argument -46 "Floating-point invalid argument")
-;;;  (:float-underflow -54 "Floating-point underflow")
-;;;  (:float-unknown-fault -55 "Floating-point unidentified fault")
+(defmacro with-float-exceptions (() &body body)
+  `(handler-case
+       (progn ,@body)
+     (floating-point-overflow ()
+       (forth-exception :floating-out-of-range))
+     (floating-point-underflow ()
+       (forth-exception :float-underflow))
+     (floating-point-inexact ()
+       (forth-exception :loss-of-precision))
+     (floating-point-invalid-operation ()
+       (forth-exception :float-unknown-fault))))
 
 ;;;---*** >FLOAT
 
 (define-word double-to-float (:word "D>F")
   "( d – ) (F: – r)"
   "R is the floating-point equivalent of D"
-  (stack-push float-stack (native-float (stack-pop-double data-stack))))
+  (let* ((double (stack-pop-double data-stack))
+         (float (native-float double)))
+    (unless (= double float)
+      (forth-exception :loss-of-precision))
+    (stack-push float-stack float)))
 
 (define-word float-store (:word "F!")
   "( f-addr – ) (F: r – )"
@@ -29,14 +34,67 @@
         (address (stack-pop data-stack)))
     (setf (memory-native-float memory address) float)))
 
-;;;---*** F*
-;;;---*** F+
-;;;---*** F-
-;;;---*** F/
-;;;---*** F0<
-;;;---*** F0=
-;;;---*** F<
-;;;---*** F>D
+(define-word float-multiply (:word "F*")
+  "(F: r1 r2 – r3 )"
+  "Multiply R1 by R2 giving R3"
+  (with-float-exceptions ()
+    (stack-push float-stack (* (stack-pop float-stack) (stack-pop float-stack)))))
+
+(define-word float-multiply (:word "F+")
+  "(F: r1 r2 – r3 )"
+  "Add R1 to R2 giving the sum R3"
+  (with-float-exceptions ()
+    (stack-push float-stack (+ (stack-pop float-stack) (stack-pop float-stack)))))
+
+(define-word float-subtract (:word "F-")
+  "(F: r1 r2 – r3 )"
+  "Subtract R2 from R1 giving R3"
+  (with-float-exceptions ()
+    (let ((r2 (stack-pop float-stack))
+          (r1 (stack-pop float-stack)))
+      (stack-push float-stack (- r1 r2)))))
+
+(define-word float-divide (:word "F/")
+  "(F: r1 r2 – r3 )"
+  "Divide R1 by R2 giving the quotient R3"
+  (with-float-exceptions ()
+    (let ((r2 (stack-pop float-stack))
+          (r1 (stack-pop float-stack)))
+      (if (zerop r2)
+          (forth-exception :floating-divide-by-zero)
+          (stack-push float-stack (/ r1 r2))))))
+
+(define-word float-minusp (:word "F0<")
+  "( – flag ) (F: r – )"
+  "FLAG is true if and only if R is less than zero"
+  (if (minusp (stack-pop float-stack))
+      (stack-push data-stack +true+)
+      (stack-push data-stack +false+)))
+
+(define-word float-zerop (:word "F0=")
+  "( – flag ) (F: r – )"
+  "FLAG is true if and only if R is equal to zero"
+  (if (zerop (stack-pop float-stack))
+      (stack-push data-stack +true+)
+      (stack-push data-stack +false+)))
+
+(define-word float-less-than (:word "F<")
+  "( – flag ) (F: r1 r2 – )"
+  "FLAG is true if and only if R1 is less than R2"
+  (let ((r2 (stack-pop float-stack))
+        (r1 (stack-pop float-stack)))
+    (if (< r1 r2)
+        (stack-push data-stack +true+)
+        (stack-push data-stack +false+))))
+
+(define-word float-to-double (:word "F>D")
+  "( – d ) (F: r – )"
+  "D is the double-cell signed-integer equivalent of the integer portion of R, rounded towards zero."
+  "The fractional portion of R is discarded."
+  (let ((double (truncate (stack-pop float-stack))))
+    (if (<= +most-negative-double-cell+ double +most-positive-double-cell+)
+        (stack-push-double data-stack double)
+        (forth-exception :floating-out-of-range))))
 
 (define-word float-fetch (:word "F@")
   "( f-addr – ) (F: – r)"
@@ -57,9 +115,22 @@
                     (+ addr (- +cell-size+ (mod addr +native-float-cell-size+)))))))
 
 ;;;---*** FCONSTANT
-;;;---*** FDEPTH
-;;;---*** FDROP
-;;;---*** FDUP
+
+(define-word float-stack-depth (:word "FDEPTH")
+  "( – +n )"
+  "+N is the number of values contained on the floating-point stack"
+  (stack-push data-stack (stack-depth float-stack)))
+
+(define-word float-stack-drop (:word "FDROP")
+  "(F: r – )"
+  "Remove R from the floating-point stack"
+  (stack-drop float-stack))
+
+(define-word float-stack-dup (:word "FDUP")
+  "(F: r - r r )"
+  "Duplicate R"
+  (stack-dup float-stack))
+
 ;;;---*** FLITERAL
 
 (define-word float-plus (:word "FLOAT+")
@@ -72,14 +143,46 @@
   "N2 is the size in address units of N1 floating-point numbers"
   (stack-push data-stack (* (stack-pop data-stack) +native-float-cell-size+)))
 
-;;;---*** FLOOR
-;;;---*** FMAX
-;;;---*** FMIN
-;;;---*** FNEGATE
-;;;---*** FOVER
-;;;---*** FROT
-;;;---*** FROUND
-;;;---*** FSWAP
+(define-word floor (:word "FLOOR")
+  "(F: r1 – r2 )"
+  "Round R1 to an integral value using the \"round toward negative infinity\" rule, giving R2"
+  (stack-push float-stack (native-float (floor (stack-pop float-stack)))))
+
+(define-word float-max (:word "FMAX")
+  "(F: r1 r2 – r3 )"
+  "R3 is the greater of R1 and R2"
+  (stack-push float-stack (max (stack-pop float-stack) (stack-pop float-stack))))
+
+(define-word float-min (:word "FMIN")
+  "(F: r1 r2 – r3 )"
+  "R3 is the lesser of R1 and R2"
+  (stack-push float-stack (min (stack-pop float-stack) (stack-pop float-stack))))
+
+(define-word float-negate (:word "FNEGATE")
+  "(F: r1 - r2 )"
+  "R2 is the negation of R1"
+  (stack-push float-stack (- (stack-pop float-stack))))
+
+(define-word float-stack-over (:word "FOVER")
+  "(F: r1 r2 – r1 r2 r1 )"
+  "Place a copy of R1 on top of the floating-point stack"
+  (stack-over float-stack))
+
+(define-word float-stack-rotate (:word "FROT")
+  "(F: r1 r2 r3 – r2 r3 r1 )"
+  "Rotate the top three floating-point stack entries"
+  (stack-rot float-stack))
+
+(define-word float-round (:word "FROUND")
+  "(F: r1 – r2 )"
+  "Round R1 to an integral value using the \"round to nearest\" rule, giving R2"
+  (stack-push float-stack (native-float (round (stack-pop float-stack)))))
+
+(define-word float-stack-swap (:word "FSWAP")
+  "(F: r1 r2 – r2 r1 )"
+  "Exchange the top two floating-point stack items"
+  (stack-swap float-stack))
+
 ;;;---*** FVARIABLE
 ;;;---*** REPRESENT
 
@@ -89,15 +192,17 @@
 (define-word dfloat-store (:word "DF!")
   "( df-addr – ) (F: r – )"
   "Store the floating-point number R as a 64-bit IEEE double-precision number at DF-ADDR"
-  (let ((float (double-float (stack-pop float-stack)))
-        (address (stack-pop data-stack)))
-    (setf (memory-double-float memory address) float)))
+  (with-float-exceptions ()
+    (let ((float (double-float (stack-pop float-stack)))
+          (address (stack-pop data-stack)))
+      (setf (memory-double-float memory address) float))))
 
 (define-word dfloat-fetch (:word "DF@")
   "( df-addr – ) (F: – r)"
   "Fetch the 64-bit IEEE double-precision number stored at DF-ADDR to the floating-point stack as R in"
   "the internal representation"
-  (stack-push float-stack (native-float (memory-double-float memory (stack-pop data-stack)))))
+  (with-float-exceptions
+      (stack-push float-stack (native-float (memory-double-float memory (stack-pop data-stack))))))
 
 (define-word dfloat-align (:word "DFALIGN")
   "If the data-space pointer is not double-float aligned, reserve enough data space to make it so"
@@ -140,9 +245,25 @@
   "N2 is the size in address units of N1 64-bit IEEE double-precision numbers"
   (stack-push data-stack (* (stack-pop data-stack) +double-float-cell-size+)))
 
-;;;---*** F**
+(define-word float-power (:word "F**")
+  "(F: r1 r2 – r3 )"
+  "Raise R1 to the power R2, giving the product R3"
+  (with-float-exceptions ()
+    (let ((r2 (stack-pop float-stack))
+          (r1 (stack-pop float-stack)))
+      (stack-push data-stack (expt r1 r2)))))
+
 ;;;---*** F.
-;;;---*** F>S
+
+(define-word float-to-single (:word "F>S")
+  "( – n ) (F: r – )"
+  "N is the single-cell signed-integer equivalent of the integer portion of R, rounded towards zero."
+  "The fractional portion of R is discarded."
+  (let ((single (truncate (stack-pop float-stack))))
+    (if (<= +most-negative-single-cell+ double +most-positive-single-cell+)
+        (stack-push data-stack single)
+        (forth-exception :floating-out-of-range))))
+
 ;;;---*** FABS
 ;;;---*** FACOS
 ;;;---*** FACOSH
@@ -190,10 +311,35 @@
 ;;;---*** FVALUE
 ;;;---*** F~
 ;;;---*** PRECISION
-;;;---*** S>F
+
+(define-word single-to-float (:word "S>F")
+  "( n – ) (F: – r)"
+  "R is the floating-point equivalent of the single cell value N"
+  (let* ((single (cell-signed (stack-pop data-stack)))
+         (float (native-float single)))
+    (unless (= single float)
+      (forth-exception :loss-of-precision))
+    (stack-push float-stack float)))
+
 ;;;---*** SET-PRECISION
-;;;---*** SF!
-;;;---*** SF@
+
+(define-word short-float-store (:word "SF!")
+  "(sf-addr – ) (F: r – )"
+  "Store the floating-point number R as a 32-bit IEEE single-precision number at SF-ADDR. If the significand of the internal"
+  "representation of R has more precision than the IEEE single-precision format, it will be rounded using the"
+  "\"round to nearest\" rule"
+  (with-float-exceptions ()
+    (let ((address (stack-pop data-stack))
+          (float (single-float (stack-pop float-stack))))
+      (setf (memory-single-float memory address) float))))
+
+(define-word short-float-fetch (:word "SF@")
+  "( sf-addr – ) (F: – r)"
+  "Fetch the 32-bit IEEE single-precision number stored at SF-ADDR to the floating-point stack as R in the internal"
+  "representation. If the IEEE single-precision significand has more precision than the internal representation,"
+  "it will be rounded to the internal representation using the \"round to nearest\" rule"
+  (with-float-exceptions ()
+    (stack-push float-stack (native-float (memory-double-float memory (stack-pop data-stack))))))
 
 (define-word sfloat-align (:word "SFALIGN")
   "If the data-space pointer is not single-float aligned, reserve enough data space to make it so"
