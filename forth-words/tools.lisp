@@ -10,7 +10,7 @@
     (if (zerop depth)
         (write-line "Data stack empty")
         (progn
-          (write-line "Contents of data stack::")
+          (write-line "Contents of data stack:")
           (dotimes (i depth)
             (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))
 
