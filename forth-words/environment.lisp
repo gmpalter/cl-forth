@@ -156,7 +156,9 @@
 (define-query "FACILITY"
   (stack-push data-stack +false+))
 
-;;; CL-Forth does not implement EKEY, EKEY>CHAR, EKEY?, and EMIT?
+;;; CL-Forth does not implement EKEY, EKEY>CHAR, EKEY>FKEY, EKEY?, EMIT?, K-ALT-MASK, K-CTRL-MASK, K-DELETE,
+;;;  K-DOWN, K-END, K-F1, K-F10, K-F11, K-F12, K-F2, K-F3, K-F4, K-F5, K-F6, K-F7, K-K8, K-F9, K-HOME,
+;;;  K-INSERT, K-LEFT, K-NEXT, K-PRIOR, K-RIGHT, K-SHIFT-MASK, and K-UP
 (define-query "FACILITY-EXT"
   (stack-push data-stack +false+))
 
