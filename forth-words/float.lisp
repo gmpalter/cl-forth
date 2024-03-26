@@ -20,7 +20,56 @@
      (floating-point-invalid-operation ()
        (forth-exception :float-unknown-fault))))
 
-;;;---*** >FLOAT
+(define-word string-to-float (:word ">FLOAT")
+  "( c-addr u – true | false ) (F: – r | )"
+  "An attempt is made to convert the string specified by C-ADDR and U to internal floating-point representation."
+  "If the string represents a valid floating-point number, its value R and TRUE are returned. If the string does"
+  "not represent a valid floating-point number only FALSE is returned"
+  (let ((length (cell-signed (stack-pop data-stack)))
+        (address (stack-pop data-stack)))
+    (unless (plusp length)
+      (forth-exception :invalid-numeric-argument "String length must be positive"))
+    (multiple-value-bind (region offset)
+        (memory-decode-address memory address)
+      (let ((string (forth-string-to-native region offset length)))
+        ;; Remove leading and trailing spaces
+        (setf string (string-trim '(#\Space) string)
+              length (length string))
+        ;; Forth 2012 expects "-35+2" to be converted to -3500.0 whereas Lisp will interpret that string
+        ;; as a symbol. So, we'll explicitly check for this situation and insert an "E" into the string
+        ;; before passing it to Lisp's reader.
+        (let ((position (position-if #'(lambda (ch) (or (char-equal ch #\+) (char-equal ch #\-))) string :from-end t)))
+          (when (and position
+                     (plusp position)
+                     (let ((ch (aref string (1- position))))
+                       (or (digit-char-p ch) (char-equal ch #\.))))
+            (setf string (concatenate 'string (subseq string 0 position) "E" (subseq string position)))
+            (incf length)))
+        ;; If the last character is an exponent marker (E/e/D/d) or a sign (+/-), append a "0" so that
+        ;; the Lisp reader will attempt to convert the string to a number
+        (when (and (plusp length)
+                   (member (aref string (1- (length string))) '(#\E #\D #\+ #\-) :test #'char-equal))
+          (setf string (concatenate 'string string "0"))
+          (incf length))
+        (with-float-exceptions ()
+          (with-standard-io-syntax
+            (with-native-float-format ()
+              (let ((*read-eval* nil))
+                (multiple-value-bind (object position)
+                    (read-from-string string nil nil)
+                  (declare (ignore position))
+                  (cond ((numberp object)
+                         ;; String is a number
+                         (stack-push data-stack +true+)
+                         (stack-push float-stack (native-float object)))
+                        ((null object)
+                         ;; String was just whitespace -- Forth 2012 specification suggests that we
+                         ;; return zero in this case. (A future standard may require this behavior) 
+                         (stack-push data-stack +true+)
+                         (stack-push float-stack (native-float 0)))
+                        (t
+                         ;; Not just a number
+                         (stack-push data-stack +false+))))))))))))
 
 (define-word double-to-float (:word "D>F")
   "( d – ) (F: – r)"
@@ -221,8 +270,18 @@
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
       (add-and-register-word fs word address))))
 
-;;;---*** REPRESENT
-
+;;(define-word float-representation (:word "REPRESENT")
+;;  "( c-addr u – n flag1 flag2 ) (F: r – )"
+;;  "At C-ADDR, place the character-string external representation of the significand of the floating-point number R."
+;;  "Return the decimal-base exponent as N, the sign as FLAG1 and \"valid result\" as FLAG2. The character string shall"
+;;  "consist of the U most significant digits of the significand represented as a decimal fraction with the implied decimal"
+;;  "point to the left of the first digit, and the first digit zero only if all digits are zero. The significand is rounded"
+;;  "to u digits following the \"round to nearest\" rule; N is adjusted, if necessary, to correspond to the rounded"
+;;  "magnitude of the significand. If FLAG2 is true then R was in the implementation-defined range of floating-point numbers."
+;;  "If FLAG1 is true then R is negative"
+;;  (unless (= base 10)
+;;    (forth-exception :invalid-floating-base))
+;;  )
 
 ;;; Floating-Point extension  words as defined in Section 12 of the Forth 2012 specification
 
@@ -290,7 +349,20 @@
           (r1 (stack-pop float-stack)))
       (stack-push data-stack (expt r1 r2)))))
 
-;;;---*** F.
+(define-word float-display-fixed (:word "F.")
+  "(F: r – )"
+  "Display, with a trailing space, the top number on the floating-point stack using fixed-point notation"
+  (unless (= base 10)
+    (forth-exception :invalid-floating-base))
+  (with-native-float-format ()
+    (let* ((r (stack-pop float-stack))
+           (leading-digits (cond ((plusp r) (1+ (floor (log (rationalize r) 10))))
+                                 ((zerop r) 1)
+                                 ((minusp r) (1+ (floor (log (abs (rationalize r)) 10)))))))
+      ;; As a special case, if the number has no fractional part, suppress all digits after the decimal point
+      (when (zerop (nth-value 1 (truncate r)))
+        (setf leading-digits float-precision))
+      (format t "~,VF " (max (- float-precision leading-digits) 0) r))))
 
 (define-word float-to-single (:word "F>S")
   "( – n ) (F: r – )"
@@ -388,10 +460,10 @@
     (forth-exception :invalid-floating-base))
   (with-native-float-format ()
     (let* ((r (stack-pop float-stack))
-           (edigits (cond ((plusp r) (truncate (log (truncate r) 10)))
-                          ((zerop r) 0)
-                          ((minusp r) (truncate (log (abs (truncate r)) 10))))))
-    (format t "~,V,,VE " (1- float-precision) (1+ (mod edigits 3)) r))))
+           (exponent (cond ((plusp r) (floor (log (rationalize r) 10)))
+                           ((zerop r) 0)
+                           ((minusp r) (floor (log (abs (rationalize r)) 10))))))
+      (format t "~,V,,VE " (1- float-precision) (1+ (mod exponent 3)) r))))
 
 (define-word float-exp (:word "FEXP")
   "(F: r1 – r2 )"
