@@ -121,7 +121,7 @@
       (integer-decode-float f)
     (let ((exponent (+ exponent 127 23)))
       (when (and (= exponent 1) (zerop (ldb (byte 1 23) significand)))
-        ;; Denormalized float or zero
+        ;; Zero or a subnormal number
         (setf exponent 0))
       (dpb (if (minusp sign) 1 0) (byte 1 31) (dpb exponent (byte 8 23) (ldb (byte 23 0) significand))))))
 
@@ -129,9 +129,14 @@
   (let ((sign (ldb (byte 1 31) n))
         (exponent (ldb (byte 8 23) n))
         (significand (ldb (byte 23 0) n)))
-    (if (zerop exponent)
-        (setf exponent 1)
-        (setf significand (dpb 1 (byte 1 23) significand)))
+    (cond ((= exponent 255)
+           ;; Encoding of either a NaN or an infinity
+           (forth-exception :floating-out-of-range))
+          ((zerop exponent)
+           ;; Encoding of zero or a subnormal number
+           (setf exponent 1))
+          (t
+           (setf significand (dpb 1 (byte 1 23) significand))))
     (let ((absolute (scale-float (float significand 1.0e0) (- exponent 127 23))))
       (if (zerop sign)
           absolute
@@ -146,7 +151,7 @@
       (integer-decode-float f)
     (let ((exponent (+ exponent 1023 52)))
       (when (and (= exponent 1) (zerop (ldb (byte 1 52) significand)))
-        ;; Denormalized float or zero
+        ;; Zero or a subnormal number
         (setf exponent 0))
       (dpb (if (minusp sign) 1 0) (byte 1 63) (dpb exponent (byte 11 52) (ldb (byte 52 0) significand))))))
 
@@ -154,9 +159,14 @@
   (let ((sign (ldb (byte 1 63) n))
         (exponent (ldb (byte 11 52) n))
         (significand (ldb (byte 52 0) n)))
-    (if (zerop exponent)
-        (setf exponent 1)
-        (setf significand (dpb 1 (byte 1 52) significand)))
+    (cond ((= exponent 2047)
+           ;; Encoding of either a NaN or an infinity
+           (forth-exception :floating-out-of-range))
+          ((zerop exponent)
+           ;; Encoding of zero or a subnormal number
+           (setf exponent 1))
+          (t
+           (setf significand (dpb 1 (byte 1 52) significand))))
     (let ((absolute (scale-float (float significand 1.0d0) (- exponent 1023 52))))
       (if (zerop sign)
           absolute
