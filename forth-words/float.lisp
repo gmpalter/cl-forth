@@ -4,21 +4,26 @@
 
 ;;; Floating-Point words as defined in Section 12 of the Forth 2012 specification
 
-(defmacro with-float-exceptions ((&key zero-divide-is-out-of-range?) &body body)
+(defmacro with-float-exceptions ((&key zero-divide-is-out-of-range? handler) &body body)
   `(handler-case
        (progn ,@body)
-     (division-by-zero ()
-       ,(if zero-divide-is-out-of-range?
-            `(forth-exception :floating-out-of-range)
-            `(forth-exception :floating-divide-by-zero)))
-     (floating-point-overflow ()
-       (forth-exception :floating-out-of-range))
-     (floating-point-underflow ()
-       (forth-exception :float-underflow))
-     (floating-point-inexact ()
-       (forth-exception :loss-of-precision))
-     (floating-point-invalid-operation ()
-       (forth-exception :float-unknown-fault))))
+     (arithmetic-error (c)
+       (declare (ignorable c))
+       ,(if handler
+            handler
+            `(typecase c
+               (division-by-zero
+                ,(if zero-divide-is-out-of-range?
+                     `(forth-exception :floating-out-of-range)
+                     `(forth-exception :floating-divide-by-zero)))
+               (floating-point-overflow
+                (forth-exception :floating-out-of-range))
+               (floating-point-underflow
+                (forth-exception :float-underflow))
+               (floating-point-inexact
+                (forth-exception :loss-of-precision))
+               (otherwise
+                (forth-exception :float-unknown-fault)))))))
 
 (define-word string-to-float (:word ">FLOAT")
   "( c-addr u – true | false ) (F: – r | )"
@@ -270,19 +275,39 @@
            (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
       (add-and-register-word fs word address))))
 
-;;(define-word float-representation (:word "REPRESENT")
-;;  "( c-addr u – n flag1 flag2 ) (F: r – )"
-;;  "At C-ADDR, place the character-string external representation of the significand of the floating-point number R."
-;;  "Return the decimal-base exponent as N, the sign as FLAG1 and \"valid result\" as FLAG2. The character string shall"
-;;  "consist of the U most significant digits of the significand represented as a decimal fraction with the implied decimal"
-;;  "point to the left of the first digit, and the first digit zero only if all digits are zero. The significand is rounded"
-;;  "to u digits following the \"round to nearest\" rule; N is adjusted, if necessary, to correspond to the rounded"
-;;  "magnitude of the significand. If FLAG2 is true then R was in the implementation-defined range of floating-point numbers."
-;;  "If FLAG1 is true then R is negative"
-;;  (unless (= base 10)
-;;    (forth-exception :invalid-floating-base))
-;;  )
+(define-word float-representation (:word "REPRESENT")
+  "( c-addr u – n flag1 flag2 ) (F: r – )"
+  "At C-ADDR, place the character-string external representation of the significand of the floating-point number R."
+  "Return the decimal-base exponent as N, the sign as FLAG1 and \"valid result\" as FLAG2. The character string shall"
+  "consist of the U most significant digits of the significand represented as a decimal fraction with the implied decimal"
+  "point to the left of the first digit, and the first digit zero only if all digits are zero. The significand is rounded"
+  "to U digits following the \"round to nearest\" rule; N is adjusted, if necessary, to correspond to the rounded"
+  "magnitude of the significand. If FLAG2 is true then R was in the implementation-defined range of floating-point numbers."
+  "If FLAG1 is true then R is negative"
+  (unless (= base 10)
+    (forth-exception :invalid-floating-base))
+  (with-native-float-format ()
+    (with-float-exceptions (:handler (progn
+                                       (stack-push data-stack +false+)
+                                       (stack-push data-stack +false+)
+                                       (stack-push data-stack 0)))
+      (let ((length (cell-signed (stack-pop data-stack)))
+            (address (stack-pop data-stack)))
+        (unless (plusp length)
+          (forth-exception :invalid-numeric-argument "String length must be positive"))
+        (multiple-value-bind (region offset)
+            (memory-decode-address memory address)
+          (let* ((r (stack-pop float-stack))
+                 (exponent (1+ (cond ((plusp r) (floor (log (rationalize r) 10)))
+                                     ((zerop r) 0)
+                                     ((minusp r) (floor (log (abs (rationalize r)) 10))))))
+                 (representation (format nil "~V,V,VF" (1+ length) length (- exponent) (abs r))))
+            (stack-push data-stack +true+)
+            (stack-push data-stack (if (minusp r) +true+ +false+))
+            (stack-push data-stack exponent)
+            (native-into-forth-string (subseq representation 1) region offset)))))))
 
+        
 ;;; Floating-Point extension  words as defined in Section 12 of the Forth 2012 specification
 
 (define-word dfloat-store (:word "DF!")
@@ -347,7 +372,7 @@
   (with-float-exceptions ()
     (let ((r2 (stack-pop float-stack))
           (r1 (stack-pop float-stack)))
-      (stack-push data-stack (expt r1 r2)))))
+      (stack-push float-stack (expt r1 r2)))))
 
 (define-word float-display-fixed (:word "F.")
   "(F: r – )"
