@@ -380,7 +380,18 @@
   (with-float-exceptions ()
     (stack-push float-stack (cosh (stack-pop float-stack)))))
 
-;;;---*** FE.
+(define-word float-display-engineering (:word "FE.")
+  "(F: r – )"
+  "Display, with a trailing space, the top number on the floating-point stack using engineering notation, where the"
+  "significand is greater than or equal to 1.0 and less than 1000.0 and the decimal exponent is a multiple of three"
+  (unless (= base 10)
+    (forth-exception :invalid-floating-base))
+  (with-native-float-format ()
+    (let* ((r (stack-pop float-stack))
+           (edigits (cond ((plusp r) (truncate (log (truncate r) 10)))
+                          ((zerop r) 0)
+                          ((minusp r) (truncate (log (abs (truncate r)) 10))))))
+    (format t "~,V,,VE " (1- float-precision) (1+ (mod edigits 3)) r))))
 
 (define-word float-exp (:word "FEXP")
   "(F: r1 – r2 )"
@@ -437,7 +448,13 @@
         (stack-push float-stack (log r1 (native-float 10.0)))
         (forth-exception :floating-out-of-range))))
 
-;;;---*** FS.
+(define-word float-display-scientific (:word "FS.")
+  "(F: r – )"
+  "Display, with a trailing space, the top number on the floating-point stack in scientific notation"
+  (unless (= base 10)
+    (forth-exception :invalid-floating-base))
+  (with-native-float-format ()
+    (format t "~,V,,1E " (1- float-precision) (stack-pop float-stack))))
 
 (define-word float-sin (:word "FSIN")
   "(F: r1 – r2 )"

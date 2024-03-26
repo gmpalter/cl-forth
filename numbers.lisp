@@ -187,3 +187,7 @@
 (declaim (inline encode-native-float))
 (defun encode-native-float (n)
   (encode-double-float n))
+
+(defmacro with-native-float-format (() &body body)
+  `(let ((*read-default-float-format* 'double-float))
+     ,@body))

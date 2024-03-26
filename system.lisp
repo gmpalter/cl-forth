@@ -35,7 +35,7 @@
    (execution-tokens :initform (make-instance 'execution-tokens))
    (replacements :initform (make-instance 'replacements))
    (base :initform 10)
-   (float-precision :initform 16)
+   (float-precision :initform 17)
    state
    (definition :initform nil)
    (compiling-paused? :initform nil)
