@@ -103,7 +103,7 @@
   (maphash #'(lambda (forth-name wl-and-word)
                (declare (ignore forth-name))
                (let ((wl (word-list wls (car wl-and-word) :if-not-found :create)))
-                 (add-word wl (cdr wl-and-word) :override t)))
+                 (add-word wl (cdr wl-and-word) :override t :silent t)))
            *predefined-words*))
 
 (defmethod register-predefined-words ((wls word-lists) execution-tokens here)
