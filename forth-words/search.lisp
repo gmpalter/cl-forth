@@ -26,12 +26,12 @@
   "( – wid)"
   "Return WID, the identifier of the word list that includes all standard words provided by the implementation."
   "This word list is initially the compilation word list and is part of the initial search order"
-  (stack-push data-stack (dictionary-psuedo-address (word-lists-forth-word-list word-lists))))
+  (stack-push data-stack (dictionary-wid (word-lists-forth-word-list word-lists))))
 
 (define-word get-current (:word "GET-CURRENT")
   "( – wid)"
   "Return WID, the identifier of the compilation word list"
-  (stack-push data-stack (dictionary-psuedo-address (word-lists-compilation-word-list word-lists))))
+  (stack-push data-stack (dictionary-wid (word-lists-compilation-word-list word-lists))))
 
 (define-word get-order (:word "GET-ORDER")
   "( – widn ... wid1 n )"
@@ -39,7 +39,7 @@
   "word lists. WID1 identifies the word list that is searched first, and WIDn the word list that is searched last"
   (let ((wids nil))
     (dolist (wl (word-lists-search-order word-lists))
-      (push (dictionary-psuedo-address wl) wids))
+      (push (dictionary-wid wl) wids))
     (dolist (wid wids)
       (stack-push data-stack wid))
     (stack-push data-stack (length wids))))
@@ -93,7 +93,7 @@
   "( – wid )"
   "Create a new empty word list, returning its word list identifier WID"
   (let ((wl (word-list word-lists nil :if-not-found :create)))
-    (stack-push data-stack (dictionary-psuedo-address wl))))
+    (stack-push data-stack (dictionary-wid wl))))
 
 
 ;;; Search-Order extension words as defined in Section 16 of the Forth 2012 specification

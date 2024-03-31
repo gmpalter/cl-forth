@@ -95,7 +95,7 @@
 ;;; Search-Order word set queries defined in the Forth 2012 specification
 
 (define-query "WORDLISTS"
-  ;; CL-Forth doesn't actually enforce a limit on the size of the search list
+  ;; CL-Forth doesn't actually enforce a limit on the size of the search order
   (stack-push data-stack 128))
 
 
@@ -191,7 +191,7 @@
 (define-query "TOOLS"
   (stack-push data-stack +true+))
 
-;;; Cl-Forth does not implement ;CODE, ASSEMBLER, CODE, EDITOR, FORGET
+;;; Cl-Forth does not implement ;CODE, ASSEMBLER, CODE, and EDITOR
 (define-query "TOOLS-EXT"
   (stack-push data-stack +false+))
 

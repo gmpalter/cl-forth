@@ -95,7 +95,19 @@
   (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
 ;;;---*** EDITOR
-;;;---*** FORGET
+
+(define-word forget (:word "FORGET")
+  "FORGET <name>"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Find NAME, then delete NAME from the dictionary along"
+  "with all words added to the dictionary after NAME."
+  "If the Search-Order word set is present, FORGET searches the compilation word list"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (search-dictionary (word-lists-compilation-word-list word-lists) name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (forget word execution-tokens))))
 
 ;;; NOTE: This word pushes a vector of values onto the return stack rather than individual items.
 ;;;  A Forth program will crash if it doesn't maintain proper return stack discipline. But, that's true

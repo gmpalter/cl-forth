@@ -7,7 +7,8 @@
 
 (defclass dictionary ()
   ((name :accessor dictionary-name :initarg :name)
-   (psuedo-address :accessor dictionary-psuedo-address :initarg :psuedo-address)
+   (wid :accessor dictionary-wid :initarg :wid)
+   (last-ordinal :initform -1)
    (words :accessor dictionary-words :initform (make-hash-table :test #'equalp))
    (parent :accessor dictionary-parent :initform nil :initarg :parent))
   )
@@ -17,13 +18,14 @@
     (write-string (dictionary-name dict) stream)))
 
 (defmethod add-word ((dict dictionary) word &key override silent)
-  (with-slots (words parent) dict
+  (with-slots (last-ordinal words parent) dict
     (let ((old (gethash (word-name word) words)))
       (when old
         (unless silent
           (format t "~A isn't unique. " (word-name word)))
         (unless override
           (setf (word-previous word) old)))
+      (setf (word-ordinal word) (incf last-ordinal))
       (note-new-word parent dict word)
       (setf (gethash (word-name word) words) word))))
 
@@ -66,6 +68,16 @@
   (with-slots (words) dict
     (gethash name words)))
 
+(defmethod forget-word ((dict dictionary) xts word)
+  (with-slots (words) dict
+    (let ((ordinal (word-ordinal word)))
+      (maphash #'(lambda (key a-word)
+                   (declare (ignore key))
+                   (when (> (word-ordinal a-word) ordinal)
+                     (delete-word dict xts a-word)))
+               words))
+    (delete-word dict xts word)))
+
 
 ;;; Word Lists and the Search Order
 
@@ -76,8 +88,9 @@
    (forth :reader word-lists-forth-word-list :initform nil)
    (search-order :accessor  word-lists-search-order :initform nil)
    (compilation-word-list :accessor word-lists-compilation-word-list :initform nil)
-   (next-psuedo-address :initform (make-address #xFF 0))
+   (next-wid :initform (make-address #xFF 0))
    (wid-to-word-list-map :initform (make-hash-table))
+   (next-nt :initform (make-address #xFE 0))
    (nt-to-word-map :initform (make-hash-table))
    (saved-search-order :initform nil)
    (saved-compilation-word-list :initform nil)
@@ -96,8 +109,8 @@
 
 (defmethod update-psuedo-state-variables ((wls word-lists))
   (with-slots (search-order compilation-word-list context current) wls
-    (setf context (dictionary-psuedo-address (first search-order))
-          current (dictionary-psuedo-address compilation-word-list))))
+    (setf context (dictionary-wid (first search-order))
+          current (dictionary-wid compilation-word-list))))
 
 (defmethod install-predefined-words ((wls word-lists))
   (maphash #'(lambda (forth-name wl-and-word)
@@ -145,15 +158,15 @@
     (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
 
 (defmethod word-list ((wls word-lists) name &key (if-not-found :error))
-  (with-slots (all-word-lists wid-to-word-list-map next-psuedo-address) wls
+  (with-slots (all-word-lists wid-to-word-list-map next-wid) wls
     (let ((name (or name (gensym "WL"))))
       (or (gethash name all-word-lists)
           (case if-not-found
             (:create
-             (let ((word-list (make-instance 'dictionary :name name :psuedo-address next-psuedo-address :parent wls)))
+             (let ((word-list (make-instance 'dictionary :name name :wid next-wid :parent wls)))
                (setf (gethash name all-word-lists) word-list
-                     (gethash next-psuedo-address wid-to-word-list-map) word-list)
-               (incf next-psuedo-address +cell-size+)
+                     (gethash next-wid wid-to-word-list-map) word-list)
+               (incf next-wid +cell-size+)
                word-list))
             (:error
              (forth-exception :unknown-word-list "Word list ~A does not exist" name))
@@ -215,9 +228,6 @@
           (replace-top-of-search-order wls word-list)
           (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid)))))
 
-
-;;; Support for Forth 2012
-
 (defmethod traverse-wordlist ((wls word-lists) wl function)
   (maphash #'(lambda (name word)
                (declare (ignore name))
@@ -249,7 +259,8 @@
    (parent :accessor word-parent :initform nil)
    (execution-token :accessor word-execution-token :initform nil)
    (compile-token :accessor word-compile-token :initform nil)
-   (name-token :accessor word-name-token :initform nil))
+   (name-token :accessor word-name-token :initform nil)
+   (ordinal :accessor word-ordinal :initform 0))
   )
 
 (defmethod print-object ((word word) stream)
@@ -296,6 +307,9 @@
                        :creating-word? creating-word?
                        :deferring-word? deferring-word?
                        :parameters (copy-list parameters)))
+
+(defmethod forget ((word word) xts)
+  (forget-word (word-parent word) xts word))
 
 
 ;;; MARKER support
@@ -345,11 +359,11 @@
         (setf (fill-pointer markers) position)))))
 
 (defmethod note-new-word ((wls word-lists) (dict dictionary) (word word))
-  (with-slots (next-psuedo-address nt-to-word-map markers) wls
+  (with-slots (next-nt nt-to-word-map markers) wls
     (setf (word-parent word) dict
-          (word-name-token word) next-psuedo-address
-          (gethash next-psuedo-address nt-to-word-map) word)
-    (incf next-psuedo-address +cell-size+)
+          (word-name-token word) next-nt
+          (gethash next-nt nt-to-word-map) word)
+    (incf next-nt +cell-size+)
     (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
 
 (defmethod note-new-included-file ((wls word-lists) truename)
