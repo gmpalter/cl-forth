@@ -122,6 +122,10 @@
           source-address nil)
     (stack-reset source-stack)))
 
+(defmethod current-input-state ((f files))
+  (with-slots (buffer >in) f
+    (values buffer >in)))
+
 (defmethod terminal-input-p ((f files))
   (with-slots (source-id) f
     (zerop source-id)))

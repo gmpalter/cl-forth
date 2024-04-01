@@ -62,7 +62,41 @@
 
 ;;; Programming-Tools extension words as defined in Section 15 of the Forth 2012 specification
 
-;;;---*** ;CODE
+(define-forth-method assemble-native-code (fs)
+  (let ((forms (with-output-to-string (forms)
+                 (loop do
+                   (multiple-value-bind (buffer >in)
+                       (current-input-state files)
+                     (let ((token (word files #\Space)))
+                       (when (and token (string-equal token ";ENDCODE"))
+                         (loop-finish)))
+                     (write-line (subseq buffer >in) forms)
+                     (unless (refill files)
+                       (forth-exception :missing-endcode)))))))
+    (with-input-from-string (forms forms)
+      (with-standard-io-syntax
+        (let ((*package* (find-package '#:forth))
+              (*read-eval* nil)
+              (eof '#:eof))
+          (loop for form = (read forms nil eof)
+                until (eq form eof)
+                do (push form (word-inline-forms (definition-word definition)))))))
+    (finish-compilation fs)))
+
+(define-word native-code-does> (:word ";CODE" :immediate? t :compile-only? t)
+  "Compilation:  (C: colon-sys – )"
+  "Append the run-time semantics below to the current definition. End the current definition, allow it to be found in the"
+  "dictionary, and enter interpretation state, consuming COLON-SYS. Subsequent characters in the parse area typically represent"
+  "source code in a programming language, usually some form of assembly language. Those characters are processed in an"
+  "implementation-defined manner, generating the corresponding machine code. The process continues, refilling the input buffer"
+  "as needed, until an implementation-defined ending sequence is processed."
+  "Run-time: ( – ) (R: nest-sys – )"
+  "Replace the execution semantics of the most recent definition with the NAME execution semantics given below. Return control"
+  "to the calling definition specified by NEST-SYS"
+  "NAME Execution: ( i*x – j*x )"
+  "Execute the machine code sequence that was generated following ;CODE."
+  (compile-does> fs)
+  (assemble-native-code fs))
 
 (define-word ahead (:word "AHEAD" :immediate? t :compile-only? t)
   "(C: — orig )"
@@ -73,13 +107,28 @@
     (stack-push control-flow-stack branch)
     (execute-branch fs branch)))
 
-;;;---*** ASSEMBLER
+(define-word assembler (:word "ASSEMBLER")
+  "Replace the first word list in the search order with the ASSEMBLER word list"
+  (replace-top-of-search-order word-lists (word-list word-lists "ASSEMBLER" :if-not-found :create)))
 
 (define-word bye (:word "BYE")
   "Return control to the host operating system, if any"
   (throw 'bye nil))
 
-;;;---*** CODE
+(define-word native-code (:word "CODE")
+  "CODE <name>"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME, called a \"code definition\","
+  "with the execution semantics defined below. Subsequent characters in the parse area typically represent source code in a"
+  "programming language, usually some form of assembly language. Those characters are processed in an implementation-defined"
+  "manner, generating the corresponding machine code. The process continues, refilling the input buffer as needed, until an"
+  "implementation-defined ending sequence is processed."
+  "NAME Execution: ( i*x – j*x )"
+  "Execute the machine code sequence that was generated following CODE."
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (begin-compilation fs name)
+    (assemble-native-code fs)))
 
 (define-word cs-pick (:word "CS-PICK")
   "(S: u - ) (C: xu ... x0 - xu ... x0 xu ) "
@@ -94,7 +143,9 @@
   "2 CS-ROLL is equivalent to ROT"
   (stack-roll control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
-;;;---*** EDITOR
+(define-word editor (:word "EDITOR")
+  "Replace the first word list in the search order with the EDITOR word list"
+  (replace-top-of-search-order word-lists (word-list word-lists "EDITOR" :if-not-found :create)))
 
 (define-word forget (:word "FORGET")
   "FORGET <name>"

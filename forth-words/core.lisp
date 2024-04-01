@@ -607,6 +607,8 @@
   "( - n )"
   "Push a copy of the current value of the index onto the data stack"
   (add-to-definition fs
+    `(when (< (stack-depth loop-stack) 2)
+       (forth-exception :loop-stack-underflow "I not inside DO loop"))
     `(stack-push data-stack (stack-cell loop-stack 0))))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
@@ -634,6 +636,8 @@
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
   (add-to-definition fs
+    `(when (< (stack-depth loop-stack) 4)
+       (forth-exception :loop-stack-underflow "J not inside DO ... DO ... LOOP ... LOOP"))
     `(stack-push data-stack (stack-cell loop-stack 2))))
 
 ;;;---*** KEY

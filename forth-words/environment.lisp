@@ -127,7 +127,7 @@
 (define-query "CORE"
   (stack-push data-stack +true+))
 
-;;; CL-Forth does not implement #TIB, CONVERT, EXPECT, QUERY, SPAN, TIB, [COMPILE]
+;;; CL-Forth does not implement #TIB, CONVERT, EXPECT, QUERY, SPAN, TIB, and [COMPILE]
 ;;;  All but [COMPILE] were marked obsolescent in Forth 1994 and removed in Forth 2012
 ;;;  [COMPILE] is matked as obsolescent in Forth 2012
 (define-query "CORE-EXT"
@@ -191,9 +191,8 @@
 (define-query "TOOLS"
   (stack-push data-stack +true+))
 
-;;; Cl-Forth does not implement ;CODE, ASSEMBLER, CODE, and EDITOR
 (define-query "TOOLS-EXT"
-  (stack-push data-stack +false+))
+  (stack-push data-stack +true+))
 
 (define-query "SEARCH-ORDER"
   (stack-push data-stack +true+))
