@@ -75,7 +75,7 @@
 
 ;;;---*** ASSEMBLER
 
-(define-word bye ()
+(define-word bye (:word "BYE")
   "Return control to the host operating system, if any"
   (throw 'bye nil))
 
@@ -167,7 +167,7 @@
         (stack-push data-stack (aref vector i)))
       (stack-push data-stack n))))
 
-(define-state-word state)
+(define-state-word state :word "STATE")
 
 (define-word synonym (:word "SYNONYM")
   "SYNONYM <newname> <oldname>"

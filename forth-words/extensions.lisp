@@ -197,7 +197,7 @@
 
 ;;; Words defined by CL-Forth
 
-(define-word break (:immediate? t)
+(define-word break (:word "BREAK" :immediate? t)
   "Enter a Lisp debug break loop"
   (break "Debug Break"))
 
