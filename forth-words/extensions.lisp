@@ -237,6 +237,11 @@
   (when definition
     (setf (word-inlineable? (definition-word definition)) t)))
 
+(define-word not-interpreted (:word "NOTINTERPRETED")
+  "Make the most recent definition only available when compiling a definition"
+  (when definition
+    (setf (word-compile-only? (definition-word definition)) t)))
+
 (define-word show-float-stack (:word ".SF")
   "Show the contents of the floating-point stack"
   (let ((cells (stack-cells float-stack))
