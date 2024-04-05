@@ -26,7 +26,7 @@
 
 ;;;
 
-(defconstant +data-space-size+ (expt 2 20))
+(defconstant +data-space-size+ (expt 2 24))
 (defconstant +pad-space-size+ 1024)
 (defconstant +transient-space-size+ 1024)
 (defconstant +pictured-buffer-size+ 256)
@@ -36,13 +36,13 @@
 
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
-   (data-space :initform (make-instance 'data-space :initial-size +data-space-size+))
-   (pad :initform (make-instance 'data-space :initial-size +pad-space-size+))
-   (word-space :reader word-space :initform (make-instance 'transient-data-space :initial-size +transient-space-size+))
+   (data-space :initform (make-instance 'data-space :size +data-space-size+))
+   (pad :initform (make-instance 'data-space :size +pad-space-size+))
+   (word-space :reader word-space :initform (make-instance 'transient-data-space :size +transient-space-size+))
    (pictured-buffer :reader memory-pictured-buffer
-                    :initform (make-instance 'pictured-buffer :initial-size +pictured-buffer-size+))
+                    :initform (make-instance 'pictured-buffer :size +pictured-buffer-size+))
    (name>string-space :reader name>string-space
-                      :initform (make-instance 'transient-data-space :initial-size +name>string-space-size+))
+                      :initform (make-instance 'transient-data-space :size +name>string-space-size+))
    (string-spaces :initform (make-array 0 :fill-pointer 0 :adjustable t))
    (current-string-space-index :initform 0))
   )
@@ -51,16 +51,14 @@
   (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
-      (setup (make-instance 'data-space :initial-size 0))
+      (setup (make-instance 'data-space :size +cell-size+))
       (setup data-space)
       (setup pad)
-      ;; FILL, MOVE, ERASE, and BLANK all check the high water mark to decide if the operation is valid
-      (setf (space-high-water-mark pad) +pad-space-size+)
       (setup word-space)
       (setup pictured-buffer)
       (setup name>string-space)
       (dotimes (i +number-of-string-spaces+)
-        (let ((space (make-instance 'transient-data-space :initial-size +transient-space-size+)))
+        (let ((space (make-instance 'transient-data-space :size +transient-space-size+)))
           (vector-push-extend space string-spaces)
           (setup space))))))
 
@@ -323,7 +321,7 @@
 (defmethod print-object ((sp space) stream)
   (with-slots (prefix high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
-      (format stream "prefix=~2,'0X, used=~D" prefix high-water-mark))))
+      (format stream "prefix=~2,'0X, hwm=~D" prefix high-water-mark))))
 
 (defgeneric space-reset (space))
 (defgeneric save-space-state (space))
@@ -363,19 +361,21 @@
 
 (defclass data-space (space)
   ((data :accessor data-space-data)
+   (size :accessor data-space-size :initarg :size :initform 0)
    (extension :initform 0)
    (saved-high-water-mark :initform 0))
   )
 
-(defmethod initialize-instance :after ((sp data-space) &key initial-size &allow-other-keys)
-  (with-slots (data extension) sp
-    (setf data (make-array initial-size :element-type '(unsigned-byte 8) :initial-element 0))
-    (setf extension (floor initial-size 10))))
+(defmethod initialize-instance :after ((sp data-space) &key &allow-other-keys)
+  (with-slots (data size extension) sp
+    (assert (and (numberp size) (plusp size)) (size) "~S ~S must be a positive integer" 'data-space :size)
+    (setf data (make-array size :element-type '(unsigned-byte 8) :initial-element 0))
+    (setf extension (floor size 10))))
 
 (defmethod print-object ((sp data-space) stream)
-  (with-slots (prefix data high-water-mark) sp
+  (with-slots (prefix data size high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
-      (format stream "prefix=~2,'0X, size=~D, used=~D" prefix (length data) high-water-mark))))
+      (format stream "prefix=~2,'0X, size=~D, hwm=~D" prefix size high-water-mark))))
 
 (defmethod space-reset ((sp data-space))
   (with-slots (high-water-mark saved-high-water-mark) sp
@@ -388,13 +388,15 @@
   nil)
 
 (defmethod space-allocate ((sp data-space) n-bytes)
-  (with-slots (prefix high-water-mark data extension) sp
+  (with-slots (prefix size high-water-mark data extension) sp
     (let ((address (make-address prefix high-water-mark)))
-      (unless (<= (+ high-water-mark n-bytes) (length data))
+      (unless (<= (+ high-water-mark n-bytes) size)
+        (forth-exception :data-space-overflow)
+        #+ignore
         (let* ((new-size (+ high-water-mark n-bytes extension))
                ;; Grow the space by an additional 10% beyond what was requested
                (new (make-array new-size :element-type '(unsigned-byte 8) :initial-element 0)))
-          (replace new data :end1 (length data))
+          (replace new data :end1 size)
           (setf data new)))
       (incf high-water-mark n-bytes)
       address)))
@@ -404,8 +406,8 @@
     (decf high-water-mark (min high-water-mark n-bytes))))
 
 (defmethod space-unused ((sp data-space))
-  (with-slots (data high-water-mark) sp
-    (- (length data) high-water-mark)))
+  (with-slots (size high-water-mark) sp
+    (- size high-water-mark)))
 
 (defmethod space-align ((sp data-space) &optional (boundary +cell-size+))
   (with-slots (high-water-mark) sp
@@ -413,60 +415,60 @@
       (incf high-water-mark (- boundary (mod high-water-mark boundary))))))
 
 (defmethod cell-at ((sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (cell-signed (aref data (ash address +byte-to-cell-shift+))))))
 
 (defmethod (setf cell-at) (value (sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (setf (aref data (ash address +byte-to-cell-shift+)) (cell-unsigned value)))))
 
 (defmethod cell-unsigned-at ((sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (aref data (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-unsigned-at) (value (sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (setf (aref data (ash address +byte-to-cell-shift+)) value))))
 
 (defmethod byte-at ((sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (aref data address)))
 
 (defmethod (setf byte-at) (value (sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (setf (aref data address) value)))
 
 (defmethod single-float-at ((sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data))
       (encode-single-float (aref data (ash address +byte-to-single-float-cell-shift+))))))
 
 (defmethod (setf single-float-at) (value (sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data))
@@ -474,16 +476,16 @@
       value)))
 
 (defmethod double-float-at ((sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
       (encode-double-float (aref data (ash address +byte-to-double-float-cell-shift+))))))
 
 (defmethod (setf double-float-at) (value (sp data-space) address)
-  (with-slots (data high-water-mark) sp
-    (unless (<= address high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data))
@@ -491,17 +493,17 @@
       value)))
 
 (defmethod space-fill ((sp data-space) address count byte)
-  (with-slots (data high-water-mark) sp
-    (unless (<= (+ address count) high-water-mark)
+  (with-slots (data size) sp
+    (unless (<= (+ address count) size)
       (forth-exception :invalid-memory))
     (fill data byte :start address :end (+ address count))))
 
 (defmethod space-copy ((ssp data-space) source-address (dsp data-space) destination-address count)
-  (with-slots ((source-data data) (source-high-water-mark high-water-mark)) ssp
-    (with-slots ((destination-data data) (destination-high-water-mark high-water-mark)) dsp
-      (unless (<= (+ source-address count) source-high-water-mark)
+  (with-slots ((source-data data) (source-size size)) ssp
+    (with-slots ((destination-data data) (destination-size size)) dsp
+      (unless (<= (+ source-address count) source-size)
         (forth-exception :invalid-memory))
-      (unless (<= (+ destination-address count) destination-high-water-mark)
+      (unless (<= (+ destination-address count) destination-size)
         (forth-exception :invalid-memory))
       (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                             :start2 source-address :end2 (+ source-address count)))))
@@ -579,21 +581,20 @@
    (used :initform 0))
   )
 
-(defmethod initialize-instance :after ((pb pictured-buffer) &key &allow-other-keys)
-  (with-slots (data high-water-mark) pb
-    ;; All memory operations check the high water mark to decide if the operation is valid
-    ;; As we fill the buffer from the end towards the front, we have to claim its all "in use"
-    (setf high-water-mark (length data))))
+;;(defmethod initialize-instance :after ((pb pictured-buffer) &key &allow-other-keys)
+;;  (with-slots (data size high-water-mark) pb
+;;    ;; All memory operations check the high water mark to decide if the operation is valid
+;;    ;; As we fill the buffer from the end towards the front, we have to claim its all "in use"
+;;    (setf high-water-mark size)))
 
 (defmethod print-object ((pb pictured-buffer) stream)
-  (with-slots (prefix high-water-mark used active?) pb
+  (with-slots (prefix size used active?) pb
     (print-unreadable-object (pb stream :type t :identity t)
-      (format stream "prefix=~2,'0X, size=~D, used=~D~@[, active~]" prefix high-water-mark used active?))))
+      (format stream "prefix=~2,'0X, size=~D, used=~D~@[, active~]" prefix size used active?))))
 
 (defmethod space-reset ((pb pictured-buffer))
-  (with-slots (active? data high-water-mark used) pb
+  (with-slots (active? used) pb
     (setf active? nil
-          high-water-mark (length data)
           used 0)))
 
 (defmethod space-allocate ((pb pictured-buffer) n-bytes)
@@ -608,27 +609,27 @@
           active? t)))
 
 (defmethod add-to-pictured-buffer ((pb pictured-buffer) forth-char)
-  (with-slots (high-water-mark used) pb
-    (when (= used high-water-mark)
+  (with-slots (size used) pb
+    (when (= used size)
       (forth-exception :pictured-output-overflow))
     (prog1
-        (setf (byte-at pb (- high-water-mark used 1)) forth-char)
+        (setf (byte-at pb (- size used 1)) forth-char)
       (incf used))))
 
 (defmethod add-string-to-pictured-buffer ((pb pictured-buffer) memory address count)
-  (with-slots (data high-water-mark used) pb
-    (when (>= (+ used count) high-water-mark)
+  (with-slots (data size used) pb
+    (when (>= (+ used count) size)
       (forth-exception :pictured-output-overflow))
     (multiple-value-bind (source-data offset)
         (memory-decode-address memory address)
-      (replace data source-data :start1 (- high-water-mark used count) :end1 (- high-water-mark used)
+      (replace data source-data :start1 (- size used count) :end1 (- size used)
                                 :start2 offset :end2 (+ offset count))
       (incf used count))))
 
 (defmethod finish-pictured-buffer ((pb pictured-buffer))
-  (with-slots (active? prefix high-water-mark used) pb
+  (with-slots (active? prefix size used) pb
     (setf active? nil)
-    (let ((idx (- high-water-mark used)))
+    (let ((idx (- size used)))
       (values (make-address prefix idx) used))))
 
 

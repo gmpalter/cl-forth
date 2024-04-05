@@ -112,6 +112,8 @@
   (:not-a-name-token -273 "Not a name token")
   (:exception-stack-underflow -274 "Exception stack underflow")
   (:loop-stack-underflow -275 "DO loops stack underflow")
+  (:interpret-only-word -276 "Compiling an interpreted-only word")
+  (:data-space-overflow -277 "Out of memory")
   )
 
 (define-condition forth-exception (error)

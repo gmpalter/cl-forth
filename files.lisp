@@ -3,13 +3,14 @@
 (defclass source-data-space (data-space)
   ((is-valid? :accessor source-data-space-is-valid? :initform nil)
    (buffer :accessor source-data-space-buffer :initform nil))
-  (:default-initargs :initial-size +data-space-size+))
+  (:default-initargs :size +data-space-size+))
 
 (defmethod update-source-data-space ((sp source-data-space))
-  (with-slots (data high-water-mark is-valid? buffer) sp
+  (with-slots (data size high-water-mark is-valid? buffer) sp
     (when buffer
       (native-into-forth-string buffer data 0)
-      (setf high-water-mark (length buffer)
+      (setf size (length buffer)
+            high-water-mark (length buffer)
             is-valid? t))))
 
 (defmethod space-reset ((sp source-data-space))
@@ -98,7 +99,7 @@
    (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
-   (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :initial-size +data-space-size+))
+   (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :size +data-space-size+))
    (included-files :initform (make-hash-table :test #'equal)))
   )
 
