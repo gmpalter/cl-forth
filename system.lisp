@@ -1,5 +1,14 @@
 (in-package #:forth)
 
+(defvar *exception-hook* nil
+  "If non-NIL, called after an exception, including ABORT and ABORT\",  to perform additional processing")
+
+(defvar *exception-prefix* nil
+  "If non-NIL, display this string before displaying the exception's phrase")
+
+(defvar *exit-hook* nil
+  "If non-NIL, called before a non-fatal exit to perform additional processing")
+
 (defstruct definition
   word
   exit-branch
@@ -99,18 +108,28 @@
   (reset-interpreter/compiler fs)
   (when evaluate
     (source-push files :evaluate evaluate))
-  (catch 'bye
-    (loop
-      (restart-case
-          (handler-case
-              (interpreter/compiler fs)
-            (forth-exception (e)
-              (unless (member (forth-exception-key e) '(:abort :quit))
-                (write-line (forth-exception-phrase e)))
-              (clear-input)
-              (reset-interpreter/compiler fs)))
-        (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
-          (reset-interpreter/compiler fs))))))
+  (let ((fatal?
+          (catch 'bye
+            (loop
+              (restart-case
+                  (handler-case
+                      (interpreter/compiler fs)
+                    (forth-exception (e)
+                      (unless (member (forth-exception-key e) '(:abort :quit))
+                        (when *exception-prefix*
+                          (write-string *exception-prefix*))
+                        (write-line (forth-exception-phrase e)))
+                      (clear-input)
+                      (reset-interpreter/compiler fs)
+                      (when (and *exception-hook* (not (eq (forth-exception-key e) :quit)))
+                        (funcall *exception-hook* fs))))
+                (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
+                  (reset-interpreter/compiler fs)))))))
+    (if fatal?
+        ;;---*** TODO: Need to return non-zero exit if standalone app
+        ()
+        (when *exit-hook*
+          (funcall *exit-hook* fs)))))
 
 (define-forth-method interpreter/compiler (fs &key (toplevel? t))
   (loop with first = t
