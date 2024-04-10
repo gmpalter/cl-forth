@@ -17,26 +17,26 @@
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
-   (data-stack :initform (make-instance 'stack :name "Data" :initial-size 1024
+   (data-stack :initform (make-instance 'stack :name "Data" :size 1024
                                                :underflow-key :stack-underflow :overflow-key :stack-overflow))
-   (return-stack :initform (make-instance 'stack :name "Return" :initial-size 128
+   (return-stack :initform (make-instance 'stack :name "Return" :size 128
                                                  :underflow-key :return-stack-underflow :overflow-key :return-stack-overflow))
    (control-flow-stack :initform (make-instance 'stack :name "Control-flow"
-                                                       :initial-size 128
+                                                       :size 128
                                                        :underflow-key :control-flow-stack-underflow
                                                        :overflow-key :control-flow-stack-overflow))
    (exception-stack :initform (make-instance 'stack :name "Exception"
-                                                    :initial-size 128
+                                                    :size 128
                                                     :underflow-key :exception-stack-underflow
                                                     :overflow-key :exception-stack-overflow))
    (loop-stack :initform (make-instance 'stack :name "Loop Control"
-                                               :initial-size 32
+                                               :size 32
                                                :underflow-key :loop-stack-underflow :overflow-key :do-loops-nesting))
    (float-stack :initform (make-instance 'stack :name "Float"
-                                                :initial-size 32
+                                                :size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
    (definitions-stack :initform (make-instance 'stack :name "Definitions"
-                                                      :initial-size 32
+                                                      :size 32
                                                       :underflow-key :definitions-stack-underflow
                                                       :overflow-key :definitions-stack-overflow))
    (word-lists :initform (make-instance 'word-lists))

@@ -3,22 +3,28 @@
 (defclass stack ()
   ((name :initarg :name :initform "<unnamed>")
    (cells :accessor stack-cells)
-   (initial-size :accessor stack-initial-size :initarg :initial-size)
+   (size :accessor stack-size :initarg :size)
    (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
    (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)))
 
 (defmethod initialize-instance :after ((st stack) &key &allow-other-keys)
-  (with-slots (cells initial-size underflow-key overflow-key) st
-    (assert (and (numberp initial-size) (plusp initial-size)) ((stack-initial-size st))
-            "Value of ~S must be a positive integer" :initial-size)
+  (with-slots (cells size underflow-key overflow-key) st
+    (assert (and (numberp size) (plusp size)) ((stack-size st))
+            "Value of ~S must be a positive integer" :size)
     (assert (keywordp underflow-key) ((stack-underflow-key st)) "Value of ~S must be a keyword" :underflow-key)
     (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)
-    (setf cells (make-array initial-size :adjustable t :fill-pointer 0))))
+    (setf cells (make-array size :adjustable t :fill-pointer 0))))
 
 (defmethod print-object ((sp stack) stream)
   (with-slots (name cells) sp
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "~A (~D cell~:P)" name (length cells)))))
+
+(declaim (inline stack-overflow-check))
+(defun stack-overflow-check (st &optional (minimum-space 1))
+  (with-slots (cells size overflow-key) st
+    (unless (< (fill-pointer cells) (- size minimum-space -1))
+      (forth-exception overflow-key))))
 
 (declaim (inline stack-underflow-check))
 (defun stack-underflow-check (st &optional (minimum-depth 1))
@@ -43,9 +49,11 @@
   (setf (fill-pointer (stack-cells st)) 0))
 
 (defmethod stack-push ((st stack) value)
+  (stack-overflow-check st)
   (vector-push-extend value (stack-cells st)))
 
 (defmethod stack-push-double ((st stack) value)
+  (stack-overflow-check st 2)
   (with-slots (cells) st
     (multiple-value-bind (low high)
         (double-components value)

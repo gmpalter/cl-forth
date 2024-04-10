@@ -68,16 +68,16 @@
   (stack-push-double data-stack +maximum-unsigned-double-cell+))
 
 (define-query "RETURN-STACK-CELLS"
-  (stack-push data-stack (stack-initial-size data-stack)))
+  (stack-push data-stack (stack-size data-stack)))
 
 (define-query "STACK-CELLS"
-  (stack-push data-stack (stack-initial-size return-stack)))
+  (stack-push data-stack (stack-size return-stack)))
 
 
 ;;; Floating-Point word set queries defined in the Forth 2012 specification
 
 (define-query "FLOATING-STACK"
-  (stack-push data-stack (stack-initial-size float-stack)))
+  (stack-push data-stack (stack-size float-stack)))
 
 (define-query "MAX-FLOAT"
   (stack-push float-stack +most-positive-native-float+))

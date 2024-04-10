@@ -96,7 +96,7 @@
    (verbose :accessor files-verbose :initform nil)
    (source-id-map :initform (make-hash-table))
    (last-source-id :initform 0)
-   (source-stack :initform (make-instance 'stack :name "Source" :initial-size 16
+   (source-stack :initform (make-instance 'stack :name "Source" :size 16
                                                  :overflow-key :source-stack-overflow :underflow-key :source-stack-underflow))
    (source-as-space :reader files-source-as-space :initform (make-instance 'source-data-space))
    (saved-buffer-space :reader files-saved-buffer-space :initform (make-instance 'data-space :size +data-space-size+))
