@@ -110,7 +110,30 @@
 (defun double-cell-unsigned (low-cell high-cell)
   (dpb high-cell (byte 64 64) (ldb (byte 64 0) low-cell)))
 
-;;;
+(declaim (inline quad-byte-signed))
+(defun quad-byte-signed (value)
+  (let ((raw (ldb (byte 32 0) value)))
+    (if (zerop (ldb (byte 1 31) raw))
+        raw
+        (- raw (dpb 1 (byte 1 32) 0)))))
+
+(declaim (inline quad-byte-unsigned))
+(defun quad-byte-unsigned (value)
+  (ldb (byte 32 0) value))
+
+(declaim (inline double-byte-signed))
+(defun double-byte-signed (value)
+  (let ((raw (ldb (byte 16 0) value)))
+    (if (zerop (ldb (byte 1 15) raw))
+        raw
+        (- raw (dpb 1 (byte 1 16) 0)))))
+
+(declaim (inline double-byte-unsigned))
+(defun double-byte-unsigned (value)
+  (ldb (byte 16 0) value))
+
+
+;;; Floating Point
 
 (declaim (inline single-float))
 (defun single-float (x)

@@ -3,6 +3,9 @@
 (defconstant +cell-size+ 8)
 (defconstant +byte-to-cell-shift+ -3)
 
+(defconstant +byte-to-double-byte-shift+ -1)
+(defconstant +byte-to-quad-byte-shift+ -2)
+
 (defconstant +single-float-cell-size+ 4)
 (defconstant +byte-to-single-float-cell-shift+ -2)
 
@@ -213,6 +216,48 @@
         (setf (cell-unsigned-at space address) high))
       value)))
 
+(defmethod memory-quad-byte ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (quad-byte-at space address))))
+
+(defmethod (setf memory-quad-byte) (value (memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (setf (quad-byte-at space address) value))))
+
+(defmethod memory-double-byte ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (double-byte-at space address))))
+
+(defmethod (setf memory-double-byte) (value (memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (setf (double-byte-at space address) value))))
+
+(defmethod memory-byte ((memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (byte-at space address))))
+
+(defmethod (setf memory-byte) (value (memory memory) address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix address))
+           (space (aref all-spaces prefix))
+           (address (address-address address)))
+      (setf (byte-at space address) value))))
+
 ;;;--- NOTE: If we change the size of a character to be other than 1 byte,
 ;;;---  these next two methods will need some rework
 
@@ -230,19 +275,7 @@
            (address (address-address address)))
       (setf (byte-at space address) value))))
 
-(defmethod memory-byte ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (byte-at space address))))
-
-(defmethod (setf memory-byte) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (setf (byte-at space address) value))))
+;;; 
 
 (defmethod memory-single-float ((memory memory) address)
   (with-slots (all-spaces) memory
@@ -342,6 +375,12 @@
 
 (defgeneric cell-unsigned-at (space address))
 (defgeneric (setf cell-unsigned-at) (value space address))
+
+(defgeneric quad-byte-at (space address))
+(defgeneric (setf quad-byte-at) (value space address))
+
+(defgeneric double-byte-at (space address))
+(defgeneric (setf double-byte-at) (value space address))
 
 (defgeneric byte-at (space address))
 (defgeneric (setf byte-at) (value space address))
@@ -446,6 +485,38 @@
                       (type (simple-array (unsigned-byte 64)) data))
       (setf (aref data (ash address +byte-to-cell-shift+)) value))))
 
+(defmethod quad-byte-at ((sp data-space) address)
+  (with-slots (data size) sp
+    (unless (<= address size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data))
+      (quad-byte-signed (aref data (ash address +byte-to-quad-byte-shift+))))))
+
+(defmethod (setf quad-byte-at) (value (sp data-space) address)
+  (with-slots (data size) sp
+    (unless (<= address size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data))
+      (setf (aref data (ash address +byte-to-quad-byte-shift+)) (quad-byte-unsigned value)))))
+
+(defmethod double-byte-at ((sp data-space) address)
+  (with-slots (data size) sp
+    (unless (<= address size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 16)) data))
+      (double-byte-signed (aref data (ash address +byte-to-double-byte-shift+))))))
+
+(defmethod (setf double-byte-at) (value (sp data-space) address)
+  (with-slots (data size) sp
+    (unless (<= address size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 16)) data))
+      (setf (aref data (ash address +byte-to-double-byte-shift+)) (double-byte-unsigned value)))))
+
 (defmethod byte-at ((sp data-space) address)
   (with-slots (data size) sp
     (unless (<= address size)
@@ -456,7 +527,7 @@
   (with-slots (data size) sp
     (unless (<= address size)
       (forth-exception :invalid-memory))
-    (setf (aref data address) value)))
+    (setf (aref data address) (ldb (byte 8 0) value))))
 
 (defmethod single-float-at ((sp data-space) address)
   (with-slots (data size) sp
@@ -538,6 +609,18 @@
       (forth-exception :write-to-read-only-memory))))
 
 (defmethod (setf cell-unsigned-at) :before (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf quad-byte-at) :before (value (sp transient-data-space) address)
+  (declare (ignore value address))
+  (with-slots (active?) sp
+    (unless active?
+      (forth-exception :write-to-read-only-memory))))
+
+(defmethod (setf double-byte-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
@@ -688,6 +771,30 @@
     (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-unsigned-at) (value (sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
+
+(defmethod quad-byte-at ((sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
+
+(defmethod (setf quad-byte-at) (value (sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
+
+(defmethod double-byte-at ((sp state-space) address)
+  (with-slots (parent slots) sp
+    (unless (< (ash address +byte-to-cell-shift+) (length slots))
+      (forth-exception :invalid-memory))
+    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
+
+(defmethod (setf double-byte-at) (value (sp state-space) address)
   (with-slots (parent slots) sp
     (unless (< (ash address +byte-to-cell-shift+) (length slots))
       (forth-exception :invalid-memory))
