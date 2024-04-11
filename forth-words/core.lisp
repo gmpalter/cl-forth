@@ -1457,7 +1457,19 @@
         (stack-push data-stack +true+)
         (stack-push data-stack +false+))))
 
-;;;---*** [COMPILE]
+(define-word [compile] (:word "[COMPILE]" :immediate? t :compile-only? t)
+  "[COMPILE] <name>"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Find NAME. If NAME has other than default compilation"
+  "semantics, append them to the current definition; otherwise append the execution semantics of NAME"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      ;; According to Section A.6.1.2033 of the Forth 2012 specification, [COMPILE] has the same semantics as POSTPONE
+      ;; but was only intended to be applied to immediate words. So, we'll just treat it as identical to POSTPONE.
+      (postpone fs word))))
 
 (define-word rest-of-line-comment (:word "\\" :immediate? t)
   "Ignore all text on the rest of the line"
