@@ -20,15 +20,17 @@
                   :serial nil
                   :components ((:file "core")
                                (:file "environment")
-                               (:file "files")
-                               (:file "tools")
                                (:file "double")
-                               (:file "float")
-                               (:file "strings")
                                (:file "exceptions")
-                               (:file "search")
                                (:file "facility")
-                               #+ignore (:file "memory")
+                               (:file "files")
+                               (:file "float")
+                               (:file "locals")
+                               (:file "memory")
+                               (:file "tools")
+                               (:file "search")
+                               (:file "strings")
+                               ;; Useful words not defined in Forth 2012
                                (:file "extensions")))
                (:file "asdf-support")
                ;;---*** TODO: Temporary

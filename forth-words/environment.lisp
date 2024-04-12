@@ -182,9 +182,11 @@
 (define-query "LOCALS-EXT"
   (stack-push data-stack +false+))
 
+;;; CL-Forth does not yet implement the Memory-Allocation word set
 (define-query "MEMORY-ALLOC"
   (stack-push data-stack +false+))
 
+;;; There are no Memory-Allocation extension words
 (define-query "MEMORY-ALLOC-EXT"
   (stack-push data-stack +false+))
 
