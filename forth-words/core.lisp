@@ -1383,7 +1383,7 @@
          (forth-exception :undefined-word "~A is not defined" name))
        (let ((address (first (word-parameters word)))
              (type (second (word-parameters word))))
-         (unless (member type '(:value :2value))
+         (unless (member type '(:value :2value :fvalue))
            (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
          (case type
            (:value
