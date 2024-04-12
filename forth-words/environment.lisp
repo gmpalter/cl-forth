@@ -68,10 +68,10 @@
   (stack-push-double data-stack +maximum-unsigned-double-cell+))
 
 (define-query "RETURN-STACK-CELLS"
-  (stack-push data-stack (stack-size data-stack)))
+  (stack-push data-stack (stack-size return-stack)))
 
 (define-query "STACK-CELLS"
-  (stack-push data-stack (stack-size return-stack)))
+  (stack-push data-stack (stack-size data-stack)))
 
 
 ;;; Floating-Point word set queries defined in the Forth 2012 specification
@@ -127,9 +127,7 @@
 (define-query "CORE"
   (stack-push data-stack +true+))
 
-;;; CL-Forth does not implement #TIB, CONVERT, EXPECT, QUERY, SPAN, TIB, and [COMPILE]
-;;;  All but [COMPILE] were marked obsolescent in Forth 1994 and removed in Forth 2012
-;;;  [COMPILE] is matked as obsolescent in Forth 2012
+;;; CL-Forth does not implement #TIB, CONVERT, EXPECT, QUERY, SPAN, and TIB
 (define-query "CORE-EXT"
   (stack-push data-stack +true+))
 
