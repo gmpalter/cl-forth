@@ -1,5 +1,21 @@
 (in-package #:forth)
 
+(defstruct (psuedo-pc (:conc-name #:ppc-)
+                      (:constructor %make-psuedo-pc)
+                      (:print-function (lambda (ppc stream depth)
+                                         (declare (ignore depth))
+                                         (format stream "~A|~D" (word-name (ppc-word ppc)) (ppc-call-site ppc)))))
+                                                 
+  word
+  call-site)
+
+(declaim (inline make-psuedo-pc))
+(defun make-psuedo-pc (word call-site)
+  (%make-psuedo-pc :word word :call-site call-site))
+
+(defparameter *interpreter-psuedo-pc*
+  (make-psuedo-pc (make-word "INTERPRETER" nil) 1106))
+
 (defstruct xt
   (token)
   (word)
@@ -35,7 +51,7 @@
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
-      (forth-call fs (xt-word xt)))))
+      (forth-call fs (xt-word xt) *interpreter-psuedo-pc*))))
 
 (defmethod find-word ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts

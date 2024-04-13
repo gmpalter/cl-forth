@@ -197,7 +197,7 @@
 
 ;;; Words defined by CL-Forth
 
-(define-word break (:word "BREAK" :immediate? t)
+(define-word break (:word "BREAK")
   "Enter a Lisp debug break loop"
   (break "Debug Break"))
 
@@ -252,3 +252,14 @@
           (write-line "Contents of floating-point stack:")
           (dotimes (i depth)
             (format t "~2D: ~G~%" i (aref cells (- depth i 1))))))))
+
+(define-word show-float-stack (:word ".SR")
+  "Show the contents of the return stack"
+  (let ((cells (stack-cells return-stack))
+        (depth (stack-depth return-stack)))
+    (if (zerop depth)
+        (write-line "Return stack empty")
+        (progn
+          (write-line "Contents of return stack:")
+          (dotimes (i depth)
+            (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))

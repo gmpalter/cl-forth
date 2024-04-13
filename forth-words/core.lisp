@@ -768,7 +768,7 @@
 (define-word recurse (:word "RECURSE" :immediate? t :compile-only? t)
   "Append the execution behavior of the current definition to the current definition, so that it calls itself recursively"
   (add-to-definition fs
-    `(forth-call fs ,(definition-word definition))))
+    `(forth-call fs ,(definition-word definition) ,(next-psuedo-pc definition))))
 
 (define-word repeat (:word "REPEAT" :immediate? t :compile-only? t)
   "In a BEGIN ... WHILE ... REPEAT structure, unconditionally branch back to the location following the nearest previous BEGIN"

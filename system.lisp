@@ -13,7 +13,12 @@
   word
   exit-branch
   >body-address
+  (call-site 0)
   (in-progress? t))
+
+(declaim (inline next-psuedo-pc))
+(defun next-psuedo-pc (definition)
+  (make-psuedo-pc (definition-word definition) (incf (definition-call-site definition))))
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
@@ -152,7 +157,7 @@
                           (cond ((word-compile-only? value)
                                  (forth-exception :compile-only-word))
                                 (t
-                                 (forth-call fs value))))
+                                 (forth-call fs value *interpreter-psuedo-pc*))))
                          (:single
                           (stack-push data-stack value))
                          (:double
@@ -163,12 +168,13 @@
                        (case type
                          (:word
                           (cond ((word-immediate? value)
-                                 (forth-call fs value))
+                                 (forth-call fs value *interpreter-psuedo-pc*))
                                 ((word-inlineable? value)
                                  (setf (word-inline-forms (definition-word definition))
                                        (append (word-inline-forms value) (word-inline-forms (definition-word definition)))))
                                 (t
-                                 (push `(forth-call fs ,value) (word-inline-forms (definition-word definition))))))
+                                 (push `(forth-call fs ,value ,(next-psuedo-pc definition))
+                                       (word-inline-forms (definition-word definition))))))
                          (:single
                           (push `(stack-push data-stack ,value) (word-inline-forms (definition-word definition))))
                          (:double
@@ -189,18 +195,15 @@
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files))
                   (write-line "OK.")))))))
 
-(defun forth-call (fs word)
+(defun forth-call (fs word psuedo-pc)
   (with-forth-system (fs)
-    (let ((return-address (multiple-value-bind (fn pc) (ccl::cfp-lfun (ccl::%get-frame-ptr))
-                            (declare (ignore fn))
-                            (cons word pc))))
-      (stack-push return-stack return-address)
-      (unwind-protect
-           (progn
-             (apply (word-code word) fs (word-parameters word))
-             (when (word-does> word)
-               (apply (word-code (word-does> word)) fs (word-parameters word))))
-        (stack-pop return-stack)))))
+    (stack-push return-stack psuedo-pc)
+    (unwind-protect
+         (progn
+           (apply (word-code word) fs (word-parameters word))
+           (when (word-does> word)
+             (apply (word-code (word-does> word)) fs (word-parameters word))))
+      (stack-pop return-stack))))
 
 ;;;
 
@@ -268,16 +271,17 @@
 
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)
-         (push `(forth-call fs ,word) (word-inline-forms (definition-word definition))))
+         (push `(forth-call fs ,word ,(next-psuedo-pc definition)) (word-inline-forms (definition-word definition))))
         (t
          (push `(case (state fs)
                   (:interpreting
-                   (forth-call fs ,word))
+                   (forth-call fs ,word ,*interpreter-psuedo-pc*))
                   (:compiling
                    ,(if (word-inlineable? word)
                         `(setf (word-inline-forms (definition-word definition))
                                (append (word-inline-forms ,word) (word-inline-forms (definition-word definition))))
-                        `(push '(forth-call fs ,word) (word-inline-forms (definition-word definition))))))
+                        `(push '(forth-call fs ,word ,(next-psuedo-pc definition))
+                               (word-inline-forms (definition-word definition))))))
                (word-inline-forms (definition-word definition))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
@@ -307,12 +311,13 @@
     (stack-pop data-stack)
     (let ((word (first parameters)))
       (if (word-immediate? word)
-          (forth-call fs word)
+          (forth-call fs word *interpreter-psuedo-pc*)
           (when (definition-in-progress? definition)
             (if (word-inlineable? word)
                 (setf (word-inline-forms (definition-word definition))
                       (append (word-inline-forms word) (word-inline-forms (definition-word definition))))
-                (push `(forth-call fs ,word) (word-inline-forms (definition-word definition)))))))))
+                (push `(forth-call fs ,word ,(next-psuedo-pc definition))
+                      (word-inline-forms (definition-word definition)))))))))
 
 (define-forth-method create-compile-execution-token (fs word)
   (if (word-compile-token word)
