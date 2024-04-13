@@ -7,7 +7,7 @@
     (format t "~&~A ~A~%" (asdf:system-long-name me) (asdf:system-version me)))
   (let ((fs (make-instance 'forth-system)))
     (setf *fs* fs)
-    (toplevel fs)))
+    (forth-toplevel fs)))
 
 (setf (symbol-function 'cl-user::run) (symbol-function 'run))
 
@@ -19,13 +19,6 @@
     (setf *fs* fs)
     (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
       (let ((*standard-input* (make-concatenated-stream text *standard-input*)))
-        (toplevel fs :evaluate (format nil "~@[ VERBOSE~] WARNING OFF S\" runtests.fth\" INCLUDED" verbose?))))))
+        (forth-toplevel fs :evaluate (format nil "~@[ VERBOSE~] WARNING OFF S\" runtests.fth\" INCLUDED" verbose?))))))
 
 (setf (symbol-function 'cl-user::run-2012-tests) (symbol-function 'run-2012-tests))
-
-(defun hex (n)
-  (format nil "~X" n))
-
-(defun word-counts ()
-  (dolist (wl (word-lists-search-order (slot-value *fs* 'word-lists)))
-    (format t "~&Word List \"~A\": ~D word~:P~%" (dictionary-name wl) (hash-table-count (dictionary-words wl)))))

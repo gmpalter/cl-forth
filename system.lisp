@@ -109,7 +109,7 @@
   (setf compiling-paused? nil)
   )
 
-(define-forth-method toplevel (fs &key evaluate)
+(define-forth-method forth-toplevel (fs &key evaluate)
   (reset-interpreter/compiler fs)
   (when evaluate
     (source-push files :evaluate evaluate))

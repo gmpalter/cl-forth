@@ -6,6 +6,8 @@
   :version (:read-file-line "version.text")
   :serial t
   :components ((:file "packages")
+               (:file "sbcl-tweaks" :if-feature :sbcl)
+               (:file "lw-tweaks" :if-feature :lispworks)
                (:file "exceptions")
                (:file "strings")
                (:file "numbers")
@@ -50,5 +52,5 @@
                    ;; Allow input from the console if any test raises a Forth exception
                    (let ((*standard-input* (make-concatenated-stream text *standard-input*))
                          (fs (make-instance (find-symbol* '#:forth-system '#:forth))))
-                     (symbol-call '#:forth '#:toplevel
+                     (symbol-call '#:forth '#:forth-toplevel
                                   fs :evaluate "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))
