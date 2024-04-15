@@ -635,7 +635,7 @@
                  (stack-push data-stack +true+)
                  (stack-push data-stack +false+)))
             ((minusp r3)
-             (if (< (abs (- r1 r2)) (* r3 (+ (abs r1) (abs r2))))
+             (if (< (abs (- r1 r2)) (* (abs r3) (+ (abs r1) (abs r2))))
                  (stack-push data-stack +true+)
                  (stack-push data-stack +false+)))))))
                

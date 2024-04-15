@@ -16,6 +16,14 @@
   (call-site 0)
   (in-progress? t))
 
+(defstruct (branch-reference (:constructor %make-branch-reference))
+  type
+  tag)
+
+(declaim (inline make-branch-reference))
+(defun make-branch-reference (type)
+  (%make-branch-reference :type type :tag (gensym (symbol-name type))))
+
 (declaim (inline next-psuedo-pc))
 (defun next-psuedo-pc (definition)
   (make-psuedo-pc (definition-word definition) (incf (definition-call-site definition))))
@@ -247,7 +255,8 @@
     (forth-exception :control-mismatch))
   (flet ((finish-definition ()
            (let* ((word (definition-word definition))
-                  (name (intern (or (string-upcase (word-name word)) (symbol-name (gensym "XT"))) *forth-words-package*))
+                  (name (intern (if (word-name word) (string-upcase (word-name word)) (symbol-name (gensym "XT")))
+                                *forth-words-package*))
                   (thunk `(named-lambda ,name (fs &rest parameters)
                             (declare (ignorable parameters))
                             (with-forth-system (fs)
@@ -256,7 +265,7 @@
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (when (not (zerop show-definition-code?))
                (format t "~&Code for ~A:~%  ~:W~%" name thunk))
-             (setf (word-code word) (eval thunk))
+             (setf (word-code word) (compile nil (eval thunk)))
              ;; Keep the forms for SHOW-DEFINITION
              ;;(setf (word-inline-forms (definition-word definition)) nil)
              (setf (word-smudge? word) nil
@@ -350,14 +359,6 @@
          (format t "~&No human-readable definition of ~A~%" (word-name word)))))
 
 ;;;
-
-(defstruct (branch-reference (:constructor %make-branch-reference))
-  type
-  tag)
-
-(declaim (inline make-branch-reference))
-(defun make-branch-reference (type)
-  (%make-branch-reference :type type :tag (gensym (symbol-name type))))
 
 (define-forth-method verify-control-structure (fs type &optional (n 1))
   type n ;; (declare (ignore type n))

@@ -6,8 +6,7 @@
   :version (:read-file-line "version.text")
   :serial t
   :components ((:file "packages")
-               (:file "named-lambda")
-               (:file "whitespacep")
+               (:file "compatibility")
                (:file "exceptions")
                (:file "strings")
                (:file "numbers")
