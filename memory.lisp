@@ -129,6 +129,7 @@
         (setf current-string-space-index 0)))))
 
 (defmethod state-slot-address ((memory memory) slot)
+  (declare #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
   (with-slots (all-spaces) memory
     (or (loop for space across all-spaces
                 thereis (and (typep space 'state-space) (state-slot-address space slot)))
@@ -458,7 +459,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (cell-signed (aref data (ash address +byte-to-cell-shift+))))))
 
 (defmethod (setf cell-at) (value (sp data-space) address)
@@ -466,7 +468,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-cell-shift+)) (cell-unsigned value)))))
 
 (defmethod cell-unsigned-at ((sp data-space) address)
@@ -474,7 +477,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (aref data (ash address +byte-to-cell-shift+)))))
 
 (defmethod (setf cell-unsigned-at) (value (sp data-space) address)
@@ -482,7 +486,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-cell-shift+)) value))))
 
 (defmethod quad-byte-at ((sp data-space) address)
@@ -490,7 +495,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (quad-byte-signed (aref data (ash address +byte-to-quad-byte-shift+))))))
 
 (defmethod (setf quad-byte-at) (value (sp data-space) address)
@@ -498,7 +504,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-quad-byte-shift+)) (quad-byte-unsigned value)))))
 
 (defmethod double-byte-at ((sp data-space) address)
@@ -506,7 +513,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 16)) data))
+                      (type (simple-array (unsigned-byte 16)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (double-byte-signed (aref data (ash address +byte-to-double-byte-shift+))))))
 
 (defmethod (setf double-byte-at) (value (sp data-space) address)
@@ -514,7 +522,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 16)) data))
+                      (type (simple-array (unsigned-byte 16)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-double-byte-shift+)) (double-byte-unsigned value)))))
 
 (defmethod byte-at ((sp data-space) address)
@@ -534,7 +543,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (encode-single-float (aref data (ash address +byte-to-single-float-cell-shift+))))))
 
 (defmethod (setf single-float-at) (value (sp data-space) address)
@@ -542,7 +552,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-single-float-cell-shift+)) (decode-single-float value))
       value)))
 
@@ -551,7 +562,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (encode-double-float (aref data (ash address +byte-to-double-float-cell-shift+))))))
 
 (defmethod (setf double-float-at) (value (sp data-space) address)
@@ -559,7 +571,8 @@
     (unless (<= address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
       (setf (aref data (ash address +byte-to-double-float-cell-shift+)) (decode-double-float value))
       value)))
 
