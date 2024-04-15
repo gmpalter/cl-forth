@@ -833,7 +833,7 @@
   "Write a space to the terminal"
   (write-char #\Space))
 
-(defconstant +spaces+ "                                ")
+(defparameter +spaces+ "                                ")
 
 (define-word spaces (:word "SPACES")
   "( u - )"
