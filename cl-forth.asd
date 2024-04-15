@@ -17,6 +17,7 @@
                (:file "execution-tokens")
                (:file "system")
                (:file "helpers")
+               (:file "asdf-support")
                (:module "forth-words"
                   :serial nil
                   :components ((:file "core")
@@ -33,7 +34,6 @@
                                (:file "strings")
                                ;; Useful words not defined in Forth 2012
                                (:file "extensions")))
-               (:file "asdf-support")
                ;;---*** TODO: Temporary
                (:file "test"))
   :in-order-to ((test-op (test-op #:cl-forth/test))))
