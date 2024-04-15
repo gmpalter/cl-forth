@@ -7,11 +7,11 @@
   result)
 
 (defmacro define-query (name &body body)
-  (let ((thunk `(lambda (fs)
-                  (with-forth-system (fs)
-                    ,@body
-                    (stack-push data-stack +true+)))))
-    `(setf (gethash ,name *environment-queries*) (make-query :name ,name :result (compile nil ,thunk)))))
+  (let ((thunk `#'(lambda (fs)
+                    (with-forth-system (fs)
+                      ,@body
+                      (stack-push data-stack +true+)))))
+    `(setf (gethash ,name *environment-queries*) (make-query :name ,name :result ,thunk))))
 
 (define-word environment-query (:word "ENVIRONMENT?")
   "( c-addr u – false | i*x true )"
