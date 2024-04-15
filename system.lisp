@@ -87,6 +87,10 @@
                 word-lists files execution-tokens replacements base float-precision state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
        ,fs
+     (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
+                         definitions-stack word-lists files execution-tokens replacements base float-precision state
+                         definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
+                         show-definition-code?))
      ,@body))
 
 (defmacro define-forth-method (name (fs &rest args) &body body)
@@ -244,7 +248,7 @@
   (flet ((finish-definition ()
            (let* ((word (definition-word definition))
                   (name (intern (or (string-upcase (word-name word)) (symbol-name (gensym "XT"))) *forth-words-package*))
-                  (thunk `(lambda (fs &rest parameters)
+                  (thunk `(named-lambda ,name (fs &rest parameters)
                             (declare (ignorable parameters))
                             (with-forth-system (fs)
                               (tagbody
@@ -252,7 +256,7 @@
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (when (not (zerop show-definition-code?))
                (format t "~&Code for ~A:~%  ~:W~%" name thunk))
-             (setf (word-code word) (ccl::compile-named-function thunk :name name :keep-symbols t))
+             (setf (word-code word) (eval thunk))
              ;; Keep the forms for SHOW-DEFINITION
              ;;(setf (word-inline-forms (definition-word definition)) nil)
              (setf (word-smudge? word) nil

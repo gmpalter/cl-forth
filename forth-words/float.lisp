@@ -314,7 +314,7 @@
   "( df-addr – ) (F: r – )"
   "Store the floating-point number R as a 64-bit IEEE double-precision number at DF-ADDR"
   (with-float-exceptions ()
-    (let ((float (double-float (stack-pop float-stack)))
+    (let ((float (>double-float (stack-pop float-stack)))
           (address (stack-pop data-stack)))
       (setf (memory-double-float memory address) float))))
 
@@ -668,7 +668,7 @@
   "\"round to nearest\" rule"
   (with-float-exceptions ()
     (let ((address (stack-pop data-stack))
-          (float (single-float (stack-pop float-stack))))
+          (float (>single-float (stack-pop float-stack))))
       (setf (memory-single-float memory address) float))))
 
 (define-word short-float-fetch (:word "SF@")

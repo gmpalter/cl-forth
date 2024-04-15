@@ -222,7 +222,7 @@
     (update-psuedo-state-variables wls)))
 
 (defmethod replace-top-of-search-order ((wls word-lists) (wid integer))
-  (with-slots (search-order wid-to-word-list-map) wls
+  (with-slots (wid-to-word-list-map) wls
     (let ((word-list (gethash wid wid-to-word-list-map)))
       (if word-list
           (replace-top-of-search-order wls word-list)
@@ -275,11 +275,10 @@
                      while (stringp (car forms))
                      do (pop forms)
                      finally (return forms)))
-         (thunk `(ccl:nfunction ,(intern forth-name *forth-words-package*)
-                   (lambda (fs &rest parameters)
-                     (declare (ignorable parameters))
-                     (with-forth-system (fs)
-                       ,@body)))))
+         (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs &rest parameters)
+                   (declare (ignorable parameters))
+                   (with-forth-system (fs)
+                     ,@body))))
     `(eval-when (:load-toplevel :execute)
        (let ((,word (make-instance 'word
                                    :name ,forth-name

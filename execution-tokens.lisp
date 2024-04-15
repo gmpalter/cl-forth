@@ -21,7 +21,7 @@
   (word)
   (>body))
 
-(defclass execution-tokens (space)
+(defclass execution-tokens (mspace)
   ((token-to-xt-map :initform (make-hash-table))
    (saved-high-water-mark :initform 0)
    (saved-token-to-xt-map :initform nil))
@@ -125,11 +125,11 @@
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-copy ((ssp execution-tokens) source-address (dsp space) destination-address count)
+(defmethod space-copy ((ssp execution-tokens) source-address (dsp mspace) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :invalid-memory))
 
-(defmethod space-copy ((ssp space) source-address (dsp execution-tokens) destination-address count)
+(defmethod space-copy ((ssp mspace) source-address (dsp execution-tokens) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :write-to-read-only-memory))
 

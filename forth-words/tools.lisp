@@ -281,7 +281,7 @@
   (block interpreted-else
     (do ((nesting 0)
          (word (word files #\Space) (word files #\Space)))
-        ()
+        (nil)
       (cond ((null word)
              (unless (refill files)
                (forth-exception :if/then/else-exception)))
@@ -305,7 +305,7 @@
     (when (falsep (stack-pop data-stack))
       (do ((nesting 0)
            (word (word files #\Space) (word files #\Space)))
-          ()
+          (nil)
         (cond ((null word)
                (unless (refill files)
                  (forth-exception :if/then/else-exception)))

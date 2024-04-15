@@ -346,59 +346,59 @@
 
 ;;;
 
-(defclass space ()
+(defclass mspace ()
   ((prefix :accessor space-prefix :initarg :prefix :initform nil)
    (high-water-mark :accessor space-high-water-mark :initform 0))
   )
 
-(defmethod print-object ((sp space) stream)
+(defmethod print-object ((sp mspace) stream)
   (with-slots (prefix high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "prefix=~2,'0X, hwm=~D" prefix high-water-mark))))
 
-(defgeneric space-reset (space))
-(defgeneric save-space-state (space))
+(defgeneric space-reset (mspace))
+(defgeneric save-space-state (mspace))
 
-(defgeneric space-seal (space)
-  (:method ((sp space)) nil))
-(defgeneric space-unseal (space)
-  (:method ((sp space)) nil))
+(defgeneric space-seal (mspace)
+  (:method ((sp mspace)) nil))
+(defgeneric space-unseal (mspace)
+  (:method ((sp mspace)) nil))
 
-(defgeneric space-allocate (space n-bytes))
-(defgeneric space-deallocate (space n-bytes))
-(defgeneric space-unused (space)
-  (:method ((sp space)) 0))
-(defgeneric space-align (space &optional boundary))
+(defgeneric space-allocate (mspace n-bytes))
+(defgeneric space-deallocate (mspace n-bytes))
+(defgeneric space-unused (mspace)
+  (:method ((sp mspace)) 0))
+(defgeneric space-align (mspace &optional boundary))
 
-(defgeneric cell-at (space address))
-(defgeneric (setf cell-at) (value space address))
+(defgeneric cell-at (mspace address))
+(defgeneric (setf cell-at) (value mspace address))
 
-(defgeneric cell-unsigned-at (space address))
-(defgeneric (setf cell-unsigned-at) (value space address))
+(defgeneric cell-unsigned-at (mspace address))
+(defgeneric (setf cell-unsigned-at) (value mspace address))
 
-(defgeneric quad-byte-at (space address))
-(defgeneric (setf quad-byte-at) (value space address))
+(defgeneric quad-byte-at (mspace address))
+(defgeneric (setf quad-byte-at) (value mspace address))
 
-(defgeneric double-byte-at (space address))
-(defgeneric (setf double-byte-at) (value space address))
+(defgeneric double-byte-at (mspace address))
+(defgeneric (setf double-byte-at) (value mspace address))
 
-(defgeneric byte-at (space address))
-(defgeneric (setf byte-at) (value space address))
+(defgeneric byte-at (mspace address))
+(defgeneric (setf byte-at) (value mspace address))
 
-(defgeneric single-float-at (space address))
-(defgeneric (setf single-float-at) (value space address))
+(defgeneric single-float-at (mspace address))
+(defgeneric (setf single-float-at) (value mspace address))
 
-(defgeneric double-float-at (space address))
-(defgeneric (setf double-float-at) (value space address))
+(defgeneric double-float-at (mspace address))
+(defgeneric (setf double-float-at) (value mspace address))
 
-(defgeneric space-fill (space address count byte))
+(defgeneric space-fill (mspace address count byte))
 (defgeneric space-copy (source-space source-address destination-space destination-address count))
 
-(defgeneric space-decode-address (space address))
+(defgeneric space-decode-address (mspace address))
 
 ;;;
 
-(defclass data-space (space)
+(defclass data-space (mspace)
   ((data :accessor data-space-data)
    (size :accessor data-space-size :initarg :size :initform 0)
    (extension :initform 0)
@@ -412,7 +412,7 @@
     (setf extension (floor size 10))))
 
 (defmethod print-object ((sp data-space) stream)
-  (with-slots (prefix data size high-water-mark) sp
+  (with-slots (prefix size high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "prefix=~2,'0X, size=~D, hwm=~D" prefix size high-water-mark))))
 
@@ -427,7 +427,7 @@
   nil)
 
 (defmethod space-allocate ((sp data-space) n-bytes)
-  (with-slots (prefix size high-water-mark data extension) sp
+  (with-slots (prefix size high-water-mark #+ignore data #+ignore extension) sp
     (let ((address (make-address prefix high-water-mark)))
       (unless (<= (+ high-water-mark n-bytes) size)
         (forth-exception :data-space-overflow)
@@ -718,7 +718,7 @@
 
 ;;;
 
-(defclass state-space (space)
+(defclass state-space (mspace)
   ((parent :initarg :parent :initform nil)
    (slots :initform nil))
   )
@@ -840,11 +840,11 @@
   (declare (ignore address count byte))
   (forth-exception :invalid-memory))
 
-(defmethod space-copy ((ssp state-space) source-address (dsp space) destination-address count)
+(defmethod space-copy ((ssp state-space) source-address (dsp mspace) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :invalid-memory))
 
-(defmethod space-copy ((ssp space) source-address (dsp state-space) destination-address count)
+(defmethod space-copy ((ssp mspace) source-address (dsp state-space) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :invalid-memory))
 

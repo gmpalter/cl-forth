@@ -135,8 +135,8 @@
 
 ;;; Floating Point
 
-(declaim (inline single-float))
-(defun single-float (x)
+(declaim (inline >single-float))
+(defun >single-float (x)
   (float x 1.0d0))
 
 (defun decode-single-float (f)
@@ -165,8 +165,8 @@
           absolute
           (- absolute)))))
 
-(declaim (inline double-float))
-(defun double-float (x)
+(declaim (inline >double-float))
+(defun >double-float (x)
   (float x 1.0d0))
 
 (defun decode-double-float (f)

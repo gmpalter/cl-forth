@@ -6,8 +6,8 @@
   :version (:read-file-line "version.text")
   :serial t
   :components ((:file "packages")
-               (:file "sbcl-tweaks" :if-feature :sbcl)
-               (:file "lw-tweaks" :if-feature :lispworks)
+               (:file "named-lambda")
+               (:file "whitespacep")
                (:file "exceptions")
                (:file "strings")
                (:file "numbers")

@@ -67,13 +67,13 @@
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-copy :before ((ssp source-data-space) source-address (dsp space) destination-address count)
+(defmethod space-copy :before ((ssp source-data-space) source-address (dsp mspace) destination-address count)
   (declare (ignore source-address destination-address count))
   (with-slots (is-valid?) ssp
     (unless is-valid?
       (update-source-data-space ssp))))
 
-(defmethod space-copy ((ssp space) source-address (dsp source-data-space) destination-address count)
+(defmethod space-copy ((ssp mspace) source-address (dsp source-data-space) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :write-to-read-only-memory))
 
@@ -105,8 +105,8 @@
 
 (defparameter +no-file+ (make-file nil nil))
 
-(declaim (inline file-stream))
-(defun file-stream (fileid map)
+(declaim (inline file-file-stream))
+(defun file-file-stream (fileid map)
   (file-%stream (gethash fileid map +no-file+)))
 
 (defstruct saved-source
@@ -241,7 +241,7 @@
                      (vector-push-extend #\Space parsed))))))
 
 (defparameter *escape-translations*
-  '((#\a #\Bell)
+  '((#\a #\Bel)
     (#\b #\Backspace)
     (#\e #\Escape)
     (#\f #\Formfeed)
@@ -251,7 +251,7 @@
     (#\q #\")
     (#\r #\Return)
     (#\t #\Tab)
-    (#\v #\PageUp)
+    (#\v #\VT)
     (#\z #\Null)
     (#\" #\")
     (#\\ #\\)))
@@ -263,9 +263,9 @@
   (with-slots (>in buffer) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
       (loop with end = (length buffer)
-            while (< >in end)
             with translation = nil
             with hex = nil
+            while (< >in end)
             do (let ((ch (aref buffer >in)))
                  (cond ((char-equal ch #\")
                         (incf >in)
@@ -312,7 +312,7 @@
             ((zerop source-id)
              (fillup *standard-input*))
             (t
-             (fillup (file-stream source-id source-id-map)))))))
+             (fillup (file-file-stream source-id source-id-map)))))))
 
 (defmethod source-push ((f files) &key fileid evaluate ((:source-address source-address-override)))
   (assert (not (and fileid evaluate)) () "Pass ~S or ~S but not both to ~S" :fileid :evaluate 'source-push)
@@ -342,7 +342,7 @@
             (source-data-space-buffer source-as-space) (saved-source-buffer ss)))))
 
 (defmethod access-source-buffer ((f files))
-  (with-slots (buffer source-address source-as-space) f
+  (with-slots (source-address source-as-space) f
     (unless (source-data-space-is-valid? source-as-space)
       (update-source-data-space source-as-space))
     (values (or source-address (make-address (space-prefix source-as-space) 0)) (space-high-water-mark source-as-space))))
@@ -379,7 +379,7 @@
       (setf buffer (forth-string-to-native data offset count)))))
 
 (defmethod save-input ((f files) &key for-catch?)
-  (with-slots (source-id >in buffer source-address source-id-map source-stack) f
+  (with-slots (source-id >in source-address source-id-map source-stack) f
     (let ((state-vector (make-array 16 :fill-pointer 0 :adjustable t)))
       (vector-push-extend source-id state-vector)
       (vector-push-extend >in state-vector)
@@ -394,7 +394,7 @@
                  (vector-push-extend address state-vector)
                  (vector-push-extend count state-vector))))
             ((plusp source-id)
-             (let ((stream (file-stream source-id source-id-map)))
+             (let ((stream (file-file-stream source-id source-id-map)))
                (when stream
                  (vector-push-extend (file-position stream) state-vector)
                  ;; For a file input source, save the current input buffer so we can restore it later
@@ -429,7 +429,7 @@
                      (restore-buffer f saved-buffer-address saved-buffer-count)
                      (setf >in saved->in))))
                 (t
-                 (let ((stream (file-stream saved-source-id source-id-map))
+                 (let ((stream (file-file-stream saved-source-id source-id-map))
                        (saved-file-position (aref state-vector 2))
                        (saved-buffer-address (aref state-vector 3))
                        (saved-buffer-count (aref state-vector 4)))
@@ -526,7 +526,7 @@
 
 (defmethod forth-close-file ((f files) fileid)
   (with-slots (source-id-map) f
-    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let* ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (remhash fileid source-id-map)
       (handler-case
           (progn
@@ -536,14 +536,14 @@
 
 (defmethod forth-file-position ((f files) fileid)
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (values (file-position stream) +file-operation-success+)
         (file-error () (values 0 +file-operation-failure+))))))
 
 (defmethod forth-file-reposition ((f files) fileid position)
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (let ((success (file-position stream position)))
             (if success +file-operation-success+ +file-operation-failure+))
@@ -551,14 +551,14 @@
 
 (defmethod forth-file-size ((f files) fileid)
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (values (file-length stream) +file-operation-success+)
         (file-error () (values 0 +file-operation-failure+))))))
 
 (defmethod forth-read-file ((f files) fileid buffer offset count)
   (with-slots (source-id-map) f
-    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+    (let* ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
            (file (gethash fileid source-id-map)))
       (cond  ((file-binary? file)
               (handler-case
@@ -598,7 +598,7 @@
 
 (defmethod forth-read-line ((f files) fileid buffer-size)
   (with-slots (source-id-map) f
-    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+    (let* ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
            (file (gethash fileid source-id-map)))
       ;; Previous call(s) to READ-LINE may read a line that was too large than the user's buffer. If so, the remainder of
       ;; that line was saved in the FILE-BUFFER slot. We'll return that rather than reading another line from the file.
@@ -617,7 +617,7 @@
   
 (defmethod forth-write-file ((f files) fileid buffer offset count)
   (with-slots (source-id-map) f
-    (let* ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
+    (let* ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID")))
            (file (gethash fileid source-id-map)))
       (cond  ((file-binary? file)
               (handler-case
@@ -635,7 +635,7 @@
 
 (defmethod forth-write-line ((f files) fileid line)
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (progn
             (write-line line stream)
@@ -644,16 +644,20 @@
 
 (defmethod forth-flush-file ((f files) fileid)
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (progn
             (force-output stream)
             +file-operation-success+)
         (file-error () +file-operation-failure+)))))
 
+;;;---*** TODO: How to change file size in SBCL and LispWorks?
 (defmethod forth-file-resize ((f files) fileid size)
+  #-CCL (declare (ignore fileid size))
+  #-CCL +file-operation-failure+
+  #+CCL
   (with-slots (source-id-map) f
-    (let ((stream (or (file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
+    (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (progn
             (ccl::stream-length stream size)

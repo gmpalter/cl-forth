@@ -4,7 +4,7 @@
 
 (defun run ()
   (let ((me (asdf:find-system '#:cl-forth)))
-    (format t "~&~A ~A~%" (asdf:system-long-name me) (asdf:system-version me)))
+    (format t "~&~A ~A~%" (asdf:system-long-name me) (asdf:component-version me)))
   (let ((fs (make-instance 'forth-system)))
     (setf *fs* fs)
     (forth-toplevel fs)))
@@ -13,7 +13,7 @@
 
 (defun run-2012-tests (&optional verbose?)
   (let ((me (asdf:find-system '#:cl-forth)))
-    (format t "~&~A ~A~%" (asdf:system-long-name me) (asdf:system-version me)))
+    (format t "~&~A ~A~%" (asdf:system-long-name me) (asdf:component-version me)))
   (let ((*default-pathname-defaults* (probe-file "tests/src/"))
         (fs (make-instance 'forth-system)))
     (setf *fs* fs)

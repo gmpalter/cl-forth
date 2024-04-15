@@ -8,7 +8,8 @@
                       #:class-direct-slots
                       #:slot-definition-name)
   #+SBCL (:import-from #:sb-int
-                       #:fixnump)
+                       #:fixnump
+                       #:named-lambda)
   #+SBCL (:import-from #:sb-mop
                        #:class-direct-slots
                        #:slot-definition-name)
