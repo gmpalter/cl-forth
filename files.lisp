@@ -651,15 +651,11 @@
             +file-operation-success+)
         (file-error () +file-operation-failure+)))))
 
-;;;---*** TODO: How to change file size in SBCL and LispWorks?
 (defmethod forth-file-resize ((f files) fileid size)
-  #-CCL (declare (ignore fileid size))
-  #-CCL +file-operation-failure+
-  #+CCL
   (with-slots (source-id-map) f
     (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (progn
-            (ccl::stream-length stream size)
+            (set-stream-length stream size)
             +file-operation-success+)
         (file-error () +file-operation-failure+)))))
