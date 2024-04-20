@@ -47,11 +47,13 @@
    (name>string-space :reader name>string-space
                       :initform (make-instance 'transient-data-space :size +name>string-space-size+))
    (string-spaces :initform (make-array 0 :fill-pointer 0 :adjustable t))
-   (current-string-space-index :initform 0))
+   (current-string-space-index :initform 0)
+   ;; ALLOCATE/FREE/RESIZE operate on chunks of "native" memory from this "space"
+   (native-memory :initform (make-instance 'native-memory)))
   )
 
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
-  (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces) memory
+  (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces native-memory) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
       (setup (make-instance 'data-space :size +cell-size+))
@@ -63,7 +65,8 @@
       (dotimes (i +number-of-string-spaces+)
         (let ((space (make-instance 'transient-data-space :size +transient-space-size+)))
           (vector-push-extend space string-spaces)
-          (setup space))))))
+          (setup space)))
+      (setup native-memory))))
 
 (defmethod print-object ((memory memory) stream)
   (with-slots (all-spaces) memory
@@ -344,6 +347,26 @@
            (address (address-address address)))
       (space-decode-address space address))))
 
+;;;
+
+(defconstant +native-memory-operation-success+ 0)
+(defconstant +native-memory-operation-failure+ -2)
+
+(defmethod allocate-native-memory ((memory memory) n-bytes)
+  (with-slots (native-memory) memory
+    (space-allocate-native-memory native-memory n-bytes)))
+
+(defmethod free-native-memory ((memory memory) address)
+  (with-slots (native-memory) memory
+    (if (= (space-prefix native-memory) (address-prefix address))
+        (space-free-native-memory native-memory (address-address address))
+        +native-memory-operation-failure+)))
+
+(defmethod resize-native-memory ((memory memory) address n-bytes)
+  (with-slots (native-memory) memory
+    (if (= (space-prefix native-memory) (address-prefix address))
+        (space-resize-native-memory native-memory (address-address address) n-bytes)
+        +native-memory-operation-failure+)))
 
 ;;;
 
@@ -392,10 +415,44 @@
 (defgeneric double-float-at (mspace address))
 (defgeneric (setf double-float-at) (value mspace address))
 
-(defgeneric space-fill (mspace address count byte))
-(defgeneric space-copy (source-space source-address destination-space destination-address count))
-
 (defgeneric space-decode-address (mspace address))
+
+(defgeneric space-fill (mspace address count byte)
+  (:method ((sp mspace) address count byte)
+    (multiple-value-bind (data address size)
+        (space-decode-address sp address)
+      (unless (<= (+ address count) size)
+        (forth-exception :invalid-memory))
+      (fill data byte :start address :end (+ address count)))))
+
+(defgeneric space-copy (source-space source-address destination-space destination-address count)
+  (:method ((ssp mspace) source-address (dsp mspace) destination-address count)
+    (multiple-value-bind (source-data source-address source-size)
+        (space-decode-address ssp source-address)
+      (multiple-value-bind (destination-data destination-address destination-size)
+          (space-decode-address dsp destination-address)
+        (unless (<= (+ source-address count) source-size)
+          (forth-exception :invalid-memory))
+        (unless (<= (+ destination-address count) destination-size)
+          (forth-exception :invalid-memory))
+        (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
+                                              :start2 source-address :end2 (+ source-address count))))))
+
+(defgeneric space-allocate-native-memory (mspace n-bytes)
+  (:method ((sp mspace) n-bytes)
+    (declare (ignore n-bytes))
+    +native-memory-operation-failure+))
+
+(defgeneric space-free-native-memory (mspace address)
+  (:method ((sp mspace) address)
+    (declare (ignore address))
+    +native-memory-operation-failure+))
+
+(defgeneric space-resize-native-memory (mspace address n-bytes)
+  (:method ((sp mspace) address n-bytes)
+    (declare (ignore address n-bytes))
+    +native-memory-operation-failure+))
+
 
 ;;;
 
@@ -576,6 +633,10 @@
       (setf (aref data (ash address +byte-to-double-float-cell-shift+)) (decode-double-float value))
       value)))
 
+(defmethod space-decode-address ((sp data-space) address)
+  (with-slots (data size) sp
+    (values data address size)))
+
 (defmethod space-fill ((sp data-space) address count byte)
   (with-slots (data size) sp
     (unless (<= (+ address count) size)
@@ -591,10 +652,6 @@
         (forth-exception :invalid-memory))
       (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                             :start2 source-address :end2 (+ source-address count)))))
-
-(defmethod space-decode-address ((sp data-space) address)
-  (with-slots (data) sp
-    (values data address)))
 
 
 ;;;
@@ -849,18 +906,281 @@
       (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
-(defmethod space-fill ((sp state-space) address count byte)
-  (declare (ignore address count byte))
-  (forth-exception :invalid-memory))
-
-(defmethod space-copy ((ssp state-space) source-address (dsp mspace) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :invalid-memory))
-
-(defmethod space-copy ((ssp mspace) source-address (dsp state-space) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :invalid-memory))
-
 (defmethod space-decode-address ((sp state-space) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
+
+
+;;;
+
+(defstruct chunk
+  (in-use? nil)
+  (number 0)
+  (size 0)
+  (data nil))
+
+(declaim (inline make-chunked-address))
+(defun make-chunked-address (prefix chunk address)
+  (dpb prefix (byte 8 48) (dpb chunk (byte 16 32) address)))
+
+(declaim (inline address-chunk))
+(defun address-chunk (address)
+  (ldb (byte 16 32) address))
+
+(declaim (inline address-subaddress))
+(defun address-subaddress (address)
+  (ldb (byte 32 0) address))
+
+(defconstant +maximum-native-chunks+ (expt 2 16))
+(defconstant +maximum-native-chunk-size+ (expt 2 24))
+
+(defclass native-memory (mspace)
+  ((chunks :initform (make-array 128 :fill-pointer 0 :adjustable t)))
+  )
+
+(defmethod print-object ((sp native-memory) stream)
+  (with-slots (prefix chunks) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (format stream "prefix=~2,'0X, chunks=~D" prefix (fill-pointer chunks)))))
+
+(defmethod space-reset ((sp native-memory))
+  (with-slots (chunks) sp
+    (setf chunks (make-array 128 :fill-pointer 0 :adjustable t)))
+  nil)
+
+(defmethod save-space-state ((sp native-memory))
+  nil)
+
+(defmethod space-allocate ((sp native-memory) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :invalid-memory))
+
+(defmethod space-deallocate ((sp native-memory) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :invalid-memory))
+
+(defmethod space-unused ((sp native-memory))
+  0)
+
+(defmethod space-align ((sp native-memory) &optional (boundary +cell-size+))
+  (declare (ignore boundary))
+  nil)
+
+(defmethod space-allocate-native-memory ((sp native-memory) n-bytes)
+  (with-slots (prefix chunks) sp
+    (let ((chunk nil)
+          (n-bytes (if (zerop (mod n-bytes +cell-size+))
+                       n-bytes
+                       (+ n-bytes (- +cell-size+ (mod n-bytes +cell-size+))))))
+      (cond ((zerop n-bytes)
+             (values 0 +native-memory-operation-failure+))
+            ((> n-bytes +maximum-native-chunk-size+)
+             (values 0 +native-memory-operation-failure+))
+            ((setf chunk (find-if-not #'chunk-in-use? chunks))
+             (setf (chunk-in-use? chunk) t
+                   (chunk-size chunk) n-bytes
+                   (chunk-data chunk) (make-array n-bytes :element-type '(unsigned-byte 8) :initial-element 0))
+             (values (make-chunked-address prefix (chunk-number chunk) 0) +native-memory-operation-success+))
+            ((< (fill-pointer chunks) +maximum-native-chunks+)
+             (let* ((chunk (make-chunk :in-use? t :size n-bytes))
+                    (chunk-number (vector-push-extend chunk chunks)))
+               (setf (chunk-number chunk) chunk-number
+                     (chunk-data chunk) (make-array n-bytes :element-type '(unsigned-byte 8) :initial-element 0))
+               (values (make-chunked-address prefix chunk-number 0) +native-memory-operation-success+)))
+            (t
+             +native-memory-operation-failure+)))))
+
+(defmethod space-free-native-memory ((sp native-memory) address)
+  (with-slots (chunks) sp
+    (let ((chunk-number (address-chunk address))
+          (subaddress (address-subaddress address)))
+      (cond ((not (zerop subaddress))
+             +native-memory-operation-failure+)
+            ((>= chunk-number (fill-pointer chunks))
+             +native-memory-operation-failure+)
+            (t
+             (let ((chunk (aref chunks chunk-number)))
+               (cond ((chunk-in-use? chunk)
+                      (setf (chunk-in-use? chunk) nil
+                            (chunk-data chunk) nil)
+                      +native-memory-operation-success+)
+                     (t
+                      ;; Double free
+                      +native-memory-operation-failure+))))))))
+
+(defmethod space-resize-native-memory ((sp native-memory) address n-bytes)
+  (with-slots (prefix chunks) sp
+    (let ((full-address (make-address prefix address))
+          (chunk-number (address-chunk address))
+          (subaddress (address-subaddress address))
+          (n-bytes (if (zerop (mod n-bytes +cell-size+))
+                       n-bytes
+                       (+ n-bytes (- +cell-size+ (mod n-bytes +cell-size+))))))
+      (cond ((not (zerop subaddress))
+             (values full-address +native-memory-operation-failure+))
+            ((>= chunk-number (fill-pointer chunks))
+             (values full-address +native-memory-operation-failure+))
+            ((zerop n-bytes)
+             (values full-address +native-memory-operation-failure+))
+            ((> n-bytes +maximum-native-chunk-size+)
+             (values full-address +native-memory-operation-failure+))
+            (t
+             (let ((chunk (aref chunks chunk-number)))
+               (cond ((chunk-in-use? chunk)
+                      (setf (chunk-data chunk) (adjust-array (chunk-data chunk) n-bytes :initial-element 0))
+                      (values full-address +native-memory-operation-success+))
+                     (t
+                      (values full-address +native-memory-operation-failure+)))))))))
+
+(declaim (inline native-memory-chunk))
+(defun native-memory-chunk (sp address)
+  (let ((chunk-number (address-chunk address))
+        (subaddress (address-subaddress address)))
+    (with-slots (chunks) sp
+      (if (< chunk-number (fill-pointer chunks))
+          (let ((chunk (aref chunks chunk-number)))
+            (if (chunk-in-use? chunk)
+                (values (chunk-data chunk) subaddress (chunk-size chunk))
+                (forth-exception :invalid-memory)))
+          (forth-exception :invalid-memory)))))
+
+(defmethod cell-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (cell-signed (aref data (ash subaddress +byte-to-cell-shift+))))))
+
+(defmethod (setf cell-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-cell-shift+)) (cell-unsigned value)))))
+
+(defmethod cell-unsigned-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (aref data (ash subaddress +byte-to-cell-shift+)))))
+
+(defmethod (setf cell-unsigned-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-cell-shift+)) value))))
+
+(defmethod quad-byte-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (quad-byte-signed (aref data (ash subaddress +byte-to-quad-byte-shift+))))))
+
+(defmethod (setf quad-byte-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-quad-byte-shift+)) (quad-byte-unsigned value)))))
+
+(defmethod double-byte-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 16)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (double-byte-signed (aref data (ash subaddress +byte-to-double-byte-shift+))))))
+
+(defmethod (setf double-byte-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 16)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-double-byte-shift+)) (double-byte-unsigned value)))))
+
+(defmethod byte-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (aref data subaddress)))
+
+(defmethod (setf byte-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (setf (aref data subaddress) (ldb (byte 8 0) value))))
+
+(defmethod single-float-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (encode-single-float (aref data (ash subaddress +byte-to-single-float-cell-shift+))))))
+
+(defmethod (setf single-float-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 32)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-single-float-cell-shift+)) (decode-single-float value))
+      value)))
+
+(defmethod double-float-at ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (encode-double-float (aref data (ash subaddress +byte-to-double-float-cell-shift+))))))
+
+(defmethod (setf double-float-at) (value (sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (unless (<= subaddress size)
+      (forth-exception :invalid-memory))
+    (locally (declare (optimize (speed 3) (safety 0))
+                      (type (simple-array (unsigned-byte 64)) data)
+                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (setf (aref data (ash subaddress +byte-to-double-float-cell-shift+)) (decode-double-float value))
+      value)))
+
+(defmethod space-decode-address ((sp native-memory) address)
+  (multiple-value-bind (data subaddress size)
+      (native-memory-chunk sp address)
+    (values data subaddress size)))

@@ -63,7 +63,7 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-fill ((sp source-data-space) address count byte)
+(defmethod space-fill :before ((sp source-data-space) address count byte)
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))
 
@@ -73,7 +73,7 @@
     (unless is-valid?
       (update-source-data-space ssp))))
 
-(defmethod space-copy ((ssp mspace) source-address (dsp source-data-space) destination-address count)
+(defmethod space-copy :before ((ssp mspace) source-address (dsp source-data-space) destination-address count)
   (declare (ignore source-address destination-address count))
   (forth-exception :write-to-read-only-memory))
 

@@ -121,18 +121,10 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-fill ((xts execution-tokens) address count byte)
-  (declare (ignore address count byte))
-  (forth-exception :write-to-read-only-memory))
-
-(defmethod space-copy ((ssp execution-tokens) source-address (dsp mspace) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :invalid-memory))
-
-(defmethod space-copy ((ssp mspace) source-address (dsp execution-tokens) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :write-to-read-only-memory))
-
 (defmethod space-decode-address ((xts execution-tokens) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
+
+(defmethod space-copy :before ((ssp mspace) source-address (dsp execution-tokens) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (forth-exception :write-to-read-only-memory))
