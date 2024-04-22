@@ -84,12 +84,9 @@
 
 
 ;;; Locals word set queries defined in the Forth 2012 specification
-;;;  NOTE: CL-Forth doesn't yet support locals
 
-#||
 (define-query "#LOCALS"
-  16)
-||#
+  (stack-push data-stack +maximum-locals+))
 
 
 ;;; Search-Order word set queries defined in the Forth 2012 specification
@@ -174,13 +171,11 @@
 (define-query "FLOATING-EXT"
   (stack-push data-stack +true+))
 
-;;; CL-Forth does not yet implement the Locals word set
 (define-query "LOCALS"
-  (stack-push data-stack +false+))
+  (stack-push data-stack +true+))
 
-;;; CL-Forth does not yet implement the Locals word set
 (define-query "LOCALS-EXT"
-  (stack-push data-stack +false+))
+  (stack-push data-stack +true+))
 
 (define-query "MEMORY-ALLOC"
   (stack-push data-stack +true+))

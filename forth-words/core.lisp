@@ -1376,25 +1376,29 @@
             (setf (memory-native-float memory address) (stack-pop float-stack)))))))
     (:compiling
      (let* ((name (word files #\Space))
+            (local (find name (locals-locals (definition-locals definition)) :test #'string-equal :key #'local-name))
             (word (lookup word-lists name)))
        (when (null name)
          (forth-exception :zero-length-name))
-       (when (null word)
+       (when (and (null local) (null word))
          (forth-exception :undefined-word "~A is not defined" name))
-       (let ((address (first (word-parameters word)))
-             (type (second (word-parameters word))))
-         (unless (member type '(:value :2value :fvalue))
-           (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
-         (case type
-           (:value
-            (add-to-definition fs
-              `(setf (memory-cell memory ,address) (stack-pop data-stack))))
-           (:2value
-            (add-to-definition fs
-              `(setf (memory-double-cell memory ,address) (stack-pop-double data-stack))))
-           (:fvalue
-            (add-to-definition fs
-              `(setf (memory-native-float memory ,address) (stack-pop float-stack))))))))))
+       (if local
+           (add-to-definition fs
+             `(setf ,(local-symbol local) (stack-pop data-stack)))
+           (let ((address (first (word-parameters word)))
+                 (type (second (word-parameters word))))
+             (unless (member type '(:value :2value :fvalue))
+               (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
+             (case type
+               (:value
+                (add-to-definition fs
+                  `(setf (memory-cell memory ,address) (stack-pop data-stack))))
+               (:2value
+                (add-to-definition fs
+                  `(setf (memory-double-cell memory ,address) (stack-pop-double data-stack))))
+               (:fvalue
+                (add-to-definition fs
+                  `(setf (memory-native-float memory ,address) (stack-pop float-stack)))))))))))
 
 (define-word true (:word "TRUE")
   "( - flag )"

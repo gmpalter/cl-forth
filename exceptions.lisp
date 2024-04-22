@@ -114,6 +114,12 @@
   (:loop-stack-underflow -275 "DO loops stack underflow")
   (:interpret-only-word -276 "Compiling an interpreted-only word")
   (:data-space-overflow -277 "Out of memory")
+  (:invalid-does> -278 "DOES> used on non-CREATEd definition")
+  (:too-many-locals -279 "Too many locals in a definition")
+  (:multiple-local-blocks -280 "Only one set of locals per definition is allowed")
+  (:locals-in-control-flow -281 "Can't define locals inside control flow structures")
+  (:unterminated-locals-block -282 "Locals block not complete")
+  (:invalid-local-name -283 "Invalid name for a LOCAL")
   )
 
 (define-condition forth-exception (error)

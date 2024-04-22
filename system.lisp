@@ -9,8 +9,21 @@
 (defvar *exit-hook* nil
   "If non-NIL, called before a non-fatal exit to perform additional processing")
 
+(defconstant +maximum-locals+ 16)
+
+(defstruct local
+  name
+  symbol
+  initialize?)
+
+(defstruct locals
+  state
+  locals
+  forms)
+
 (defstruct definition
   word
+  (locals (make-locals :state :none))
   exit-branch
   >body-address
   (call-site 0)
@@ -156,10 +169,16 @@
              ;; If there's more than one whitespace character at the end of a line, WORD will return a null TOKEN
              when token
                do (multiple-value-bind (type value)
-                      (let ((word (lookup word-lists token)))
-                        (if word
-                            (values :word word)
-                            (interpret-number token base)))
+                      (let ((local (and (eq (state fs) :compiling)
+                                        (find token (locals-locals (definition-locals definition))
+                                              :test #'string-equal :key #'local-name)))
+                            (word (lookup word-lists token)))
+                        (cond (local
+                               (values :local local))
+                              (word
+                               (values :word word))
+                              (t
+                               (interpret-number token base))))
                     (when (null type)
                       (forth-exception :undefined-word "~A is not defined" token))
                     (case (state fs)
@@ -178,21 +197,21 @@
                           (stack-push float-stack value))))
                       (:compiling
                        (case type
+                         (:local
+                          (add-forms-to-definition fs `(stack-push data-stack ,(local-symbol value))))
                          (:word
                           (cond ((word-immediate? value)
                                  (forth-call fs value *interpreter-psuedo-pc*))
                                 ((word-inlineable? value)
-                                 (setf (word-inline-forms (definition-word definition))
-                                       (append (word-inline-forms value) (word-inline-forms (definition-word definition)))))
+                                 (apply #'add-forms-to-definition fs (reverse (word-inline-forms value))))
                                 (t
-                                 (push `(forth-call fs ,value ,(next-psuedo-pc definition))
-                                       (word-inline-forms (definition-word definition))))))
+                                 (add-forms-to-definition fs `(forth-call fs ,value ,(next-psuedo-pc definition))))))
                          (:single
-                          (push `(stack-push data-stack ,value) (word-inline-forms (definition-word definition))))
+                          (add-forms-to-definition fs `(stack-push data-stack ,value)))
                          (:double
-                          (push `(stack-push-double data-stack ,value) (word-inline-forms (definition-word definition))))
+                          (add-forms-to-definition fs `(stack-push-double data-stack ,value)))
                          (:float
-                          (push `(stack-push float-stack ,value) (word-inline-forms (definition-word definition))))))))
+                          (add-forms-to-definition fs `(stack-push float-stack ,value)))))))
              finally
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
                   (write-line "OK.")))
@@ -242,11 +261,38 @@
     (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
     (register-execution-token execution-tokens word >body-address)))
 
+(define-forth-method add-forms-to-definition (fs &rest forms)
+  (case (locals-state (definition-locals definition))
+    (:none
+     (let ((word (definition-word definition)))
+       (setf (word-inline-forms word) (append (reverse forms) (word-inline-forms word)))))
+    (:in-progress
+     (forth-exception :unterminated-locals-block))
+    (:complete
+     (let ((locals (definition-locals definition)))
+       (setf (locals-forms locals) (append (reverse forms) (locals-forms locals)))))))
+
 (defmacro add-to-definition (fs &body body)
-  (declare (ignore fs))
-  `(progn
-     ,@(loop for form in body
-             collect `(push ,form (word-inline-forms (definition-word definition))))))
+  `(add-forms-to-definition ,fs ,@body))
+
+(define-forth-method start-local-definitions (fs)
+  (setf (locals-state (definition-locals definition)) :in-progress))
+
+(define-forth-method add-local-definition (fs name &optional (initialize? t))
+  (let ((locals (definition-locals definition)))
+    (when (eq (locals-state locals) :complete)
+      (forth-exception :multiple-local-blocks))
+    (when (or (plusp (stack-depth control-flow-stack)) (plusp (stack-depth loop-stack)))
+      (forth-exception :locals-in-control-flow))
+    (when (= (length (locals-locals locals)) +maximum-locals+)
+      (forth-exception :too-many-locals))
+    (when (eq (locals-state locals) :none)
+      (start-local-definitions fs))
+    (let ((local (make-local :name name :symbol (intern (string-upcase name) *forth-words-package*) :initialize? initialize?)))
+      (push local (locals-locals locals)))))
+
+(define-forth-method end-local-definitions (fs)
+  (setf (locals-state (definition-locals definition)) :complete))
 
 (define-forth-method finish-compilation (fs)
   (unless (eq (state fs) :compiling)
@@ -257,24 +303,43 @@
            (let* ((word (definition-word definition))
                   (name (intern (if (word-name word) (string-upcase (word-name word)) (symbol-name (gensym "XT")))
                                 *forth-words-package*))
+                  (locals-block
+                    (let ((locals (definition-locals definition)))
+                      (case (locals-state locals)
+                        (:none)
+                        (:in-progress
+                         (forth-exception :unterminated-locals-block))
+                        (:complete
+                         `((let (,@(loop for local in (reverse (locals-locals locals))
+                                         collect `(,(local-symbol local)
+                                                   ,(if (local-initialize? local)
+                                                        `(stack-pop data-stack)
+                                                        0))))
+                             (declare (ignorable ,@(reverse (loop for local in (locals-locals locals)
+                                                                  collect (local-symbol local)))))
+                             (tagbody
+                                ,@(reverse (locals-forms locals)))))))))
                   (thunk `(named-lambda ,name (fs &rest parameters)
                             (declare (ignorable parameters))
                             (with-forth-system (fs)
                               (tagbody
                                  ,@(reverse (word-inline-forms word))
+                                 ,@locals-block
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (when (not (zerop show-definition-code?))
                (format t "~&Code for ~A:~%  ~:W~%" name thunk))
              (setf (word-code word) (compile nil (eval thunk)))
-             ;; Keep the forms for SHOW-DEFINITION
-             ;;(setf (word-inline-forms (definition-word definition)) nil)
+             ;; Keep the forms for subsequent inlining and also for SEE
+             (when locals-block
+               ;; Ensure subsequent inlining of this definition will include the locals block
+               (push (car locals-block) (word-inline-forms (definition-word definition))))
              (setf (word-smudge? word) nil
                    (definition-in-progress? definition) nil))))
     (finish-definition)
     (loop while (plusp (stack-depth definitions-stack))
           do (let ((does>-word (definition-word definition)))
                (setf definition (stack-pop definitions-stack))
-               (push `(execute-does> fs ,does>-word) (word-inline-forms (definition-word definition)))
+               (add-forms-to-definition fs `(execute-does> fs ,does>-word))
                (finish-definition)))
     ;; Leave the new definition in DEFINITION for use by IMMEDIATE and DOES>
     (setf compiling-paused? nil)
@@ -284,18 +349,16 @@
 
 (define-forth-method postpone (fs word)
   (cond ((word-immediate? word)
-         (push `(forth-call fs ,word ,(next-psuedo-pc definition)) (word-inline-forms (definition-word definition))))
+         (add-forms-to-definition fs `(forth-call fs ,word ,(next-psuedo-pc definition))))
         (t
-         (push `(case (state fs)
-                  (:interpreting
-                   (forth-call fs ,word ,*interpreter-psuedo-pc*))
-                  (:compiling
-                   ,(if (word-inlineable? word)
-                        `(setf (word-inline-forms (definition-word definition))
-                               (append (word-inline-forms ,word) (word-inline-forms (definition-word definition))))
-                        `(push '(forth-call fs ,word ,(next-psuedo-pc definition))
-                               (word-inline-forms (definition-word definition))))))
-               (word-inline-forms (definition-word definition))))
+         (add-forms-to-definition fs
+           `(case (state fs)
+              (:interpreting
+               (forth-call fs ,word ,*interpreter-psuedo-pc*))
+              (:compiling
+               ,(if (word-inlineable? word)
+                    `(add-forms-to-definition fs (reverse (word-inline-forms ,word)))
+                    `(add-forms-to-definition fs '(forth-call fs ,word ,(next-psuedo-pc definition))))))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
         ;; (forth-exception :invalid-postpone))
@@ -314,9 +377,9 @@
 
 (define-forth-method execute-does> (fs does>-word)
   (unless definition
-    )
+    (forth-exception :invalid-does>))
   (unless (word-creating-word? (definition-word definition))
-    )
+    (forth-exception :invalid-does>))
   (setf (word-does> (definition-word definition)) does>-word))
 
 (defun execute-compile-token (fs &rest parameters)
@@ -327,10 +390,8 @@
           (forth-call fs word *interpreter-psuedo-pc*)
           (when (definition-in-progress? definition)
             (if (word-inlineable? word)
-                (setf (word-inline-forms (definition-word definition))
-                      (append (word-inline-forms word) (word-inline-forms (definition-word definition))))
-                (push `(forth-call fs ,word ,(next-psuedo-pc definition))
-                      (word-inline-forms (definition-word definition)))))))))
+                (add-forms-to-definition fs (reverse (word-inline-forms word)))
+                (add-forms-to-definition fs `(forth-call fs ,word ,(next-psuedo-pc definition)))))))))
 
 (define-forth-method create-compile-execution-token (fs word)
   (if (word-compile-token word)
@@ -398,10 +459,9 @@
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
   (if condition
-      (push `(when ,condition
-               (go ,(branch-reference-tag branch)))
-            (word-inline-forms (definition-word definition)))
-      (push `(go ,(branch-reference-tag branch)) (word-inline-forms (definition-word definition))))
+      (add-forms-to-definition fs `(when ,condition
+                                     (go ,(branch-reference-tag branch))))
+      (add-forms-to-definition fs `(go ,(branch-reference-tag branch))))
   nil)
 
 (defmacro execute-branch-when (fs branch &body body)
@@ -412,7 +472,7 @@
 (define-forth-method resolve-branch (fs branch)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
-  (push (branch-reference-tag branch) (word-inline-forms (definition-word definition)))
+  (add-forms-to-definition fs (branch-reference-tag branch))
   nil)
 
 ;;;
