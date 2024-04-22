@@ -203,7 +203,7 @@
 (define-word float-literal (:word "FLITERAL" :immediate? t :compile-only? t)
   "Compilation: (F: r – )"
   "Append the run-time semantics given below to the current definition"
-  "Run-time: (F: – r)"
+  "Run-time: (F: - r)"
   "Place R on the floating-point stack"
   (let ((value (stack-pop float-stack)))
     (add-to-definition fs
@@ -603,7 +603,7 @@
   "NAME Execution: (F: – r )"
   "Place R on the floating point stack. The value of R is that given when NAME was created, until the phrase"
   "\"r TO name\" is executed, causing a new value of R to be assigned to NAME"
-  "TO name Run-time: (F: r – )"
+  "TO name Run-time: (F: r - )"
   "Assign the value R to NAME"
   (let ((name (word files #\Space))
         (value (stack-pop float-stack)))

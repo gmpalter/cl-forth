@@ -90,7 +90,7 @@
   "source code in a programming language, usually some form of assembly language. Those characters are processed in an"
   "implementation-defined manner, generating the corresponding machine code. The process continues, refilling the input buffer"
   "as needed, until an implementation-defined ending sequence is processed."
-  "Run-time: ( – ) (R: nest-sys – )"
+  "Run-time: ( - ) (R: nest-sys - )"
   "Replace the execution semantics of the most recent definition with the NAME execution semantics given below. Return control"
   "to the calling definition specified by NEST-SYS"
   "NAME Execution: ( i*x – j*x )"

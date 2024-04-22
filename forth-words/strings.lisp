@@ -153,7 +153,7 @@
                    (stack-push data-stack +true+)))))))))
 
 (define-word sliteral (:word "SLITERAL" :immediate? t :compile-only? t)
-  "Compilation: ( c-addr1 u – )" "Run-time: ( – c-addr2 u )"
+  "Compilation: ( c-addr1 u - )" "Run-time: ( - c-addr2 u )"
   "Return C-ADDR2 U describing a string consisting of the characters specified by C-ADDR1 U during compilation"
   (let* ((count (cell-signed (stack-pop data-stack)))
          (address (stack-pop data-stack)))
