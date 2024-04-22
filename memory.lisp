@@ -366,7 +366,7 @@
   (with-slots (native-memory) memory
     (if (= (space-prefix native-memory) (address-prefix address))
         (space-resize-native-memory native-memory (address-address address) n-bytes)
-        +native-memory-operation-failure+)))
+        (values address +native-memory-operation-failure+))))
 
 ;;;
 
@@ -449,9 +449,9 @@
     +native-memory-operation-failure+))
 
 (defgeneric space-resize-native-memory (mspace address n-bytes)
-  (:method ((sp mspace) address n-bytes)
+  (:method ((sp mspace) n-bytes)
     (declare (ignore address n-bytes))
-    +native-memory-operation-failure+))
+    (values address +native-memory-operation-failure+)))
 
 
 ;;;
@@ -459,15 +459,14 @@
 (defclass data-space (mspace)
   ((data :accessor data-space-data)
    (size :accessor data-space-size :initarg :size :initform 0)
-   (extension :initform 0)
+   (saved-data :initform nil)
    (saved-high-water-mark :initform 0))
   )
 
 (defmethod initialize-instance :after ((sp data-space) &key &allow-other-keys)
-  (with-slots (data size extension) sp
+  (with-slots (data size) sp
     (assert (and (numberp size) (plusp size)) (size) "~S ~S must be a positive integer" 'data-space :size)
-    (setf data (make-array size :element-type '(unsigned-byte 8) :initial-element 0))
-    (setf extension (floor size 10))))
+    (setf data (make-array size :element-type '(unsigned-byte 8) :initial-element 0))))
 
 (defmethod print-object ((sp data-space) stream)
   (with-slots (prefix size high-water-mark) sp
@@ -475,26 +474,26 @@
       (format stream "prefix=~2,'0X, size=~D, hwm=~D" prefix size high-water-mark))))
 
 (defmethod space-reset ((sp data-space))
-  (with-slots (high-water-mark saved-high-water-mark) sp
-    (setf high-water-mark saved-high-water-mark))
+  (with-slots (data high-water-mark saved-high-water-mark saved-data) sp
+    (setf high-water-mark saved-high-water-mark)
+    (when (plusp high-water-mark)
+      (replace data saved-data :end1 high-water-mark)))
   nil)
 
 (defmethod save-space-state ((sp data-space))
-  (with-slots (high-water-mark saved-high-water-mark) sp
-    (setf saved-high-water-mark high-water-mark))
+  (with-slots (data high-water-mark saved-data saved-high-water-mark) sp
+    (setf saved-high-water-mark high-water-mark
+          saved-data nil)
+    (when (plusp high-water-mark)
+      (setf saved-data (make-array high-water-mark :element-type '(unsigned-byte 8) :initial-element 0))
+      (replace saved-data data :end2 high-water-mark)))
   nil)
 
 (defmethod space-allocate ((sp data-space) n-bytes)
-  (with-slots (prefix size high-water-mark #+ignore data #+ignore extension) sp
+  (with-slots (prefix size high-water-mark) sp
     (let ((address (make-address prefix high-water-mark)))
       (unless (<= (+ high-water-mark n-bytes) size)
-        (forth-exception :data-space-overflow)
-        #+ignore
-        (let* ((new-size (+ high-water-mark n-bytes extension))
-               ;; Grow the space by an additional 10% beyond what was requested
-               (new (make-array new-size :element-type '(unsigned-byte 8) :initial-element 0)))
-          (replace new data :end1 size)
-          (setf data new)))
+        (forth-exception :data-space-overflow))
       (incf high-water-mark n-bytes)
       address)))
 
@@ -513,7 +512,7 @@
 
 (defmethod cell-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -522,7 +521,7 @@
 
 (defmethod (setf cell-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -531,7 +530,7 @@
 
 (defmethod cell-unsigned-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -540,7 +539,7 @@
 
 (defmethod (setf cell-unsigned-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -549,7 +548,7 @@
 
 (defmethod quad-byte-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -558,7 +557,7 @@
 
 (defmethod (setf quad-byte-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -567,7 +566,7 @@
 
 (defmethod double-byte-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 16)) data)
@@ -576,7 +575,7 @@
 
 (defmethod (setf double-byte-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 16)) data)
@@ -585,19 +584,19 @@
 
 (defmethod byte-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (aref data address)))
 
 (defmethod (setf byte-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (setf (aref data address) (ldb (byte 8 0) value))))
 
 (defmethod single-float-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -606,7 +605,7 @@
 
 (defmethod (setf single-float-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -616,7 +615,7 @@
 
 (defmethod double-float-at ((sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -625,7 +624,7 @@
 
 (defmethod (setf double-float-at) (value (sp data-space) address)
   (with-slots (data size) sp
-    (unless (<= address size)
+    (unless (< address size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -771,7 +770,7 @@
 
 (defmethod add-string-to-pictured-buffer ((pb pictured-buffer) memory address count)
   (with-slots (data size used) pb
-    (when (>= (+ used count) size)
+    (when (> (+ used count) size)
       (forth-exception :pictured-output-overflow))
     (multiple-value-bind (source-data offset)
         (memory-decode-address memory address)
@@ -1047,7 +1046,7 @@
 (defmethod cell-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -1057,7 +1056,7 @@
 (defmethod (setf cell-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -1067,7 +1066,7 @@
 (defmethod cell-unsigned-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -1077,7 +1076,7 @@
 (defmethod (setf cell-unsigned-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -1087,7 +1086,7 @@
 (defmethod quad-byte-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -1097,7 +1096,7 @@
 (defmethod (setf quad-byte-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -1107,7 +1106,7 @@
 (defmethod double-byte-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 16)) data)
@@ -1117,7 +1116,7 @@
 (defmethod (setf double-byte-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 16)) data)
@@ -1127,21 +1126,21 @@
 (defmethod byte-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (aref data subaddress)))
 
 (defmethod (setf byte-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (setf (aref data subaddress) (ldb (byte 8 0) value))))
 
 (defmethod single-float-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -1151,7 +1150,7 @@
 (defmethod (setf single-float-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 32)) data)
@@ -1162,7 +1161,7 @@
 (defmethod double-float-at ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
@@ -1172,7 +1171,7 @@
 (defmethod (setf double-float-at) (value (sp native-memory) address)
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
-    (unless (<= subaddress size)
+    (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (locally (declare (optimize (speed 3) (safety 0))
                       (type (simple-array (unsigned-byte 64)) data)
