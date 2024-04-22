@@ -326,13 +326,13 @@
                                  ,@(reverse (word-inline-forms word))
                                  ,@locals-block
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
-             (when (not (zerop show-definition-code?))
-               (format t "~&Code for ~A:~%  ~:W~%" name thunk))
              (setf (word-code word) (compile nil (eval thunk)))
              ;; Keep the forms for subsequent inlining and also for SEE
              (when locals-block
                ;; Ensure subsequent inlining of this definition will include the locals block
                (push (car locals-block) (word-inline-forms (definition-word definition))))
+             (when (not (zerop show-definition-code?))
+               (show-definition fs word))
              (setf (word-smudge? word) nil
                    (definition-in-progress? definition) nil))))
     (finish-definition)
@@ -409,7 +409,7 @@
                            (tagbody
                               ,@(reverse (word-inline-forms word))
                             :exit)))))
-           (format t "~&Source code:")
+           (format t "~&Source code for ~A:" (word-name word))
            (let ((*package* (find-package '#:forth)))
              (pprint thunk)
              (terpri))))
