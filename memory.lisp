@@ -449,8 +449,8 @@
     +native-memory-operation-failure+))
 
 (defgeneric space-resize-native-memory (mspace address n-bytes)
-  (:method ((sp mspace) n-bytes)
-    (declare (ignore address n-bytes))
+  (:method ((sp mspace) address n-bytes)
+    (declare (ignore n-bytes))
     (values address +native-memory-operation-failure+)))
 
 
