@@ -253,7 +253,7 @@
           (dotimes (i depth)
             (format t "~2D: ~G~%" i (aref cells (- depth i 1))))))))
 
-(define-word show-float-stack (:word ".SR")
+(define-word show-return-stack (:word ".SR")
   "Show the contents of the return stack"
   (let ((cells (stack-cells return-stack))
         (depth (stack-depth return-stack)))
