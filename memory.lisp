@@ -1031,7 +1031,7 @@
         (setf (aref template i) (copy-chunk (aref chunks i)))
         (let ((chunk (aref template i)))
           (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq chunk)))))
+            (setf (chunk-data chunk) (copy-seq (chunk-data chunk))))))
       template)))
 
 (defmethod space-load-from-template ((sp native-memory) template)
@@ -1042,7 +1042,7 @@
         (setf (aref chunks i) (copy-chunk (aref template i)))
         (let ((chunk (aref chunks i)))
           (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq chunk))))))))
+            (setf (chunk-data chunk) (copy-seq (chunk-data chunk)))))))))
 
 (defmethod space-allocate ((sp native-memory) n-bytes)
   (declare (ignore n-bytes))
