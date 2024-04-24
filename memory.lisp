@@ -140,6 +140,23 @@
 
 ;;;
 
+(defmethod save-to-template ((memory memory))
+  (with-slots (all-spaces) memory
+    (let* ((n-spaces (length all-spaces))
+           (template (make-array (length all-spaces) :initial-element nil)))
+      (dotimes (i n-spaces)
+        (setf (aref template i) (space-save-to-template (aref all-spaces i))))
+      template)))
+
+(defmethod load-from-template ((memory memory) template)
+  (with-slots (all-spaces) memory
+    (let ((n-spaces (length all-spaces)))
+      (assert (= n-spaces (length template)) () "Memory template mismatch")
+      (dotimes (i n-spaces)
+        (space-load-from-template (aref all-spaces i) (aref template i))))))
+
+;;;
+
 (defmethod allocate-memory ((memory memory) n-bytes)
   (with-slots (data-space) memory
     (space-allocate data-space n-bytes)))
@@ -388,6 +405,13 @@
 (defgeneric space-unseal (mspace)
   (:method ((sp mspace)) nil))
 
+(defgeneric space-save-to-template (mspace)
+  (:method ((sp mspace)) nil))
+(defgeneric space-load-from-template (mspace template)
+  (:method ((sp mspace) template)
+    (declare (ignore template))
+    nil))
+
 (defgeneric space-allocate (mspace n-bytes))
 (defgeneric space-deallocate (mspace n-bytes))
 (defgeneric space-unused (mspace)
@@ -488,6 +512,21 @@
       (setf saved-data (make-array high-water-mark :element-type '(unsigned-byte 8) :initial-element 0))
       (replace saved-data data :end2 high-water-mark)))
   nil)
+
+(defmethod space-save-to-template ((sp data-space))
+  (with-slots (data high-water-mark) sp
+    (let ((saved-data nil))
+      (when (plusp high-water-mark)
+        (setf saved-data (make-array high-water-mark :element-type '(unsigned-byte 8) :initial-element 0))
+        (replace saved-data data :end2 high-water-mark))
+      (list high-water-mark saved-data))))
+
+(defmethod space-load-from-template ((sp data-space) template)
+  (with-slots (data high-water-mark) sp
+    (destructuring-bind (saved-high-water-mark saved-data) template
+      (setf high-water-mark saved-high-water-mark)
+      (when saved-data
+        (replace data saved-data :end1 high-water-mark)))))
 
 (defmethod space-allocate ((sp data-space) n-bytes)
   (with-slots (prefix size high-water-mark) sp
@@ -671,6 +710,11 @@
   (with-slots (active?) sp
     (setf active? t)))
   
+(defmethod space-load-from-template :after ((sp transient-data-space) template)
+  (declare (ignore template))
+  (with-slots (active?) sp
+    (setf active? nil)))
+
 (defmethod (setf cell-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
@@ -748,6 +792,18 @@
   (with-slots (active? used) pb
     (setf active? nil
           used 0)))
+
+(defmethod space-save-to-template ((sp pictured-buffer))
+  (with-slots (used) sp
+    (let ((template (call-next-method)))
+      (list template used))))
+
+(defmethod space-load-from-template ((sp pictured-buffer) template)
+  (with-slots (active? used) sp
+    (destructuring-bind (base-template template-used) template
+      (setf active? nil
+            used template-used)
+      (call-next-method sp base-template))))
 
 (defmethod space-allocate ((pb pictured-buffer) n-bytes)
   (declare (ignore n-bytes))
@@ -934,7 +990,8 @@
 (defconstant +maximum-native-chunk-size+ (expt 2 24))
 
 (defclass native-memory (mspace)
-  ((chunks :initform (make-array 128 :fill-pointer 0 :adjustable t)))
+  ((chunks :initform (make-array 128 :fill-pointer 0 :adjustable t))
+   (saved-chunks :initform nil))
   )
 
 (defmethod print-object ((sp native-memory) stream)
@@ -943,12 +1000,49 @@
       (format stream "prefix=~2,'0X, chunks=~D" prefix (fill-pointer chunks)))))
 
 (defmethod space-reset ((sp native-memory))
-  (with-slots (chunks) sp
-    (setf chunks (make-array 128 :fill-pointer 0 :adjustable t)))
+  (with-slots (chunks saved-chunks) sp
+    (if saved-chunks
+        (let ((n-chunks (length saved-chunks)))
+          (setf chunks (make-array n-chunks :fill-pointer n-chunks :adjustable t))
+          (dotimes (i n-chunks)
+            (setf (aref chunks i) (copy-chunk (aref saved-chunks i)))
+            (let ((chunk (aref chunks i)))
+              (when (chunk-in-use? chunk)
+                (setf (chunk-data chunk) (copy-seq chunk))))))
+        (setf chunks (make-array 128 :fill-pointer 0 :adjustable t))))
   nil)
 
 (defmethod save-space-state ((sp native-memory))
+  (with-slots (chunks saved-chunks) sp
+    (let ((n-chunks (length chunks)))
+      (setf saved-chunks (make-array n-chunks :initial-element nil))
+      (dotimes (i n-chunks)
+        (setf (aref saved-chunks i) (copy-chunk (aref chunks i)))
+        (let ((chunk (aref saved-chunks i)))
+          (when (chunk-in-use? chunk)
+            (setf (chunk-data chunk) (copy-seq chunk)))))))
   nil)
+
+(defmethod space-save-to-template ((sp native-memory))
+  (with-slots (chunks) sp
+    (let* ((n-chunks (length chunks))
+           (template (make-array n-chunks :initial-element nil)))
+      (dotimes (i n-chunks)
+        (setf (aref template i) (copy-chunk (aref chunks i)))
+        (let ((chunk (aref template i)))
+          (when (chunk-in-use? chunk)
+            (setf (chunk-data chunk) (copy-seq chunk)))))
+      template)))
+
+(defmethod space-load-from-template ((sp native-memory) template)
+  (with-slots (chunks) sp
+    (let ((n-chunks (length template)))
+      (setf chunks (make-array n-chunks :fill-pointer n-chunks :adjustable t))
+      (dotimes (i n-chunks)
+        (setf (aref chunks i) (copy-chunk (aref template i)))
+        (let ((chunk (aref chunks i)))
+          (when (chunk-in-use? chunk)
+            (setf (chunk-data chunk) (copy-seq chunk))))))))
 
 (defmethod space-allocate ((sp native-memory) n-bytes)
   (declare (ignore n-bytes))

@@ -29,16 +29,23 @@
 
 (defmethod register-execution-token ((xts execution-tokens) word here)
   (with-slots (prefix high-water-mark token-to-xt-map) xts
-    (let ((address (make-address prefix high-water-mark)))
-      (incf high-water-mark +cell-size+)
-      (let ((xt (make-xt :token address :word word :>body here)))
-        (setf (gethash address token-to-xt-map) xt)
-        (setf (word-execution-token word) xt))
-      address)))
+    (setf (word-compile-token word) nil)
+    (if (word-execution-token word)
+        (reregister-execution-token xts (word-execution-token word))
+        (let ((address (make-address prefix high-water-mark)))
+          (incf high-water-mark +cell-size+)
+          (let ((xt (make-xt :token address :word word :>body here)))
+            (setf (gethash address token-to-xt-map) xt)
+            (setf (word-execution-token word) xt))
+          address))))
 
 (defmethod reregister-execution-token ((xts execution-tokens) xt)
-  (with-slots (token-to-xt-map) xts
-    (setf (gethash (xt-token xt) token-to-xt-map) xt)))
+  (with-slots (token-to-xt-map high-water-mark) xts
+    (setf (gethash (xt-token xt) token-to-xt-map) xt)
+    (let ((address (xt-token xt)))
+      (when (> address high-water-mark)
+        (setf high-water-mark (+ address +cell-size+)))
+      address)))
 
 (defmethod verify-execution-token ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts
@@ -87,6 +94,20 @@
           saved-token-to-xt-map token-to-xt-map))
   nil)
 
+(defmethod save-to-template ((xts execution-tokens))
+  (with-slots (high-water-mark token-to-xt-map) xts
+    (let ((saved-token-to-xt-map (make-hash-table :size (hash-table-count token-to-xt-map))))
+      (maphash #'(lambda (token xt) (setf (gethash token saved-token-to-xt-map) xt)) token-to-xt-map)
+      (list high-water-mark saved-token-to-xt-map))))
+
+(defmethod load-from-template ((xts execution-tokens) template)
+  (with-slots (high-water-mark token-to-xt-map) xts
+    (destructuring-bind (saved-high-water-mark saved-token-to-xt-map) template
+      (setf high-water-mark saved-high-water-mark)
+      (clrhash token-to-xt-map)
+      (maphash #'(lambda (token xt) (setf (gethash token token-to-xt-map) xt)) saved-token-to-xt-map)))
+  nil)
+
 ;;; Prevent accidental access
 
 (defmethod space-allocate ((xts execution-tokens) n-bytes)
@@ -113,6 +134,22 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
+(defmethod quad-byte-at ((xts execution-tokens) address)
+  (declare (ignore address))
+  (forth-exception :invalid-memory))
+
+(defmethod (setf quad-byte-at) (value (xts execution-tokens) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod double-byte-at ((xts execution-tokens) address)
+  (declare (ignore address))
+  (forth-exception :invalid-memory))
+
+(defmethod (setf double-byte-at) (value (xts execution-tokens) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
 (defmethod byte-at ((xts execution-tokens) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
@@ -121,8 +158,32 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
+(defmethod single-float-at ((xts execution-tokens) address)
+  (declare (ignore address))
+  (forth-exception :invalid-memory))
+
+(defmethod (setf single-float--at) (value (xts execution-tokens) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod double-float-at ((xts execution-tokens) address)
+  (declare (ignore address))
+  (forth-exception :invalid-memory))
+
+(defmethod (setf double-float-at) (value (xts execution-tokens) address)
+  (declare (ignore value address))
+  (forth-exception :write-to-read-only-memory))
+
 (defmethod space-decode-address ((xts execution-tokens) address)
   (declare (ignore address))
+  (forth-exception :invalid-memory))
+
+(defmethod space-fill ((xts execution-tokens) address count byte)
+  (declare (ignore address count byte))
+  (forth-exception :write-to-read-only-memory))
+
+(defmethod space-copy :before ((ssp execution-tokens) source-address (dsp mspace) destination-address count)
+  (declare (ignore source-address destination-address count))
   (forth-exception :invalid-memory))
 
 (defmethod space-copy :before ((ssp mspace) source-address (dsp execution-tokens) destination-address count)

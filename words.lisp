@@ -25,7 +25,10 @@
           (format t "~A isn't unique. " (word-name word)))
         (unless override
           (setf (word-previous word) old)))
-      (setf (word-ordinal word) (incf last-ordinal))
+      ;; Don't change the word's ordinal if it already has one
+      (if (= (word-ordinal word) -1)
+          (setf (word-ordinal word) (incf last-ordinal))
+          (setf last-ordinal (max last-ordinal (word-ordinal word))))
       (note-new-word parent dict word)
       (setf (gethash (word-name word) words) word))))
 
@@ -92,6 +95,7 @@
    (wid-to-word-list-map :initform (make-hash-table))
    (next-nt :initform (make-address #xFE 0))
    (nt-to-word-map :initform (make-hash-table))
+   (saved-word-lists :initform nil)
    (saved-search-order :initform nil)
    (saved-compilation-word-list :initform nil)
    (markers :initform (make-array 0 :fill-pointer 0 :adjustable t))
@@ -127,12 +131,17 @@
 
 (defmethod reset-word-lists ((wls word-lists))
   (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map
-               saved-search-order saved-compilation-word-list markers)
+               saved-word-lists saved-search-order saved-compilation-word-list markers)
       wls
     (clrhash all-word-lists)
     (clrhash wid-to-word-list-map)
     (clrhash nt-to-word-map)
-    ;; At a minimum, this will create the FORTH word list
+    (when saved-word-lists
+      ;; This will create the FORTH word list, all word lists in the search order, the compilation word list,
+      ;; and any other word lists that were created but currently not in use
+      (dolist (name-and-wid saved-word-lists)
+        (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid))))
+    ;; Even if SAVED-WORD-LISTS is NIL, this next call will create the FORTH word list at a minimum
     (install-predefined-words wls)
     (setf forth (word-list wls "FORTH"))
     (if saved-search-order
@@ -140,33 +149,86 @@
                                  collect (word-list wls wl :if-not-found :create)))
         (setf search-order (list forth)))
     (if saved-compilation-word-list
-        ;; In case the user just creats an empty word list and sets it as the compilation word list before GILDing
+        ;; In case the user just creates an empty word list and sets it as the compilation word list before GILDing
         (setf compilation-word-list (word-list wls saved-compilation-word-list :if-not-found :create))
         (setf compilation-word-list forth))
     (setf markers (make-array 0 :fill-pointer 0 :adjustable t))
     (update-psuedo-state-variables wls)))
 
 (defmethod save-word-lists-state ((wls word-lists))
-  (with-slots (all-word-lists search-order compilation-word-list saved-search-order saved-compilation-word-list) wls
+  (with-slots (all-word-lists search-order compilation-word-list
+               saved-word-lists saved-search-order saved-compilation-word-list) wls
     (clrhash *predefined-words*)
     (maphash #'(lambda (name dictionary)
                  (maphash #'(lambda (forth-name word)
                               (setf (gethash forth-name *predefined-words*) (cons name word)))
                           (dictionary-words dictionary)))
              all-word-lists)
+    (setf saved-word-lists nil)
+    (maphash #'(lambda (name dictionary)
+                 (push (cons name (dictionary-wid dictionary)) saved-word-lists))
+             all-word-lists)
     (setf saved-search-order (map 'list #'dictionary-name search-order))
     (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
 
-(defmethod word-list ((wls word-lists) name &key (if-not-found :error))
+(defmethod save-to-template ((wls word-lists))
+  (with-slots (all-word-lists search-order compilation-word-list markers) wls
+    (let ((template-word-lists nil)
+          (template-words (make-hash-table :test #'equalp))
+          (template-search-order nil)
+          (template-compilation-word-list nil)
+          (template-markers (make-array (fill-pointer markers))))
+      (maphash #'(lambda (name dictionary)
+                   (push (cons name (dictionary-wid dictionary)) template-word-lists))
+               all-word-lists)
+      (maphash #'(lambda (name dictionary)
+                   (maphash #'(lambda (forth-name word)
+                                (setf (gethash forth-name template-words) (cons name word)))
+                            (dictionary-words dictionary)))
+               all-word-lists)
+      (setf template-search-order (map 'list #'dictionary-name search-order))
+      (setf template-compilation-word-list (dictionary-name compilation-word-list))
+      (dotimes (i (fill-pointer markers))
+        (setf (aref template-markers i) (save-marker-to-template wls (aref markers i))))
+      (list template-word-lists template-words template-search-order template-compilation-word-list template-markers))))
+
+(defmethod load-from-template ((wls word-lists) template)
+  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map markers) wls
+    (clrhash all-word-lists)
+    (clrhash wid-to-word-list-map)
+    (clrhash nt-to-word-map)
+    (clrhash *predefined-words*)
+    (destructuring-bind (template-word-lists template-words template-search-order template-compilation-word-list
+                         template-markers)
+        template
+      (dolist (name-and-wid template-word-lists)
+        (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid)))
+      (maphash #'(lambda (key value) (setf (gethash key *predefined-words*) value)) template-words)
+      (install-predefined-words wls)
+      (setf forth (word-list wls "FORTH"))
+      (setf search-order (loop for wl in template-search-order
+                               collect (word-list wls wl)))
+      (setf compilation-word-list (word-list wls template-compilation-word-list))
+      (let ((n-markers (length template-markers)))
+        (setf markers (make-array n-markers :fill-pointer n-markers :adjustable t))
+        (dotimes (i n-markers)
+          (setf (aref markers i) (load-marker-from-template wls (aref template-markers i)))))))
+  nil)
+
+(defmethod word-list ((wls word-lists) name &key (if-not-found :error) (saved-wid nil))
   (with-slots (all-word-lists wid-to-word-list-map next-wid) wls
-    (let ((name (or name (gensym "WL"))))
+    (let ((name (or name (symbol-name (gensym "WL")))))
       (or (gethash name all-word-lists)
           (case if-not-found
             (:create
-             (let ((word-list (make-instance 'dictionary :name name :wid next-wid :parent wls)))
+             (let* ((wid (or saved-wid next-wid))
+                    (word-list (make-instance 'dictionary :name name :wid wid :parent wls)))
                (setf (gethash name all-word-lists) word-list
-                     (gethash next-wid wid-to-word-list-map) word-list)
-               (incf next-wid +cell-size+)
+                     (gethash wid wid-to-word-list-map) word-list)
+               (if saved-wid
+                   (when (> saved-wid next-wid)
+                     (setf next-wid (+ saved-wid +cell-size+)))
+                   (incf next-wid +cell-size+))
                word-list))
             (:error
              (forth-exception :unknown-word-list "Word list ~A does not exist" name))
@@ -260,7 +322,7 @@
    (execution-token :accessor word-execution-token :initform nil)
    (compile-token :accessor word-compile-token :initform nil)
    (name-token :accessor word-name-token :initform nil)
-   (ordinal :accessor word-ordinal :initform 0))
+   (ordinal :accessor word-ordinal :initform -1))
   )
 
 (defmethod print-object ((word word) stream)
@@ -359,12 +421,41 @@
 
 (defmethod note-new-word ((wls word-lists) (dict dictionary) (word word))
   (with-slots (next-nt nt-to-word-map markers) wls
-    (setf (word-parent word) dict
-          (word-name-token word) next-nt
-          (gethash next-nt nt-to-word-map) word)
-    (incf next-nt +cell-size+)
+    (setf (word-parent word) dict)
+    (cond ((word-name-token word)
+           ;; Don't change the word's name token if it has one
+           (let ((nt (word-name-token word)))
+             (setf (gethash nt nt-to-word-map) word)
+             (when (> nt next-nt)
+               (setf next-nt (+ nt +cell-size+)))))
+          (t
+           (setf (word-name-token word) next-nt
+                 (gethash next-nt nt-to-word-map) word)
+           (incf next-nt +cell-size+)))
     (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
 
 (defmethod note-new-included-file ((wls word-lists) truename)
   (with-slots (markers) wls
     (map nil #'(lambda (marker) (add-included-file-to-marker marker truename)) markers)))
+
+(defmethod save-marker-to-template ((wls word-lists) (marker marker))
+  (with-slots (search-order compilation-word-list words included-files) marker
+    (list (map 'list #'dictionary-name search-order)
+          (dictionary-name compilation-word-list)
+          (map 'list #'(lambda (word) (list (dictionary-name (word-parent word)) (word-name word))) words)
+          (copy-list included-files))))
+
+(defmethod load-marker-from-template ((wls word-lists) template)
+  (destructuring-bind (template-search-order template-compilation-word-list template-words template-included-files) template
+    (let* ((search-order (loop for wl in template-search-order
+                               collect (word-list wls wl)))
+           (compilation-word-list (word-list wls template-compilation-word-list))
+           (marker (make-instance 'marker :search-order search-order :compilation-word-list compilation-word-list)))
+      (dolist (word template-words)
+        (destructuring-bind (wl name) word
+          (let ((word (search-dictionary (word-list wls wl) name)))
+            (when word
+              (add-word-to-marker marker word)))))
+      (dolist (truename template-included-files)
+        (add-included-file-to-marker marker truename))
+      marker)))

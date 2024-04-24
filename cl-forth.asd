@@ -16,6 +16,7 @@
                (:file "files")
                (:file "execution-tokens")
                (:file "system")
+               (:file "templates")
                (:file "helpers")
                (:file "asdf-support")
                (:module "forth-words"

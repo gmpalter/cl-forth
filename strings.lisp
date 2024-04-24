@@ -59,6 +59,18 @@
   ((table :initform (make-hash-table :test #'equalp)))
   )
 
+(defmethod save-to-template ((replacements replacements))
+  (with-slots (table) replacements
+    (let ((saved-table (make-hash-table :size (hash-table-count table) :test #'equalp)))
+      (maphash #'(lambda (name substitution) (setf (gethash name saved-table) substitution)) table)
+      saved-table)))
+
+(defmethod load-from-template ((replacements replacements) template)
+  (with-slots (table) replacements
+    (clrhash table)
+    (maphash #'(lambda (name substitution) (setf (gethash name table) substitution)) template))
+  nil)
+
 (defmethod register-replacement ((replacements replacements) name substitution)
   (with-slots (table) replacements
     (unless (null (position +native-char-escape+ name :test #'char-equal))
