@@ -11,7 +11,7 @@
    (show-definition-code? :accessor template-show-definition-code?))
   )
 
-(defun save-forth-system-as-template (fs)
+(defun save-forth-system-to-template (fs)
   (let ((template (make-instance 'template)))
     (with-forth-system (fs)
       (setf (template-memory template) (save-to-template memory)
@@ -25,6 +25,8 @@
     template))
 
 (defun load-forth-system-from-template (template)
+  ;; No sense in installing the predefined words as we're going to erase them when we reload the template's word lists
+  (clrhash *predefined-words*)
   (let ((fs (make-instance 'forth-system)))
     (with-forth-system (fs)
       (load-from-template memory (template-memory template))
@@ -34,5 +36,6 @@
       (setf base (template-base template)
             float-precision (template-float-precision template)
             show-redefinition-warnings? (template-show-redefinition-warnings? template)
-            show-definition-code? (template-show-definition-code? template)))
+            show-definition-code? (template-show-definition-code? template))
+      (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory)))
     fs))

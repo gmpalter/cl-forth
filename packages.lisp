@@ -20,7 +20,7 @@
                             #:slot-definition-name)
   (:export #:forth-system
            #:forth-toplevel
-           #:save-forth-system-as-template
+           #:save-forth-system-to-template
            #:load-forth-system-from-template
            #:*exception-hook*
            #:*exception-prefix*
