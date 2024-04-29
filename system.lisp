@@ -357,7 +357,7 @@
                (forth-call fs ,word ,*interpreter-psuedo-pc*))
               (:compiling
                ,(if (word-inlineable? word)
-                    `(add-forms-to-definition fs (reverse (word-inline-forms ,word)))
+                    `(apply #'add-forms-to-definition fs (reverse (word-inline-forms ,word)))
                     `(add-forms-to-definition fs '(forth-call fs ,word ,(next-psuedo-pc definition))))))))
         ;;---*** NOTE: I don't know under what circumstances POSTPONE should produce this error.
         ;;(t
@@ -390,7 +390,7 @@
           (forth-call fs word *interpreter-psuedo-pc*)
           (when (definition-in-progress? definition)
             (if (word-inlineable? word)
-                (add-forms-to-definition fs (reverse (word-inline-forms word)))
+                (apply #'add-forms-to-definition fs (reverse (word-inline-forms word)))
                 (add-forms-to-definition fs `(forth-call fs ,word ,(next-psuedo-pc definition)))))))))
 
 (define-forth-method create-compile-execution-token (fs word)
