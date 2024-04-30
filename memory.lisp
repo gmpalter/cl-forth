@@ -123,6 +123,11 @@
 (defmethod seal-transient-space ((memory memory) space)
   (space-seal space))
 
+(defmethod seal-transient-space ((memory memory) (address integer))
+  (with-slots (all-spaces) memory
+    (let ((prefix (address-prefix address)))
+      (space-seal (aref all-spaces prefix)))))
+
 (defmethod reserve-string-space ((memory memory))
   (with-slots (string-spaces current-string-space-index) memory
     (prog1
