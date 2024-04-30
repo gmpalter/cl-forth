@@ -1013,7 +1013,7 @@
             (setf (aref chunks i) (copy-chunk (aref saved-chunks i)))
             (let ((chunk (aref chunks i)))
               (when (chunk-in-use? chunk)
-                (setf (chunk-data chunk) (copy-seq chunk))))))
+                (setf (chunk-data chunk) (copy-seq (chunk-data chunk)))))))
         (setf chunks (make-array 128 :fill-pointer 0 :adjustable t))))
   nil)
 
@@ -1025,7 +1025,7 @@
         (setf (aref saved-chunks i) (copy-chunk (aref chunks i)))
         (let ((chunk (aref saved-chunks i)))
           (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq chunk)))))))
+            (setf (chunk-data chunk) (copy-seq (chunk-data chunk))))))))
   nil)
 
 (defmethod space-save-to-template ((sp native-memory))
