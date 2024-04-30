@@ -35,7 +35,7 @@
 (defconstant +pictured-buffer-size+ 256)
 (defconstant +name>string-space-size+ 256)
 ;; Forth 2012 states that there must be at least two transient buffers available for S" and S\"
-(defconstant +number-of-string-spaces+ 4)
+(defconstant +number-of-string-spaces+ 16)
 
 (defclass memory ()
   ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
