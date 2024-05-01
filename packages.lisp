@@ -24,7 +24,9 @@
            #:load-forth-system-from-template
            #:*exception-hook*
            #:*exception-prefix*
-           #:*exit-hook*))
+           #:*exit-hook*
+           ;;---*** TEMPORARY
+           #:run))
 
 (defpackage #:forth-words
   (:use))
