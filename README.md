@@ -45,37 +45,41 @@ CL-Forth does not implement `KEY` which is part of the Core word set.
 
 The following words that are part of the optional Facility and Facility extensions word set are not implemented.
 
+| | | | | |
 | --- | --- | --- | --- | --- |
-| AT-XY | KEY? | PAGE | EKEY | EKEY>CHAR |
-| EKEY>FKEY | EKEY? | EMIT? | K-ALT-MASK | K-CTRL-MASK |
-| K-DELETE | K-DOWN | K-END | K-F1 | K-F10 |
-| K-F11 | K-F12 | K-F2 | K-F3 | K-F4 |
-| K-F5 | K-F6 | K-F7 | K-K8 | K-F9 |
-| K-HOME | K-INSERT | K-LEFT | K-NEXT | K-PRIOR |
-| K-RIGHT | K-SHIFT-MASK | K-UP |
+| `AT-XY` | `KEY?` | `PAGE` | `EKEY` | `EKEY>CHAR` |
+| `EKEY>FKEY` | `EKEY?` | `EMIT?` | `K-ALT-MASK` | `K-CTRL-MASK` |
+| `K-DELETE` | `K-DOWN` | `K-END` | `K-F1` | `K-F10` |
+| `K-F11` | `K-F12` | `K-F2` | `K-F3` | `K-F4` |
+| `K-F5 `| `K-F6` | `K-F7` | `K-K8` | `K-F9` |
+| `K-HOME` | `K-INSERT` | `K-LEFT` | `K-NEXT` | `K-PRIOR` |
+| `K-RIGHT` | `K-SHIFT-MASK` | `K-UP` |
 
   
 ## Additional Words
 
 These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd Edition](https://www.forth.com/forth-books/).
 
+| | | | | |
 | --- | --- | --- | --- | --- |
-| ," | 2+ | 2- | C+! | CONTEXT |
-| CURRENT | CVARIABLE | M- | M/ | NOT |
-| NUMBER | NUMBER? | VOCABULARY |
+| `,"` | `2+` | `2-` | `C+!` | `CONTEXT` |
+| `CURRENT` | `CVARIABLE` | `M-` | `M/` | `NOT` |
+| `NUMBER` |` NUMBER?` | `VOCABULARY` |
 
 These words are defined by [SwiftForth](https://www.forth.com/swiftforth/).
 
+| | | | | |
 | --- | --- | --- | --- | --- |
-| OPTIONAL | { | \\ | VERBOSE | SILENT |
-| EMPTY | GILD | WARNING | ON | OFF |
-| -? |
+| `OPTIONAL` | `{` | `\\` | `VERBOSE` | `SILENT` |
+| `EMPTY` | `GILD` | `WARNING` | `ON` | `OFF` |
+| `-?` |
 
 These additional words are defined.
 
+| | | | | |
 | --- | --- | --- | --- | --- |
-| BREAK | SHOW-CODE | ALL-WORDS | RELOAD | INLINEABLE |
-| NOTINTERPRETED | .SF | .SR |
+| `BREAK` | `SHOW-CODE` | `ALL-WORDS` | `RELOAD` | `INLINEABLE` |
+| `NOTINTERPRETED` | `.SF` | `.SR` |
 
   
 ## Native Code Support
@@ -113,7 +117,7 @@ CODE UPCASE
 
 CL-Forth was initially implemented using CCL.
 
-It has been updated to work with SBCL.
+It has been updated to work with SBCL. However, at present, the word `RESIZE-FILE` will always return an error indication.
 
 It compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
 
