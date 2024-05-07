@@ -79,7 +79,7 @@
    (show-definition-code? :initform +false+))
   )
 
-(defmethod initialize-instance :after ((fs forth-system) &key &allow-other-keys)
+(defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
   (with-slots (memory word-lists files execution-tokens) fs
     (add-state-space memory fs)
     (add-state-space memory word-lists)
@@ -87,7 +87,11 @@
     (add-space memory (files-source-as-space files))
     (add-space memory (files-saved-buffer-space files))
     (add-space memory execution-tokens)
-    (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))
+    (cond (template
+           (load-from-template fs template))
+          (t
+           (reset-word-lists word-lists)
+           (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))))
     ))
   
 (defmethod state ((fs forth-system))

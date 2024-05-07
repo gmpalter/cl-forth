@@ -103,9 +103,6 @@
    (current :initform 0))
   )
 
-(defmethod initialize-instance :after ((wls word-lists) &key &allow-other-keys)
-  (reset-word-lists wls))
-
 (defmethod print-object ((wls word-lists) stream)
   (with-slots (all-word-lists) wls
     (print-unreadable-object (wls stream :type t :identity t)
