@@ -1,14 +1,5 @@
 (in-package #:forth)
 
-(defvar *exception-hook* nil
-  "If non-NIL, called after an exception, including ABORT and ABORT\",  to perform additional processing")
-
-(defvar *exception-prefix* nil
-  "If non-NIL, display this string before displaying the exception's phrase")
-
-(defvar *exit-hook* nil
-  "If non-NIL, called before a non-fatal exit to perform additional processing")
-
 (defconstant +maximum-locals+ 16)
 
 (defstruct local
@@ -76,7 +67,13 @@
    (compiling-paused? :initform nil)
    (show-redefinition-warnings? :initform +true+)
    (reset-redefinition-warnings? :initform nil)
-   (show-definition-code? :initform +false+))
+   (show-definition-code? :initform +false+)
+   (exception-hook :initform nil
+      :documentation "If non-NIL, called after an exception, including ABORT and ABORT\",  to perform additional processing")
+   (exception-prefix :initform nil
+      :documentation "If non-NIL, display this string before displaying the exception's phrase")
+   (exit-hook :initform nil
+      :documentation "If non-NIL, called before a non-fatal exit to perform additional processing"))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
@@ -110,12 +107,13 @@
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
                 word-lists files execution-tokens replacements base float-precision state definition compiling-paused?
-                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?)
+                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                exception-hook exception-prefix exit-hook)
        ,fs
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
                          definitions-stack word-lists files execution-tokens replacements base float-precision state
                          definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
-                         show-definition-code?))
+                         show-definition-code? exception-hook exception-prefix exit-hook))
      ,@body))
 
 (defmacro define-forth-method (name (fs &rest args) &body body)
@@ -141,7 +139,14 @@
 (define-forth-method forth-toplevel (fs &key evaluate)
   (reset-interpreter/compiler fs)
   (when evaluate
-    (source-push files :evaluate evaluate))
+    (etypecase evaluate
+      (string
+       (source-push files :evaluate evaluate))
+      (list
+       ;; "Forms" to be evaluated are pushed onto the list, leaving the list in reverse order of execution.
+       ;; By pushing the forms onto the source stack, we reverse that reversal so the forms are evaluated in the proper order.
+       (dolist (eval evaluate)
+         (source-push files :evaluate eval)))))
   (let ((fatal?
           (catch 'bye
             (loop
@@ -150,20 +155,22 @@
                       (interpreter/compiler fs)
                     (forth-exception (e)
                       (unless (member (forth-exception-key e) '(:abort :quit))
-                        (when *exception-prefix*
-                          (write-string *exception-prefix*))
+                        (when exception-prefix
+                          (write-string exception-prefix))
                         (write-line (forth-exception-phrase e)))
                       (clear-input)
                       (reset-interpreter/compiler fs)
-                      (when (and *exception-hook* (not (eq (forth-exception-key e) :quit)))
-                        (funcall *exception-hook* fs))))
+                      (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
+                        (funcall exception-hook fs))))
                 (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
                   (reset-interpreter/compiler fs)))))))
+    ;; Return T if the interpreter loop exited cleanly. Return NIL on a fatal error, usually detected by an exception hook
     (if fatal?
-        ;;---*** TODO: Need to return non-zero exit if standalone app
-        ()
-        (when *exit-hook*
-          (funcall *exit-hook* fs)))))
+        nil
+        (prog1
+            t
+          (when exit-hook
+            (funcall exit-hook fs))))))
 
 (define-forth-method interpreter/compiler (fs &key (toplevel? t))
   (loop with first = t

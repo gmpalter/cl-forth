@@ -10,7 +10,8 @@
                 #:interpreter/compiler
                 #:reset-interpreter/compiler)
   (:export #:forth-asdf-system
-           #:forth-source-file))
+           #:forth-source-file
+           #:system-forth-template))
 
 (in-package #:forth-asdf-support)
 
@@ -52,3 +53,13 @@
 
 (uiop:import* 'forth-asdf-support:forth-asdf-system '#:asdf)
 (uiop:import* 'forth-asdf-support:forth-source-file '#:asdf)
+
+
+;;; Create a template from after loading a FORTH-ASDF-SYSTEM
+
+(defun system-forth-template (system)
+  (let* ((system (find-system system))
+         (fs (fas-forth-system system)))
+    (prog1
+        (save-forth-system-to-template fs)
+      (setf (fas-forth-system system) nil))))

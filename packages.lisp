@@ -25,7 +25,7 @@
            #:*exception-hook*
            #:*exception-prefix*
            #:*exit-hook*
-           ;;---*** TEMPORARY
+           #:run-forth-process
            #:run))
 
 (defpackage #:forth-words

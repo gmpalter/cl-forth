@@ -19,6 +19,7 @@
                (:file "templates")
                (:file "helpers")
                (:file "asdf-support")
+               (:file "run")
                (:module "forth-words"
                   :serial nil
                   :components ((:file "core")
@@ -34,12 +35,16 @@
                                (:file "search")
                                (:file "strings")
                                ;; Useful words not defined in Forth 2012
-                               (:file "extensions")))
-               ;;---*** TODO: Temporary
-               (:file "test"))
+                               (:file "extensions"))))
   :in-order-to ((test-op (test-op #:cl-forth/test))))
 
 (defsystem #:cl-forth/application
+  :long-name "CL-Forth App"
+  :description "CL-Forth standalone application"
+  :version (:read-file-line "version.text")
+  :depends-on (#:cl-forth)
+  :serial t
+  :components ((:file "application"))
   )
 
 (defsystem #:cl-forth/test
