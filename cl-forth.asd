@@ -38,6 +38,7 @@
                                (:file "extensions"))))
   :in-order-to ((test-op (test-op #:cl-forth/test))))
 
+#+CCL
 (defsystem #:cl-forth/application
   :long-name "CL-Forth App"
   :description "CL-Forth standalone application"

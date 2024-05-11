@@ -139,17 +139,17 @@
   (setf compiling-paused? nil)
   )
 
-(define-forth-method forth-toplevel (fs &key evaluate)
+(define-forth-method forth-toplevel (fs &key interpret)
   (reset-interpreter/compiler fs)
-  (when evaluate
-    (etypecase evaluate
+  (when interpret
+    (etypecase interpret
       (string
-       (source-push files :evaluate evaluate))
+       (source-push files :evaluate interpret))
       (list
-       ;; "Forms" to be evaluated are pushed onto the list, leaving the list in reverse order of execution.
-       ;; By pushing the forms onto the source stack, we reverse that reversal so the forms are evaluated in the proper order.
-       (dolist (eval evaluate)
-         (source-push files :evaluate eval)))))
+       ;; Lines to be interpreted are pushed onto the list, leaving the list in reverse order of execution.
+       ;; By pushing the lines onto the source stack, we reverse that reversal so the lines are interpreted in the proper order.
+       (dolist (line interpret)
+         (source-push files :evaluate line)))))
   (let ((fatal?
           (catch 'bye
             (loop

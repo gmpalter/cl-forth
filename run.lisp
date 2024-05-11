@@ -9,26 +9,26 @@
     (format t "~&~A ~A~%Running under ~A ~A~%~@[~A~%~]" (asdf:system-long-name me) (asdf:component-version me)
             (lisp-implementation-type) (lisp-implementation-version) (forth-system-announce-addendum fs))))
 
-(defun run (&key (asdf-system '#:cl-forth) template evaluate trace)
+(defun run (&key (asdf-system '#:cl-forth) template interpret transcript-file)
   (let ((fs (make-instance 'forth-system :template template)))
     (flet ((runner ()
              (announce-forth fs asdf-system)
-             (forth-toplevel fs :evaluate evaluate)))
-      (if trace
-          (with-open-file (trace-stream trace :direction :output :element-type 'character :if-exists :supersede
-                                              #+CCL :sharing #+CCL  :lock)
-            (let* ((timestamped-trace-stream (make-timestamped-stream trace-stream))
-                   (traced-input (make-prefixed-stream "IN: " timestamped-trace-stream))
-                   (traced-output (make-prefixed-stream "OUT: " timestamped-trace-stream))
-                   (*standard-input* (make-echo-stream *standard-input* traced-input))
-                   (*standard-output* (make-broadcast-stream *standard-output* traced-output)))
-              (add-auto-flush-stream trace-stream)
+             (forth-toplevel fs :interpret interpret)))
+      (if transcript-file
+          (with-open-file (transcript transcript-file :direction :output :element-type 'character :if-exists :supersede
+                                                      #+CCL :sharing #+CCL  :lock)
+            (let* ((timestamped-transcript (make-timestamped-stream transcript))
+                   (input-transcript (make-prefixed-stream "IN: " timestamped-transcript))
+                   (output-transcript (make-prefixed-stream "OUT: " timestamped-transcript))
+                   (*standard-input* (make-echo-stream *standard-input* input-transcript))
+                   (*standard-output* (make-broadcast-stream *standard-output* output-transcript)))
+              (add-auto-flush-stream transcript)
               (unwind-protect
                    (runner)
-                (remove-auto-flush-stream trace-stream))))
+                (remove-auto-flush-stream transcript))))
           (runner)))))
 
-(defun run-forth-process (template &key (asdf-system '#:cl-forth) name evaluate trace)
+(defun run-forth-process (template &key (asdf-system '#:cl-forth) name interpret transcript-file)
   (multiple-value-bind (remote-input local-output)
       (make-piped-streams)
     (multiple-value-bind (local-input remote-output)
@@ -42,7 +42,8 @@
                                       (unwind-protect
                                            (let ((*standard-input* remote-input)
                                                  (*standard-output* remote-output))
-                                             (run :asdf-system asdf-system :template template :evaluate evaluate :trace trace))
+                                             (run :asdf-system asdf-system :template template
+                                                  :interpret interpret :transcript-file transcript-file))
                                         (remove-auto-flush-stream local-output)
                                         (remove-auto-flush-stream remote-output)
                                         (close remote-input)

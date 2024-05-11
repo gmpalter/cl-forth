@@ -35,16 +35,16 @@
 	  *standard-version-argument*
           *standard-terminal-encoding-argument*
 	  (make-command-line-argument
-	   :option-char #\e
-	   :long-name "eval"
-	   :keyword :eval
-	   :help-string "Evaluate <form> (may need to quote <form> in shell)"
+	   :option-char #\i
+	   :long-name "interpret"
+	   :keyword :interpret
+	   :help-string "Pass <text> to the Forth interpreter (may need to quote <text> in shell)"
 	   :may-take-operand t
 	   :allow-multiple t)
           (make-command-line-argument
-           :long-name "trace"
-           :keyword :trace
-           :help-string "Record all input and output to a file"
+           :long-name "transcript"
+           :keyword :transcript
+           :help-string "Create a timestamped transcript of this session in <path>"
            :may-take-operand t
            :allow-multiple nil)))
    (processed-arguments :initform nil))
@@ -65,7 +65,7 @@
 		 (summarize-option-syntax app))
     (with-slots (processed-arguments) app
       (setf processed-arguments (mapcan #'(lambda (x)
-                                            (and (member (car x) '(:eval :trace)) (list x)))
+                                            (and (member (car x) '(:interpret :transcript)) (list x)))
                                         options)))))
 
 (defmethod toplevel-function ((app forth-application) init-file)
@@ -77,14 +77,15 @@
           (let ((sr (input-stream-shared-resource *terminal-input*)))
             (when sr
               (setf (shared-resource-primary-owner sr) *current-process*)))
-          (let ((evaluate nil)
-                (trace nil))
+          (let ((interpret nil)
+                (transcript-file nil))
             (dolist (arg processed-arguments)
-              (when (eq (car arg) ':eval)
-                (push (cdr arg) evaluate))
-              (when (eq (car arg) ':trace)
-                (setf trace (cdr arg))))
-            (let ((clean-exit? (forth:run :asdf-system asdf-system :template template :evaluate evaluate :trace trace)))
+              (when (eq (car arg) ':interpret)
+                (push (cdr arg) interpret))
+              (when (eq (car arg) ':transcript)
+                (setf transcript-file (cdr arg))))
+            (let ((clean-exit? (forth:run :asdf-system asdf-system :template template
+                                          :interpret interpret :transcript-file transcript-file)))
               (if clean-exit?
                   (quit)
                   (quit -1)))))))
