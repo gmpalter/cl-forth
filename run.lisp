@@ -15,9 +15,11 @@
              (announce-forth fs asdf-system)
              (forth-toplevel fs :evaluate evaluate)))
       (if trace
-          (with-open-file (trace-stream trace :direction :output :element-type 'character :if-exists :supersede  :sharing :lock)
-            (let* ((traced-input (make-prefixed-stream "IN: " (make-timestamped-stream trace-stream)))
-                   (traced-output (make-prefixed-stream "OUT: " (make-timestamped-stream trace-stream)))
+          (with-open-file (trace-stream trace :direction :output :element-type 'character :if-exists :supersede
+                                              #+CCL :sharing #+CCL  :lock)
+            (let* ((timestamped-trace-stream (make-timestamped-stream trace-stream))
+                   (traced-input (make-prefixed-stream "IN: " timestamped-trace-stream))
+                   (traced-output (make-prefixed-stream "OUT: " timestamped-trace-stream))
                    (*standard-input* (make-echo-stream *standard-input* traced-input))
                    (*standard-output* (make-broadcast-stream *standard-output* traced-output)))
               (add-auto-flush-stream trace-stream)
