@@ -11,7 +11,9 @@
    (show-definition-code? :accessor template-show-definition-code?)
    (exception-hook :accessor template-exception-hook)
    (exception-prefix :accessor template-exception-prefix)
-   (exit-hook :accessor template-exit-hook))
+   (exit-hook :accessor template-exit-hook)
+   (announce-addendum :accessor template-announce-addendum)
+   (prompt-string :accessor template-prompt-string))
   )
 
 (defun save-forth-system-to-template (fs)
@@ -27,7 +29,9 @@
             (template-show-definition-code? template) show-definition-code?
             (template-exception-hook template) exception-hook
             (template-exception-prefix template) exception-prefix
-            (template-exit-hook template) exit-hook))
+            (template-exit-hook template) exit-hook
+            (template-announce-addendum template) announce-addendum
+            (template-prompt-string template) prompt-string))
     template))
 
 (define-forth-method load-from-template (fs template)
@@ -41,7 +45,9 @@
         show-definition-code? (template-show-definition-code? template)
         exception-hook (template-exception-hook template)
         exception-prefix (template-exception-prefix template)
-        exit-hook (template-exit-hook template))
+        exit-hook (template-exit-hook template)
+        announce-addendum (template-announce-addendum template)
+        prompt-string (template-prompt-string template))
   (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory)))
 
 (defun load-forth-system-from-template (template)

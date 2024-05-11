@@ -6,7 +6,10 @@
                       #:fixnump
                       #:whitespacep
                       #:class-direct-slots
-                      #:slot-definition-name)
+                      #:slot-definition-name
+                      #:process-run-function
+                      #:add-auto-flush-stream
+                      #:remove-auto-flush-stream)
   #+SBCL (:import-from #:sb-int
                        #:fixnump
                        #:named-lambda)

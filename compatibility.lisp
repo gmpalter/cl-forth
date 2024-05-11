@@ -37,12 +37,7 @@
 (defun set-stream-length (stream new-length)
   (ccl::stream-length stream new-length))
 
-#+SBCL
-(defun set-stream-length (stream new-length)
-  (declare (ignore new-length))
-  (error 'file-error :pathname (pathname stream)))
-
-#+LispWorks
+#+(or SBCL LispWorks)
 (defun set-stream-length (stream new-length)
   (declare (ignore new-length))
   (error 'file-error :pathname (pathname stream)))
@@ -100,3 +95,59 @@
 (defun make-piped-streams (&key (element-type 'character) (external-format :default))
   (declare (ignore element-type external-format))
   (error "NYI: ~S" 'make-piped-streams))
+
+
+;;; PROCESS-RUN-FUNCTION
+
+;;; CCL provides PROCESS-RUN-FUNCTION natively
+
+#+SBCL
+(defun process-run-function (name-or-keywords function &rest args)
+  (let ((name (if (listp name-or-keywords)
+                  (destructuring-bind (&key (name "Anonymous") &allow-other-keys)
+                      name-or-keywords
+                    name)
+                  name-or-keywords)))
+    (sb-thread:make-thread function :name name :arguments args)))
+
+#+LispWorks
+(defun process-run-function (name-or-keywords function &rest args)
+  (multiple-value-bind (name priority)
+      (if (listp name-or-keywords)
+          (destructuring-bind (&key (name "Anonymous") (priority mp:*default-process-priority*) &allow-other-keys)
+              name-or-keywords
+            (values name priority))
+          (values name-or-keywords mp:*default-process-priority*))
+    (apply #'mp:process-run-function name (:priority priority) function args)))
+
+
+;;; PREFIXED-STREAM, TIMESTAMPED-STREAM, ADD/REMOVE-AUTO-FLUSH-STREAM
+
+#+CCL
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (require '#:prefixed-stream)
+  (require '#:timestamped-stream))
+
+#+CCL
+(import '(ccl:make-prefixed-stream ccl:make-timestamped-stream))
+
+;;; CCL provides ADD/REMOVE-AUTO-FLUSH-STREAM natively
+
+#+(or SBCL LispWorks)
+(defun make-prefixed-stream (prefix stream)
+  (declare (ignore prefix))
+  stream)
+
+#+(or SBCL LispWorks)
+(defun make-timestamped-stream (stream)
+  stream)
+
+#+(or SBCL LispWorks)
+(defun add-auto-flush-stream (stream)
+  (declare (ignore stream))
+  nil)
+
+#+(or SBCL LispWorks)
+(defun remove-auto-flush-stream (stream)
+  (declare (ignore stream))
+  nil)

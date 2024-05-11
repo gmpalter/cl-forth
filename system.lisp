@@ -73,7 +73,10 @@
    (exception-prefix :initform nil
       :documentation "If non-NIL, display this string before displaying the exception's phrase")
    (exit-hook :initform nil
-      :documentation "If non-NIL, called before a non-fatal exit to perform additional processing"))
+      :documentation "If non-NIL, called before a non-fatal exit to perform additional processing")
+   (announce-addendum  :accessor forth-system-announce-addendum :initform nil
+      :documentation "If non-NIL, a string that's displayed after Forth's initial announcement")
+   (prompt-string :initform #.(format nil "OK.~%")))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
@@ -108,12 +111,12 @@
   `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
                 word-lists files execution-tokens replacements base float-precision state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
-                exception-hook exception-prefix exit-hook)
+                exception-hook exception-prefix exit-hook announce-addendum prompt-string)
        ,fs
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
                          definitions-stack word-lists files execution-tokens replacements base float-precision state
                          definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
-                         show-definition-code? exception-hook exception-prefix exit-hook))
+                         show-definition-code? exception-hook exception-prefix exit-hook announce-addendum prompt-string))
      ,@body))
 
 (defmacro define-forth-method (name (fs &rest args) &body body)
@@ -225,7 +228,7 @@
                           (add-forms-to-definition fs `(stack-push float-stack ,value)))))))
              finally
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
-                  (write-line "OK.")))
+                  (write-string prompt-string)))
        (unless (refill files)
          (cond ((not toplevel?)
                 (source-pop files)
@@ -235,7 +238,7 @@
                (t
                 (source-pop files)
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files))
-                  (write-line "OK.")))))))
+                  (write-string prompt-string)))))))
 
 (defun forth-call (fs word psuedo-pc)
   (with-forth-system (fs)
