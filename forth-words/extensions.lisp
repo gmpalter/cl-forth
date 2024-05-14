@@ -232,6 +232,17 @@
                   (word-inline-forms old-word) (word-inline-forms new-word))
             (add-word (word-list word-lists word-list) new-word :override t))))))
 
+(define-word remove (:word "REMOVE")
+  "REMOVE <name>"
+  "Remove the current definition of NAME"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (delete-word (word-parent word) execution-tokens word))))
+
 (define-word inlineable (:word "INLINEABLE")
   "Make the most recent definition an inlineable word"
   (when definition
