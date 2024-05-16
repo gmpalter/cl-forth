@@ -91,26 +91,6 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod single-float-at :before ((sp source-data-space) address)
-  (declare (ignore address))
-  (with-slots (is-valid?) sp
-    (unless is-valid?
-      (update-source-data-space sp))))
-
-(defmethod (setf single-float-at) (value (sp source-data-space) address)
-  (declare (ignore value address))
-  (forth-exception :write-to-read-only-memory))
-
-(defmethod double-float-at :before ((sp source-data-space) address)
-  (declare (ignore address))
-  (with-slots (is-valid?) sp
-    (unless is-valid?
-      (update-source-data-space sp))))
-
-(defmethod (setf double-float-at) (value (sp source-data-space) address)
-  (declare (ignore value address))
-  (forth-exception :write-to-read-only-memory))
-
 (defmethod space-fill :before ((sp source-data-space) address count byte)
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))

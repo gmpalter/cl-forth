@@ -1,5 +1,7 @@
 (in-package #:forth)
 
+;;; In 2016, the Forth standardization committee adopted a proposal that characters occupy
+;;; one address unit (i.e., byte) in memory
 (defconstant +char-size+ 1)
 (defconstant +longest-counted-string+ (1- (dpb 1 (byte 1 8) 0)))
 

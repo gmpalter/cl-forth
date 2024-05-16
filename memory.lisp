@@ -7,25 +7,26 @@
 (defconstant +byte-to-quad-byte-shift+ -2)
 
 (defconstant +single-float-cell-size+ 4)
-(defconstant +byte-to-single-float-cell-shift+ -2)
-
 (defconstant +double-float-cell-size+ 8)
-(defconstant +byte-to-double-float-cell-shift+ -3)
-
 ;;; CL-Forth uses double precision floating point as its internal representation of float values
 (defconstant +native-float-cell-size+ +double-float-cell-size+)
 
+(defconstant +address-prefix-size+ 8)
+(defconstant +address-address-size+ (- (integer-length most-positive-fixnum) +address-prefix-size+))
+(defconstant +address-prefix-byte+ (byte +address-prefix-size+ +address-address-size+))
+(defconstant +address-address-byte+ (byte +address-address-size+ 0))
+
 (declaim (inline make-address))
 (defun make-address (prefix address)
-  (dpb prefix (byte 8 48) address))
+  (dpb prefix +address-prefix-byte+ address))
 
 (declaim (inline address-prefix))
 (defun address-prefix (address)
-  (ldb (byte 8 48) address))
+  (ldb +address-prefix-byte+ address))
 
 (declaim (inline address-address))
 (defun address-address (address)
-  (ldb (byte 48 0) address))
+  (ldb +address-address-byte+ address))
 
 ;;;
 
@@ -284,52 +285,36 @@
            (address (address-address address)))
       (setf (byte-at space address) value))))
 
-;;;--- NOTE: If we change the size of a character to be other than 1 byte,
-;;;---  these next two methods will need some rework
+;;; In 2016, the Forth standardization committee adopted a proposal that characters occupy
+;;; one address unit (i.e., byte) in memory
 
-(defmethod memory-char ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (byte-at space address))))
+(declaim (inline memory-char))
+(defun memory-char (memory address)
+  (memory-byte memory address))
 
-(defmethod (setf memory-char) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (setf (byte-at space address) value))))
+(declaim (inline (setf memory-char)))
+(defun (setf memory-char) (value memory address)
+  (setf (memory-byte memory address) value))
 
 ;;; 
 
-(defmethod memory-single-float ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (single-float-at space address))))
+(declaim (inline memory-single-float))
+(defun memory-single-float (memory address)
+  (encode-single-float (memory-quad-byte memory address)))
     
-(defmethod (setf memory-single-float) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (setf (single-float-at space address) value))))
+(declaim (inline (setf memory-single-float)))
+(defun (setf memory-single-float) (value memory address)
+  (setf (memory-quad-byte memory address) (decode-single-float value))
+  value)
 
-(defmethod memory-double-float ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (double-float-at space address))))
-    
-(defmethod (setf memory-double-float) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
-           (address (address-address address)))
-      (setf (double-float-at space address) value))))
+(declaim (inline memory-double-float))
+(defun memory-double-float (memory address)
+  (encode-double-float (memory-cell-unsigned memory address)))
+
+(declaim (inline (setf memory-double-float)))
+(defun (setf memory-double-float) (value memory address)
+  (setf (memory-cell-unsigned memory address) (decode-double-float value))
+  value)
 
 ;;; CL-Forth uses double precision floating point as its internal representation of float values
 
@@ -437,12 +422,6 @@
 
 (defgeneric byte-at (mspace address))
 (defgeneric (setf byte-at) (value mspace address))
-
-(defgeneric single-float-at (mspace address))
-(defgeneric (setf single-float-at) (value mspace address))
-
-(defgeneric double-float-at (mspace address))
-(defgeneric (setf double-float-at) (value mspace address))
 
 (defgeneric space-decode-address (mspace address))
 
@@ -638,44 +617,6 @@
       (forth-exception :invalid-memory))
     (setf (aref data address) (ldb (byte 8 0) value))))
 
-(defmethod single-float-at ((sp data-space) address)
-  (with-slots (data size) sp
-    (unless (< address size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (encode-single-float (aref data (ash address +byte-to-single-float-cell-shift+))))))
-
-(defmethod (setf single-float-at) (value (sp data-space) address)
-  (with-slots (data size) sp
-    (unless (< address size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash address +byte-to-single-float-cell-shift+)) (decode-single-float value))
-      value)))
-
-(defmethod double-float-at ((sp data-space) address)
-  (with-slots (data size) sp
-    (unless (< address size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (encode-double-float (aref data (ash address +byte-to-double-float-cell-shift+))))))
-
-(defmethod (setf double-float-at) (value (sp data-space) address)
-  (with-slots (data size) sp
-    (unless (< address size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash address +byte-to-double-float-cell-shift+)) (decode-double-float value))
-      value)))
-
 (defmethod space-decode-address ((sp data-space) address)
   (with-slots (data size) sp
     (values data address size)))
@@ -745,18 +686,6 @@
       (forth-exception :write-to-read-only-memory))))
 
 (defmethod (setf byte-at) :before (value (sp transient-data-space) address)
-  (declare (ignore value address))
-  (with-slots (active?) sp
-    (unless active?
-      (forth-exception :write-to-read-only-memory))))
-
-(defmethod (setf single-float-at) :before (value (sp transient-data-space) address)
-  (declare (ignore value address))
-  (with-slots (active?) sp
-    (unless active?
-      (forth-exception :write-to-read-only-memory))))
-
-(defmethod (setf double-float-at) :before (value (sp transient-data-space) address)
   (declare (ignore value address))
   (with-slots (active?) sp
     (unless active?
@@ -942,30 +871,6 @@
       (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
-(defmethod single-float-at ((sp state-space) address)
-  (with-slots (parent slots) sp
-    (unless (< (ash address +byte-to-cell-shift+) (length slots))
-      (forth-exception :invalid-memory))
-    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
-
-(defmethod (setf single-float-at) (value (sp state-space) address)
-  (with-slots (parent slots) sp
-    (unless (< (ash address +byte-to-cell-shift+) (length slots))
-      (forth-exception :invalid-memory))
-    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
-
-(defmethod double-float-at ((sp state-space) address)
-  (with-slots (parent slots) sp
-    (unless (< (ash address +byte-to-cell-shift+) (length slots))
-      (forth-exception :invalid-memory))
-    (slot-value parent (aref slots (ash address +byte-to-cell-shift+)))))
-
-(defmethod (setf double-float-at) (value (sp state-space) address)
-  (with-slots (parent slots) sp
-    (unless (< (ash address +byte-to-cell-shift+) (length slots))
-      (forth-exception :invalid-memory))
-    (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
-
 (defmethod space-decode-address ((sp state-space) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
@@ -979,19 +884,25 @@
   (size 0)
   (data nil))
 
+(defconstant +address-chunk-size+ 16)
+(defconstant +address-subaddress-size+ (- +address-address-size+ +address-chunk-size+))
+(defconstant +address-chunk-byte+ (byte +address-chunk-size+ +address-subaddress-size+))
+(defconstant +address-subaddress-byte+ (byte +address-subaddress-size+ 0))
+
 (declaim (inline make-chunked-address))
 (defun make-chunked-address (prefix chunk address)
-  (dpb prefix (byte 8 48) (dpb chunk (byte 16 32) address)))
+  (dpb prefix +address-prefix-byte+ (dpb chunk +address-chunk-byte+ address)))
 
 (declaim (inline address-chunk))
 (defun address-chunk (address)
-  (ldb (byte 16 32) address))
+  (ldb +address-chunk-byte+  address))
 
 (declaim (inline address-subaddress))
 (defun address-subaddress (address)
-  (ldb (byte 32 0) address))
+  (ldb +address-subaddress-byte+ address))
 
-(defconstant +maximum-native-chunks+ (expt 2 16))
+(defconstant +maximum-native-chunks+ (expt 2 +address-chunk-size+))
+;; Arbitrarily restrict a single ALLOCATE to 16MiB
 (defconstant +maximum-native-chunk-size+ (expt 2 24))
 
 (defclass native-memory (mspace)
@@ -1235,48 +1146,6 @@
     (unless (< subaddress size)
       (forth-exception :invalid-memory))
     (setf (aref data subaddress) (ldb (byte 8 0) value))))
-
-(defmethod single-float-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (encode-single-float (aref data (ash subaddress +byte-to-single-float-cell-shift+))))))
-
-(defmethod (setf single-float-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-single-float-cell-shift+)) (decode-single-float value))
-      value)))
-
-(defmethod double-float-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (encode-double-float (aref data (ash subaddress +byte-to-double-float-cell-shift+))))))
-
-(defmethod (setf double-float-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-double-float-cell-shift+)) (decode-double-float value))
-      value)))
 
 (defmethod space-decode-address ((sp native-memory) address)
   (multiple-value-bind (data subaddress size)

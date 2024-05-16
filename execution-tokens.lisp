@@ -158,22 +158,6 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod single-float-at ((xts execution-tokens) address)
-  (declare (ignore address))
-  (forth-exception :invalid-memory))
-
-(defmethod (setf single-float--at) (value (xts execution-tokens) address)
-  (declare (ignore value address))
-  (forth-exception :write-to-read-only-memory))
-
-(defmethod double-float-at ((xts execution-tokens) address)
-  (declare (ignore address))
-  (forth-exception :invalid-memory))
-
-(defmethod (setf double-float-at) (value (xts execution-tokens) address)
-  (declare (ignore value address))
-  (forth-exception :write-to-read-only-memory))
-
 (defmethod space-decode-address ((xts execution-tokens) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
