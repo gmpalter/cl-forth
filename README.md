@@ -76,7 +76,7 @@ These words are defined by [SwiftForth](https://www.forth.com/swiftforth/).
 
 These additional words are defined.
 
-| | | |
+| | |
 | --- | --- |
 | `.SF` | Display the contents of the floating-point stack |
 | `.SR` | Display the contents of the return stack |
