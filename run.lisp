@@ -1,9 +1,5 @@
 (in-package #:forth)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (require '#:prefixed-stream)
-  (require '#:timestamped-stream))
-
 (defun announce-forth (fs asdf-system)
   (let ((me (asdf:find-system asdf-system)))
     (format t "~&~A ~A~%Running under ~A ~A~%~@[~A~%~]" (asdf:system-long-name me) (asdf:component-version me)

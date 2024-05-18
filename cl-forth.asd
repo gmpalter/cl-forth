@@ -59,4 +59,4 @@
                    (let ((*standard-input* (make-concatenated-stream text *standard-input*))
                          (fs (make-instance (find-symbol* '#:forth-system '#:forth))))
                      (symbol-call '#:forth '#:forth-toplevel
-                                  fs :evaluate "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))
+                                  fs :interpret "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))
