@@ -64,22 +64,29 @@ These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd
 | --- | --- | --- | --- | --- |
 | `,"` | `2+` | `2-` | `C+!` | `CONTEXT` |
 | `CURRENT` | `CVARIABLE` | `M-` | `M/` | `NOT` |
-| `NUMBER` |` NUMBER?` | `VOCABULARY` |
+| `NUMBER` |`NUMBER?` | `VOCABULARY` |
 
 These words are defined by [SwiftForth](https://www.forth.com/swiftforth/).
 
 | | | | | |
 | --- | --- | --- | --- | --- |
-| `OPTIONAL` | `{` | `\\` | `VERBOSE` | `SILENT` |
-| `EMPTY` | `GILD` | `WARNING` | `ON` | `OFF` |
-| `-?` |
+| `-?` | `EMPTY` | `GILD` | `OFF` | `ON` |
+| `OPTIONAL` | `SILENT` | `VERBOSE` | `WARNING` | `\\` |
+| `{` |
 
 These additional words are defined.
 
-| | | | | |
-| --- | --- | --- | --- | --- |
-| `BREAK` | `SHOW-CODE` | `ALL-WORDS` | `RELOAD` | `INLINEABLE` |
-| `NOTINTERPRETED` | `.SF` | `.SR` |
+| | | |
+| --- | --- |
+| `.SF` | Display the contents of the floating-point stack |
+| `.SR` | Display the contents of the return stack |
+|  `ALL-WORDS` | Display all words in all word lists in the search order |
+| `BREAK` | Enter a Lisp break loop |
+| `INLINEABLE` | Mark that the most recent definition's code may be inlined |
+| `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
+| `RELOAD` | Reload a predefined definition |
+| `REMOVE` | Erase a single word |
+| `SHOW-CODE` | Controls whether completing a definition shows the generated code |
 
   
 ## Native Code Support
