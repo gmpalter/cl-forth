@@ -153,9 +153,9 @@
   nil)
 
 
-;;; ADDRESS-POINTER, POINTER-ADDRESS, %ADDRESS-OF
+;;; ADDRESS-POINTER, POINTER-ADDRESS, NULL-POINTER-P, %ADDRESS-OF
 
-(declaim (inline address-pointer pointer-address %address-of))
+(declaim (inline address-pointer pointer-address null-pointer-p null-pointer %address-of))
 
 #+CFFI
 (defun address-pointer (address)
@@ -165,6 +165,14 @@
 (defun pointer-address (pointer)
   (cffi:pointer-address pointer))
 
+#+CFFI
+(defun null-pointer-p (pointer)
+  (cffi:null-pointer-p pointer))
+
+#+CFFI
+(defun null-pointer ()
+  (cffi:null-pointer))
+
 #-CFFI
 (defun address-pointer (address)
   address)
@@ -172,6 +180,14 @@
 #-CFFI
 (defun pointer-address (pointer)
   pointer)
+
+#-CFFI
+(defun null-pointer-p (pointer)
+  nil)
+
+#-CFFI
+(defun null-pointer ()
+  0)
 
 #+CCL
 (defun %address-of (object)

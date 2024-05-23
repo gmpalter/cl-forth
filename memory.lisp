@@ -354,20 +354,26 @@
            (address (address-address address)))
       (space-decode-address space address))))
 
+;;; Client Forth code expects the value of a null pointer to be zero (0)
 (defmethod native-address ((memory memory) foreign-pointer)
-  (with-slots (all-spaces) memory
-    (let ((foreign-address (pointer-address foreign-pointer)))
+  (if (null-pointer-p foreign-pointer)
+      0
       (with-slots (all-spaces) memory
-        (or (loop for space across all-spaces
-                    thereis (space-native-address space foreign-address))
-            (forth-exception :invalid-memory))))))
+        (let ((foreign-address (pointer-address foreign-pointer)))
+          (with-slots (all-spaces) memory
+            (or (loop for space across all-spaces
+                        thereis (space-native-address space foreign-address))
+                (forth-exception :invalid-memory)))))))
 
+;;; Client Forth code expects the value of a null pointer to be zero (0)
 (defmethod foreign-pointer ((memory memory) native-address)
-  (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix native-address))
-           (space (aref all-spaces prefix))
-           (address (address-address native-address)))
-      (address-pointer (space-foreign-address space address)))))
+  (if (zerop native-address)
+      (null-pointer)
+      (with-slots (all-spaces) memory
+        (let* ((prefix (address-prefix native-address))
+               (space (aref all-spaces prefix))
+               (address (address-address native-address)))
+          (address-pointer (space-foreign-address space address))))))
 
 ;;;
 
