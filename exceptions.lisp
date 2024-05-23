@@ -127,6 +127,7 @@
   (:invalid-foreign-parameter-list -305 "Invalid foreign function parameter llist")
   (:missing-foreign-definitions -306 "AS not followed by FUNCTION: or GLOBAL:")
   (:no-platform-library -307 "No library for this platform found")
+  (:null-pointer-reference -308 "Attempt to reference through a null pointer")
   )
 
 (define-condition forth-exception (error)
