@@ -85,6 +85,10 @@
 (defmethod space-foreign-address ((sp foreign-space) native-address)
   native-address)
 
+(defmethod space-address-is-foreign? ((sp foreign-space) address)
+  (declare (ignore address))
+  t)
+
 ;;; NOTE: We have no way to bounds check this operation ...
 (defmethod space-fill ((sp foreign-space) address count byte)
   (cffi:foreign-funcall "memset" :pointer (address-pointer address) :uint8 byte :size_t count :pointer)
