@@ -57,7 +57,7 @@
   (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces native-memory) memory
     (flet ((setup (space)
              (setf (space-prefix space) (vector-push-extend space all-spaces))))
-      (setup (make-instance 'data-space :size +cell-size+))
+      (setup (make-instance 'null-space))      ; NULL-SPACE gets PREFIX=#x00
       (setup data-space)
       (setup pad)
       (setup word-space)
@@ -356,24 +356,19 @@
 
 ;;; Client Forth code expects the value of a null pointer to be zero (0)
 (defmethod native-address ((memory memory) foreign-pointer)
-  (if (null-pointer-p foreign-pointer)
-      0
-      (with-slots (all-spaces) memory
-        (let ((foreign-address (pointer-address foreign-pointer)))
-          (with-slots (all-spaces) memory
-            (or (loop for space across all-spaces
-                        thereis (space-native-address space foreign-address))
-                (forth-exception :invalid-memory)))))))
+  (with-slots (all-spaces) memory
+    (let ((foreign-address (pointer-address foreign-pointer)))
+      (or (loop for space across all-spaces
+                  thereis (space-native-address space foreign-address))
+          (forth-exception :invalid-memory)))))
 
 ;;; Client Forth code expects the value of a null pointer to be zero (0)
 (defmethod foreign-pointer ((memory memory) native-address)
-  (if (zerop native-address)
-      (null-pointer)
-      (with-slots (all-spaces) memory
-        (let* ((prefix (address-prefix native-address))
-               (space (aref all-spaces prefix))
-               (address (address-address native-address)))
-          (address-pointer (space-foreign-address space address))))))
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix native-address))
+           (space (aref all-spaces prefix))
+           (address (address-address native-address)))
+      (address-pointer (space-foreign-address space address)))))
 
 ;;;
 
@@ -918,6 +913,116 @@
 (defmethod space-decode-address ((sp state-space) address)
   (declare (ignore address))
   (forth-exception :invalid-memory))
+
+
+;;; Systems reserve "Page 0" of the address space to protect against references through null pointers.
+
+(defclass null-space (mspace)
+  ((size :accessor null-space-size :initarg :size :initform #+Darwin 16384 #-Darwin 4096))
+  )
+
+(defmethod print-object ((sp null-space) stream)
+  (with-slots (prefix size) sp
+    (print-unreadable-object (sp stream :type t :identity t)
+      (format stream "prefix=~2,'0X" prefix))))
+
+(defmethod space-reset ((sp null-space))
+  nil)
+
+(defmethod save-space-state ((sp null-space))
+  nil)
+
+(defmethod space-save-to-template ((sp null-space))
+  nil)
+
+(defmethod space-load-from-template ((sp null-space) template)
+  (declare (ignore template))
+  nil)
+
+(defmethod space-allocate ((sp null-space) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-deallocate ((sp null-space) n-bytes)
+  (declare (ignore n-bytes))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-unused ((sp null-space))
+  0)
+
+(defmethod space-align ((sp null-space) &optional (boundary +cell-size+))
+  (declare (ignore boundary))
+  (forth-exception :null-pointer-reference))
+
+(defmethod cell-at ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod (setf cell-at) (value (sp null-space) address)
+  (declare (ignore value address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod cell-unsigned-at ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod (setf cell-unsigned-at) (value (sp null-space) address)
+  (declare (ignore value address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod quad-byte-at ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod (setf quad-byte-at) (value (sp null-space) address)
+  (declare (ignore value address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod double-byte-at ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod (setf double-byte-at) (value (sp null-space) address)
+  (declare (ignore value address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod byte-at ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod (setf byte-at) (value (sp null-space) address)
+  (declare (ignore value address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-decode-address ((sp null-space) address)
+  (declare (ignore address))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-native-address ((sp null-space) foreign-address)
+  (with-slots (prefix size) sp
+    (when (<= 0 foreign-address (1- size))
+      (make-address prefix foreign-address))))
+
+;;; Convert any address on "Page 0" to a foreign null pointer to ensure references will fault
+(defmethod space-foreign-address ((sp null-space) native-address)
+  (declare (ignore native-address))
+  0)
+
+(defmethod space-fill ((sp null-space) address count byte)
+  (declare (ignore address count byte))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-copy ((ssp null-space) source-address (dsp null-space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-copy ((ssp null-space) source-address (dsp mspace) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (forth-exception :null-pointer-reference))
+
+(defmethod space-copy ((ssp mspace) source-address (dsp null-space) destination-address count)
+  (declare (ignore source-address destination-address count))
+  (forth-exception :null-pointer-reference))
 
 
 ;;;
