@@ -84,10 +84,10 @@
 (defmethod (setf stack-depth) (depth (st stack))
   (setf (fill-pointer (stack-cells st)) depth))
 
-(defmethod stack-drop ((st stack))
-  "( x - )"
-  (stack-underflow-check st)
-  (decf (fill-pointer (stack-cells st))))
+(defmethod stack-drop ((st stack) &optional (n 1))
+  "( x(n) ... x(1) - )"
+  (stack-underflow-check st n)
+  (decf (fill-pointer (stack-cells st)) n))
 
 (defmethod stack-dup ((st stack))
   "( x - x x )"
