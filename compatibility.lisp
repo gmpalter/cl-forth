@@ -151,3 +151,33 @@
 (defun remove-auto-flush-stream (stream)
   (declare (ignore stream))
   nil)
+
+
+;;; ADDRESS-POINTER, POINTER-ADDRESS, %ADDRESS-OF
+
+(declaim (inline address-pointer pointer-address %address-of))
+
+#+CFFI
+(defun address-pointer (address)
+  (cffi:make-pointer address))
+
+#+CFFI
+(defun pointer-address (pointer)
+  (cffi:pointer-address pointer))
+
+#-CFFI
+(defun address-pointer (address)
+  address)
+
+#-CFFI
+(defun pointer-address (pointer)
+  pointer)
+
+#+CCL
+(defun %address-of (object)
+  ;; CCL's %ADDRESS-OF doesn't strip the tag from the address
+  (logand (ccl:%address-of object) (lognot 7)))
+
+#-CCL
+(defun %address-of (object)
+  (error "NYI: ~S" 'address-of))

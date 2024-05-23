@@ -354,6 +354,21 @@
            (address (address-address address)))
       (space-decode-address space address))))
 
+(defmethod native-address ((memory memory) foreign-pointer)
+  (with-slots (all-spaces) memory
+    (let ((foreign-address (pointer-address foreign-pointer)))
+      (with-slots (all-spaces) memory
+        (or (loop for space across all-spaces
+                    thereis (space-native-address space foreign-address))
+            (forth-exception :invalid-memory))))))
+
+(defmethod foreign-pointer ((memory memory) native-address)
+  (with-slots (all-spaces) memory
+    (let* ((prefix (address-prefix native-address))
+           (space (aref all-spaces prefix))
+           (address (address-address native-address)))
+      (address-pointer (space-foreign-address space address)))))
+
 ;;;
 
 (defconstant +native-memory-operation-success+ 0)
@@ -374,6 +389,7 @@
     (if (= (space-prefix native-memory) (address-prefix address))
         (space-resize-native-memory native-memory (address-address address) n-bytes)
         (values address +native-memory-operation-failure+))))
+
 
 ;;;
 
@@ -424,6 +440,14 @@
 (defgeneric (setf byte-at) (value mspace address))
 
 (defgeneric space-decode-address (mspace address))
+(defgeneric space-native-address (mspace foreign-address)
+  (:method ((sp mspace) foreign-address)
+    (declare (ignore foreign-address))
+    nil))
+(defgeneric space-foreign-address (mspace native-address)
+  (:method ((sp mspace) native-address)
+    (declare (ignore native-address))
+    nil))
 
 (defgeneric space-fill (mspace address count byte)
   (:method ((sp mspace) address count byte)
@@ -467,6 +491,7 @@
 (defclass data-space (mspace)
   ((data :accessor data-space-data)
    (size :accessor data-space-size :initarg :size :initform 0)
+   (data-foreign-address :initform nil)
    (saved-data :initform nil)
    (saved-high-water-mark :initform 0))
   )
@@ -620,6 +645,19 @@
 (defmethod space-decode-address ((sp data-space) address)
   (with-slots (data size) sp
     (values data address size)))
+
+(defmethod space-native-address ((sp data-space) foreign-address)
+  (with-slots (prefix data size data-foreign-address) sp
+    (when (null data-foreign-address)
+      (setf data-foreign-address (%address-of data)))
+    (when (<= data-foreign-address foreign-address (+ data-foreign-address size -1))
+      (make-address prefix (- foreign-address data-foreign-address)))))
+
+(defmethod space-foreign-address ((sp data-space) native-address)
+  (with-slots (data data-foreign-address) sp
+    (when (null data-foreign-address)
+      (setf data-foreign-address (%address-of data)))
+    (+ data-foreign-address native-address)))
 
 (defmethod space-fill ((sp data-space) address count byte)
   (with-slots (data size) sp
@@ -882,7 +920,8 @@
   (in-use? nil)
   (number 0)
   (size 0)
-  (data nil))
+  (data nil)
+  (data-foreign-address nil))
 
 (defconstant +address-chunk-size+ 16)
 (defconstant +address-subaddress-size+ (- +address-address-size+ +address-chunk-size+))
@@ -1151,3 +1190,27 @@
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
     (values data subaddress size)))
+
+(defmethod space-native-address ((sp native-memory) foreign-address)
+  (with-slots (prefix chunks) sp
+    (loop for chunk across chunks
+          when (and (chunk-in-use? chunk)
+                    (chunk-data-foreign-address chunk)
+                    (<= (chunk-data-foreign-address chunk) foreign-address (+ (chunk-data-foreign-address chunk)
+                                                                              (chunk-size chunk)
+                                                                              -1)))
+            return (make-chunked-address prefix (chunk-number chunk) (- foreign-address (chunk-data-foreign-address chunk))))))
+
+(defmethod space-foreign-address ((sp native-memory) native-address)
+  (let ((chunk-number (address-chunk native-address))
+        (subaddress (address-subaddress native-address)))
+    (with-slots (chunks) sp
+      (if (< chunk-number (fill-pointer chunks))
+          (let ((chunk (aref chunks chunk-number)))
+            (cond ((chunk-in-use? chunk)
+                   (when (null (chunk-data-foreign-address chunk))
+                     (setf (chunk-data-foreign-address chunk) (%address-of (chunk-data chunk))))
+                   (+ (chunk-data-foreign-address chunk) subaddress))
+                  (t
+                   (forth-exception :invalid-memory))))
+          (forth-exception :invalid-memory)))))

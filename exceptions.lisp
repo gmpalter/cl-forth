@@ -120,6 +120,13 @@
   (:locals-in-control-flow -281 "Can't define locals inside control flow structures")
   (:unterminated-locals-block -282 "Locals block not complete")
   (:invalid-local-name -283 "Invalid name for a LOCAL")
+  (:no-foreign-library -301 "No foreign library loaded")
+  (:cant-load-foreign-library -302 "Can't load foreign library")
+  (:undefined-foreign-function -303 "Foreign function not defined")
+  (:undefined-foreign-global -304 "Foreign global not defined")
+  (:invalid-foreign-parameter-list -305 "Invalid foreign function parameter llist")
+  (:missing-foreign-definitions -306 "AS not followed by FUNCTION: or GLOBAL:")
+  (:no-platform-library -307 "No library for this platform found")
   )
 
 (define-condition forth-exception (error)

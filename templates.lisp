@@ -4,6 +4,7 @@
   ((memory :accessor template-memory)
    (word-lists :accessor template-word-lists)
    (execution-tokens :accessor template-execution-tokens)
+   (ffi :accessor template-ffi)
    (replacements :accessor template-replacements)
    (base :accessor template-base)
    (float-precision :accessor template-float-precision)
@@ -22,6 +23,7 @@
       (setf (template-memory template) (save-to-template memory)
             (template-word-lists template) (save-to-template word-lists)
             (template-execution-tokens template) (save-to-template execution-tokens)
+            (template-ffi template) (save-to-template ffi)
             (template-replacements template) (save-to-template replacements)
             (template-base template) base
             (template-float-precision template) float-precision
@@ -38,6 +40,7 @@
   (load-from-template memory (template-memory template))
   (load-from-template word-lists (template-word-lists template))
   (load-from-template execution-tokens (template-execution-tokens template))
+  (load-from-template ffi (template-ffi template))
   (load-from-template replacements (template-replacements template))
   (setf base (template-base template)
         float-precision (template-float-precision template)

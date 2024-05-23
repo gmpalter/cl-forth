@@ -55,3 +55,21 @@
   (with-forth-system (fs)
     (stack-push data-stack (+ (stack-pop data-stack) (first parameters)))))
 
+;;; Helpers for FFI words
+
+#+CFFI
+(defun push-parameter-as-global-pointer (fs &rest parameters)
+  (with-forth-system (fs)
+    (let* ((name (first parameters))
+           (library (library-ffi-library (second parameters)))
+           (pointer (cffi:foreign-symbol-pointer name :library library)))
+      (if (null pointer)
+          (forth-exception :undefined-foreign-global "~A is not defined in ~A" name (library-name (second parameters)))
+          (stack-push data-stack (native-address memory pointer))))))
+
+#+CFFI
+(defun push-parameter-as-callback-ptr (fs &rest parameters)
+  (with-forth-system (fs)
+    ;;---*** TODO
+    ;; (stack-push data-stack (native-address memory (cffi:get-callback (first parameters))))
+    (stack-push data-stack (length (first parameters)))))

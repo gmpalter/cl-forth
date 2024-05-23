@@ -33,3 +33,6 @@
 
 (defpackage #:forth-words
   (:use))
+
+(defpackage #:forth-ffi-symbols
+  (:use))

@@ -59,6 +59,7 @@
    (word-lists :initform (make-instance 'word-lists))
    (files :reader forth-system-files :initform (make-instance 'files))
    (execution-tokens :initform (make-instance 'execution-tokens))
+   (ffi :initform (make-instance 'ffi))
    (replacements :initform (make-instance 'replacements))
    (base :initform 10)
    (float-precision :initform 17)
@@ -80,13 +81,14 @@
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
-  (with-slots (memory word-lists files execution-tokens) fs
+  (with-slots (memory word-lists files execution-tokens ffi) fs
     (add-state-space memory fs)
     (add-state-space memory word-lists)
     (add-state-space memory files)
     (add-space memory (files-source-as-space files))
     (add-space memory (files-saved-buffer-space files))
     (add-space memory execution-tokens)
+    (add-space memory (ffi-foreign-space ffi))
     (cond (template
            (load-from-template fs template))
           (t
@@ -109,12 +111,12 @@
          
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
-                word-lists files execution-tokens replacements base float-precision state definition compiling-paused?
+                word-lists files execution-tokens ffi replacements base float-precision state definition compiling-paused?
                 show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
                 exception-hook exception-prefix exit-hook announce-addendum prompt-string)
        ,fs
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
-                         definitions-stack word-lists files execution-tokens replacements base float-precision state
+                         definitions-stack word-lists files execution-tokens ffi replacements base float-precision state
                          definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
                          show-definition-code? exception-hook exception-prefix exit-hook announce-addendum prompt-string))
      ,@body))

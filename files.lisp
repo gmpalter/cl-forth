@@ -91,6 +91,18 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
+(defmethod space-native-address :before ((sp source-data-space) foreign-address)
+  (declare (ignore foreign-address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
+
+(defmethod space-foreign-address :before ((sp source-data-space) native-address)
+  (declare (ignore native-address))
+  (with-slots (is-valid?) sp
+    (unless is-valid?
+      (update-source-data-space sp))))
+
 (defmethod space-fill :before ((sp source-data-space) address count byte)
   (declare (ignore address count byte))
   (forth-exception :write-to-read-only-memory))
