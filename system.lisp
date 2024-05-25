@@ -166,7 +166,8 @@
                       (clear-input)
                       (reset-interpreter/compiler fs)
                       (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
-                        (funcall exception-hook fs))))
+                        (funcall exception-hook fs))
+                      (force-output)))
                 (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
                   (reset-interpreter/compiler fs)))))))
     ;; Return T if the interpreter loop exited cleanly. Return NIL on a fatal error, usually detected by an exception hook
@@ -230,7 +231,8 @@
                           (add-forms-to-definition fs `(stack-push float-stack ,value)))))))
              finally
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files) (not (shiftf first nil)) (not empty))
-                  (write-string prompt-string)))
+                  (write-string prompt-string)
+                  (force-output)))
        (unless (refill files)
          (cond ((not toplevel?)
                 (source-pop files)
@@ -240,7 +242,8 @@
                (t
                 (source-pop files)
                 (when (and (eq (state fs) :interpreting) (terminal-input-p files))
-                  (write-string prompt-string)))))))
+                  (write-string prompt-string)
+                  (force-output)))))))
 
 (defun forth-call (fs word psuedo-pc)
   (with-forth-system (fs)
