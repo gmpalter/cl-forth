@@ -201,7 +201,7 @@
          (address (transient-space-base-address memory name>string-space)))
     (ensure-transient-space-holds memory name>string-space (length (word-name word)))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address (length (word-name word)))
       (native-into-forth-string (word-name word) forth-memory offset))
     (stack-push data-stack address)
     (stack-push data-stack (length (word-name word)))

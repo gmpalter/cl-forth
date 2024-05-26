@@ -812,7 +812,7 @@
     (when (> (+ used count) size)
       (forth-exception :pictured-output-overflow))
     (multiple-value-bind (source-data offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (replace data source-data :start1 (- size used count) :end1 (- size used)
                                 :start2 offset :end2 (+ offset count))
       (incf used count))))

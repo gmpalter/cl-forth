@@ -35,7 +35,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "String length must be positive"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (let ((string (forth-string-to-native region offset length)))
         ;; Remove leading and trailing spaces
         (setf string (string-trim '(#\Space) string)
@@ -296,7 +296,7 @@
         (unless (plusp length)
           (forth-exception :invalid-numeric-argument "String length must be positive"))
         (multiple-value-bind (region offset)
-            (memory-decode-address memory address)
+            (memory-decode-address memory address length)
           (let* ((r (stack-pop float-stack))
                  (exponent (1+ (cond ((plusp r) (floor (log (rationalize r) 10)))
                                      ((zerop r) 0)

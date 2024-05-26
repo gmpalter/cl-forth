@@ -73,7 +73,7 @@
   (let* ((offset (mod address +cell-size+))
          (address (- address offset))
          (pointer (cffi:make-pointer address))
-         (size (+ (or size-hint (expt 2 20)) offset)))
+         (size (+ (or size-hint (expt 2 15)) offset)))
     (values (cffi:foreign-array-to-lisp pointer `(:array :uint8 ,size) :element-type '(unsigned-byte 8))
             offset
             size)))

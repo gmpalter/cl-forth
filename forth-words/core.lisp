@@ -342,7 +342,7 @@
     (unless (plusp count)
       (forth-exception :invalid-numeric-argument "ACCEPT buffer size must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       ;;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
       ;;;       until we either get a Newline or fill the buffer. (Sigh)
       (let ((buffer (make-array count :element-type 'character :fill-pointer 0 :adjustable t)))
@@ -548,7 +548,7 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to EVALUATE can't be negative"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (let ((string (forth-string-to-native forth-memory offset count)))
         (source-push files :evaluate string :source-address address)))
     (interpreter/compiler fs :toplevel? nil)))
@@ -867,7 +867,7 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to TYPE can't be negative"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (write-string (forth-string-to-native forth-memory offset count)))))
 
 (define-word print-tos-unsigned (:word "U.")
@@ -952,7 +952,7 @@
     ;; Length of a counted string is always a single byte regardless of character size
     (ensure-transient-space-holds memory word-space (1+ (* length +char-size+)))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address (1+ (* length +char-size+)))
       (native-into-forth-counted-string text forth-memory offset))
     (stack-push data-stack address)
     (seal-transient-space memory word-space)))
@@ -1133,7 +1133,7 @@
          ;; Length of a counted string is always a single byte regardless of character size
          (address (allocate-memory memory (1+ text-size))))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address (1+ text-size))
       (native-into-forth-counted-string text forth-memory offset)
       (add-to-definition fs
         `(stack-push data-stack ,address)))))

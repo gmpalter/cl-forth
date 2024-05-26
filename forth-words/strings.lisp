@@ -15,7 +15,7 @@
           (t
            ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
            (multiple-value-bind (region offset)
-               (memory-decode-address memory address)
+               (memory-decode-address memory address count)
              (let* ((end (+ offset count))
                     (last (position +forth-char-space+ region :start offset :end end :from-end t :test-not #'=)))
                (stack-push data-stack (if last
@@ -96,9 +96,9 @@
     (when (or (minusp count1) (minusp count2))
       (forth-exception :invalid-numeric-argument "Count to SEARCH can't be negative"))
     (multiple-value-bind (region1 offset1)
-        (memory-decode-address memory address1)
+        (memory-decode-address memory address1 count1)
       (multiple-value-bind (region2 offset2)
-          (memory-decode-address memory address2)
+          (memory-decode-address memory address2 count2)
         ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
         (let* ((end1 (+ offset1 count1))
                (end2 (+ offset2 count2))
@@ -135,9 +135,9 @@
     (when (or (minusp count1) (minusp count2))
       (forth-exception :invalid-numeric-argument "Count to SEARCH can't be negative"))
     (multiple-value-bind (region1 offset1)
-        (memory-decode-address memory address1)
+        (memory-decode-address memory address1 count1)
       (multiple-value-bind (region2 offset2)
-          (memory-decode-address memory address2)
+          (memory-decode-address memory address2 count2)
         ;; NOTE: Relies on the fact that +CHAR-SIZE+ is 1
         (let* ((end1 (+ offset1 count1))
                (end2 (+ offset2 count2))
@@ -182,9 +182,9 @@
     (unless (plusp count2)
       (forth-exception :invalid-numeric-argument "Original's length in REPLACES must be positive"))
     (multiple-value-bind (region1 offset1)
-        (memory-decode-address memory address1)
+        (memory-decode-address memory address1 count1)
       (multiple-value-bind (region2 offset2)
-          (memory-decode-address memory address2)
+          (memory-decode-address memory address2 count2)
         (let ((substitution (forth-string-to-native region1 offset1 count1))
               (name (forth-string-to-native region2 offset2 count2)))
           (register-replacement replacements name substitution))))))
@@ -204,9 +204,9 @@
     ;; Don't have to check for overlapping input and output as we perform the substitution in
     ;; a temporary area and then move the result into the output buffer
     (multiple-value-bind (region1 offset1)
-        (memory-decode-address memory address1)
+        (memory-decode-address memory address1 count1)
       (multiple-value-bind (region2 offset2)
-          (memory-decode-address memory address2)
+          (memory-decode-address memory address2 count2)
         (let ((input (forth-string-to-native region1 offset1 count1)))
           (multiple-value-bind (output n-replacements)
               (perform-substitute replacements input)

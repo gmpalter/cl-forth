@@ -19,7 +19,7 @@
            (address (stack-pop data-stack)))
        (cond ((plusp count)
               (multiple-value-bind (data offset)
-                  (memory-decode-address memory address)
+                  (memory-decode-address memory address count)
                 (let ((name (forth-string-to-native data offset count)))
                   (add-local-definition fs name))))
              ((zerop count)

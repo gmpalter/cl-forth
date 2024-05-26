@@ -13,7 +13,7 @@
   "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
   "otherwise also return minus-one (-1)"
   (multiple-value-bind (forth-memory offset)
-      (memory-decode-address memory (stack-cell data-stack 0))
+      (memory-decode-address memory (stack-cell data-stack 0) (1+ +longest-counted-string+))
     (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
       (cond (word
              (stack-pop data-stack)
@@ -55,7 +55,7 @@
     (unless (plusp count)
       (forth-exception :invalid-numeric-argument "Word name length must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (let* ((name (forth-string-to-native forth-memory offset count))
              (word (search-dictionary wl name)))
         (cond (word

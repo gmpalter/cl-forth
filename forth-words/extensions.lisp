@@ -10,7 +10,7 @@
          ;; Length of a counted string is always a single byte regardless of character size
          (address (allocate-memory memory (1+ text-size))))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address (1+ text-size))
       (native-into-forth-counted-string text forth-memory offset))))
 
 (define-word add-two (:word "2+")
@@ -73,7 +73,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of string must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (multiple-value-bind (type value)
           (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil)
         (case type
@@ -93,7 +93,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of string must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (multiple-value-bind (type value)
           (interpret-number (forth-string-to-native forth-memory offset length) base :allow-floats? nil :signal-overflow? nil)
         (case type

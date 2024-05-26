@@ -25,7 +25,7 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to ENVIRONMENT? can't be negative"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (let* ((query-string (forth-string-to-native region offset count))
              (query (gethash query-string *environment-queries*)))
         (if query
@@ -105,7 +105,7 @@
 (define-query "XCHAR-ENCODING"
   (let ((address (allocate-memory memory (length +xchar-encoding-name+))))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address (length +xchar-encoding-name+))
       (native-into-forth-string +xchar-encoding-name+ region offset))
     (stack-push data-stack address)
     (stack-push data-stack (length +xchar-encoding-name+))))

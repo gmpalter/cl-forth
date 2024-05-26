@@ -30,7 +30,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (multiple-value-bind (fileid ior)
           (forth-create-file files (forth-string-to-native forth-memory offset length) fam)
         (stack-push data-stack fileid)
@@ -44,7 +44,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (stack-push data-stack (forth-delete-file files (forth-string-to-native forth-memory offset length))))))
 
 (define-word file-position (:word "FILE-POSITION")
@@ -88,7 +88,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (let ((filename (forth-string-to-native forth-memory offset length)))
         (multiple-value-bind (fileid ior)
             (forth-open-file files filename +read-direction+)
@@ -113,7 +113,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (multiple-value-bind (fileid ior)
           (forth-open-file files (forth-string-to-native forth-memory offset length) fam)
         (stack-push data-stack fileid)
@@ -145,7 +145,7 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to READ-FILE can't be negative"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (multiple-value-bind (read-count ior)
           (forth-read-file files fileid region offset count)
         (stack-push data-stack read-count)
@@ -176,7 +176,7 @@
                    (t
                     ;; Read was successful -- FORTH-READ-LINE will never return more the U1 characters
                     (multiple-value-bind (region offset)
-                        (memory-decode-address memory address)
+                        (memory-decode-address memory address count)
                       (native-into-forth-string line region offset))
                     (stack-push data-stack (length line))
                     (stack-push data-stack +true+))))
@@ -215,7 +215,7 @@
               (address (transient-space-base-address memory string-space)))
          (ensure-transient-space-holds memory string-space text-size)
          (multiple-value-bind (forth-memory offset)
-             (memory-decode-address memory address)
+             (memory-decode-address memory address text-size)
            (native-into-forth-string text forth-memory offset)
            (stack-push data-stack address)
            (stack-push data-stack text-size)
@@ -223,7 +223,7 @@
       (:compiling
        (let ((address (allocate-memory memory text-size)))
          (multiple-value-bind (forth-memory offset)
-             (memory-decode-address memory address)
+             (memory-decode-address memory address text-size)
            (native-into-forth-string text forth-memory offset)
            (add-to-definition fs
              `(stack-push data-stack ,address)
@@ -249,7 +249,7 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to READ-FILE can't be negative"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (stack-push data-stack (forth-write-file files fileid region offset count)))))
 
 (define-word write-line (:word "WRITE-LINE")
@@ -262,14 +262,14 @@
     (when (minusp count)
       (forth-exception :invalid-numeric-argument "Count to WRITE-LINE can't be negative"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address count)
       (stack-push data-stack (forth-write-line files fileid (forth-string-to-native region offset count))))))
 
 
 ;;; File-Access extension words as defined in Section 11 of the Forth 2012 specification
 
 (define-word file-status (:word "FILE-STATUS")
-  "( c-add ru – x ior )"
+  "( c-addr u – x ior )"
   "Return the status of the file identified by the character string C-ADDR U. If the file exists, IOR is zero;"
   "otherwise IOR is the implementation-defined I/O result code. X contains implementation-defined information about the file"
   (let ((length (cell-signed (stack-pop data-stack)))
@@ -277,7 +277,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (region offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (multiple-value-bind (status ior)
           (forth-file-status files (forth-string-to-native region offset length))
         (stack-push data-stack status)
@@ -359,9 +359,9 @@
     (unless (and (plusp old-length) (plusp new-length))
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (old-region old-offset)
-        (memory-decode-address memory old-address)
+        (memory-decode-address memory old-address old-length)
       (multiple-value-bind (new-region new-offset)
-          (memory-decode-address memory new-address)
+          (memory-decode-address memory new-address new-length)
         (stack-push data-stack (forth-rename-file files
                                                   (forth-string-to-native old-region old-offset old-length)
                                                   (forth-string-to-native new-region new-offset new-length)))))))
@@ -387,7 +387,7 @@
     (unless (plusp length)
       (forth-exception :invalid-numeric-argument "Length of filename/pathname must be positive"))
     (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address)
+        (memory-decode-address memory address length)
       (let ((filename (forth-string-to-native forth-memory offset length)))
         (multiple-value-bind (fileid ior)
             (forth-open-file files filename +read-direction+)
@@ -413,7 +413,7 @@
               (address (transient-space-base-address memory string-space)))
          (ensure-transient-space-holds memory string-space text-size)
          (multiple-value-bind (forth-memory offset)
-             (memory-decode-address memory address)
+             (memory-decode-address memory address text-size)
            (native-into-forth-string text forth-memory offset)
            (stack-push data-stack address)
            (stack-push data-stack text-size)
@@ -421,7 +421,7 @@
       (:compiling
        (let ((address (allocate-memory memory text-size)))
          (multiple-value-bind (forth-memory offset)
-             (memory-decode-address memory address)
+             (memory-decode-address memory address text-size)
            (native-into-forth-string text forth-memory offset)
            (add-to-definition fs
              `(stack-push data-stack ,address)
