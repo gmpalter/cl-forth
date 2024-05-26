@@ -35,8 +35,8 @@
   (declare (ignore boundary))
   nil)
 
-(defmethod space-decode-address :before ((sp source-data-space) address)
-  (declare (ignore address))
+(defmethod space-decode-address :before ((sp source-data-space) address &optional size-hint)
+  (declare (ignore address size-hint))
   (with-slots (is-valid?) sp
     (unless is-valid?
       (update-source-data-space sp))))
@@ -409,14 +409,14 @@
     (let* ((count (length buffer))
            (address (space-allocate saved-buffer-space count)))
       (multiple-value-bind (data offset)
-          (space-decode-address saved-buffer-space (address-address address))
+          (space-decode-address saved-buffer-space (address-address address) count)
         (native-into-forth-string buffer data offset))
       (values address count))))
 
 (defmethod restore-buffer ((f files) address count)
   (with-slots (buffer saved-buffer-space) f
     (multiple-value-bind (data offset)
-        (space-decode-address saved-buffer-space (address-address address))
+        (space-decode-address saved-buffer-space (address-address address) count)
       (setf buffer (forth-string-to-native data offset count)))))
 
 (defmethod save-input ((f files) &key for-catch?)

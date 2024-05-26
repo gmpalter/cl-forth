@@ -347,12 +347,12 @@
 
 ;;;
 
-(defmethod memory-decode-address ((memory memory) address)
+(defmethod memory-decode-address ((memory memory) address &optional size-hint)
   (with-slots (all-spaces) memory
     (let* ((prefix (address-prefix address))
            (space (aref all-spaces prefix))
            (address (address-address address)))
-      (space-decode-address space address))))
+      (space-decode-address space address size-hint))))
 
 (defmethod native-address ((memory memory) foreign-pointer)
   (with-slots (all-spaces) memory
@@ -445,7 +445,7 @@
 (defgeneric byte-at (mspace address))
 (defgeneric (setf byte-at) (value mspace address))
 
-(defgeneric space-decode-address (mspace address))
+(defgeneric space-decode-address (mspace address &optional size-hint))
 (defgeneric space-native-address (mspace foreign-address)
   (:method ((sp mspace) foreign-address)
     (declare (ignore foreign-address))
@@ -462,7 +462,7 @@
 (defgeneric space-fill (mspace address count byte)
   (:method ((sp mspace) address count byte)
     (multiple-value-bind (data address size)
-        (space-decode-address sp address)
+        (space-decode-address sp address count)
       (unless (<= (+ address count) size)
         (forth-exception :invalid-memory))
       (fill data byte :start address :end (+ address count)))))
@@ -470,9 +470,9 @@
 (defgeneric space-copy (source-space source-address destination-space destination-address count)
   (:method ((ssp mspace) source-address (dsp mspace) destination-address count)
     (multiple-value-bind (source-data source-address source-size)
-        (space-decode-address ssp source-address)
+        (space-decode-address ssp source-address count)
       (multiple-value-bind (destination-data destination-address destination-size)
-          (space-decode-address dsp destination-address)
+          (space-decode-address dsp destination-address count)
         (unless (<= (+ source-address count) source-size)
           (forth-exception :invalid-memory))
         (unless (<= (+ destination-address count) destination-size)
@@ -652,7 +652,8 @@
       (forth-exception :invalid-memory))
     (setf (aref data address) (ldb (byte 8 0) value))))
 
-(defmethod space-decode-address ((sp data-space) address)
+(defmethod space-decode-address ((sp data-space) address &optional size-hint)
+  (declare (ignore size-hint))
   (with-slots (data size) sp
     (values data address size)))
 
@@ -919,8 +920,8 @@
       (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
-(defmethod space-decode-address ((sp state-space) address)
-  (declare (ignore address))
+(defmethod space-decode-address ((sp state-space) address &optional size-hint)
+  (declare (ignore address size-hint))
   (forth-exception :invalid-memory))
 
 
@@ -1003,8 +1004,8 @@
   (declare (ignore value address))
   (forth-exception :null-pointer-reference))
 
-(defmethod space-decode-address ((sp null-space) address)
-  (declare (ignore address))
+(defmethod space-decode-address ((sp null-space) address &optional size-hint)
+  (declare (ignore address size-hint))
   (forth-exception :null-pointer-reference))
 
 (defmethod space-native-address ((sp null-space) foreign-address)
@@ -1306,7 +1307,8 @@
       (forth-exception :invalid-memory))
     (setf (aref data subaddress) (ldb (byte 8 0) value))))
 
-(defmethod space-decode-address ((sp native-memory) address)
+(defmethod space-decode-address ((sp native-memory) address &optional size-hint)
+  (declare (ignore size-hint))
   (multiple-value-bind (data subaddress size)
       (native-memory-chunk sp address)
     (values data subaddress size)))

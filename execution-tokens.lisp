@@ -158,8 +158,8 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-decode-address ((xts execution-tokens) address)
-  (declare (ignore address))
+(defmethod space-decode-address ((xts execution-tokens) address &optional size-hint)
+  (declare (ignore address size-hint))
   (forth-exception :invalid-memory))
 
 (defmethod space-fill ((xts execution-tokens) address count byte)

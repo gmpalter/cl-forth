@@ -73,9 +73,14 @@
 (defmethod (setf byte-at) (value (sp foreign-space) address)
   (setf (cffi:mem-ref (address-pointer address) :uint8) value))
 
-(defmethod space-decode-address ((sp foreign-space) address)
-  (declare (ignore address))
-  (forth-exception :invalid-memory))
+(defmethod space-decode-address ((sp foreign-space) address &optional size-hint)
+  (let* ((offset (mod address +cell-size+))
+         (address (- address offset))
+         (pointer (cffi:make-pointer address))
+         (size (+ (or size-hint (expt 2 20)) offset)))
+    (values (cffi:foreign-array-to-lisp pointer `(:array :uint8 ,size) :element-type '(unsigned-byte 8))
+            offset
+            size)))
 
 (defmethod space-native-address ((sp foreign-space) foreign-address)
   ;;---*** TODO: What if the FOREIGN-ADDRESS has a non-zero PREFIX?
@@ -103,7 +108,7 @@
 ;;; NOTE: We have no way to bounds check the foreign space in this operation ...
 (defmethod space-copy ((ssp foreign-space) source-address (dsp mspace) destination-address count)
   (multiple-value-bind (destination-data destination-address destination-size)
-      (space-decode-address dsp destination-address)
+      (space-decode-address dsp destination-address count)
     (unless (<= (+ destination-address count) destination-size)
       (forth-exception :invalid-memory))
     (cffi:foreign-funcall "memcpy" :pointer (cffi:inc-pointer (%address-of destination-data) destination-address)
@@ -114,7 +119,7 @@
 ;;; NOTE: We have no way to bounds check the foreign space in this operation ...
 (defmethod space-copy ((ssp mspace) source-address (dsp foreign-space) destination-address count)
   (multiple-value-bind (source-data source-address source-size)
-      (space-decode-address ssp source-address)
+      (space-decode-address ssp source-address count)
     (unless (<= (+ source-address count) source-size)
       (forth-exception :invalid-memory))
     (cffi:foreign-funcall "memcpy" :pointer (address-pointer destination-address)
