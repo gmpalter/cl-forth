@@ -1,7 +1,3 @@
-;;; CFFI complains when defining a foreign type in the KEYWORD package unless the current package is CFFI...
-(in-package #:cffi)
-(cffi:defctype :size_t :long)
-
 (in-package #:forth)
 
 (defclass foreign-space (mspace)
@@ -96,13 +92,13 @@
 
 ;;; NOTE: We have no way to bounds check this operation ...
 (defmethod space-fill ((sp foreign-space) address count byte)
-  (cffi:foreign-funcall "memset" :pointer (address-pointer address) :uint8 byte :size_t count :pointer)
+  (cffi:foreign-funcall "memset" :pointer (address-pointer address) :uint8 byte :size count :pointer)
   nil)
 
 ;;; NOTE: We have no way to bounds check this operation ...
 (defmethod space-copy ((ssp foreign-space) source-address (dsp foreign-space) destination-address count)
   (cffi:foreign-funcall "memcpy" :pointer (address-pointer destination-address) :pointer (address-pointer source-address)
-                                 :size_t count :pointer)
+                                 :size count :pointer)
   nil)
 
 ;;; NOTE: We have no way to bounds check the foreign space in this operation ...
@@ -113,7 +109,7 @@
       (forth-exception :invalid-memory))
     (cffi:foreign-funcall "memcpy" :pointer (cffi:inc-pointer (%address-of destination-data) destination-address)
                                    :pointer (address-pointer source-address)
-                                   :size_t count :pointer)
+                                   :size count :pointer)
     nil))
 
 ;;; NOTE: We have no way to bounds check the foreign space in this operation ...
@@ -124,7 +120,7 @@
       (forth-exception :invalid-memory))
     (cffi:foreign-funcall "memcpy" :pointer (address-pointer destination-address)
                                    :pointer (cffi:inc-pointer (%address-of source-data) source-address)
-                                   :size_t count :pointer)
+                                   :size count :pointer)
     nil))
 
 
