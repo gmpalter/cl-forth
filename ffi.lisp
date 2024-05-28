@@ -169,8 +169,8 @@
       (clrhash ffi-calls)
       (clrhash callbacks)
       (destructuring-bind (saved-libraries saved-ffi-calls saved-callbacks) template
-        (dolist (library saved-libraries)
-          (vector-push-extend library libraries))
+        (loop for library across saved-libraries
+              do (vector-push-extend library libraries))
         (dolist (ffi-call saved-ffi-calls)
           (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call))
         (dolist (callback saved-callbacks)
