@@ -148,9 +148,8 @@
    (callbacks :initform (make-hash-table :test #'equalp)))
   )
 
-;;;---*** TODO: Save foreign libraries?
 (defmethod save-to-template ((ffi ffi))
-  (with-slots (ffi-calls callbacks) ffi
+  (with-slots (libraries ffi-calls callbacks) ffi
     (let ((saved-ffi-calls nil)
           (saved-callbacks nil))
       (maphash #'(lambda (name ffi-call)
@@ -161,15 +160,17 @@
                    (declare (ignore name))
                    (push callback saved-callbacks))
                callbacks)
-      (list saved-ffi-calls saved-callbacks))))
+      (list (copy-seq libraries) saved-ffi-calls saved-callbacks))))
 
-;;;---*** TODO: Reload foreign libraries?
 (defmethod load-from-template ((ffi ffi) template fs)
   (with-slots (word-lists) fs
-    (with-slots (ffi-calls callbacks) fs
+    (with-slots (libraries ffi-calls callbacks) ffi
+      (setf (fill-pointer libraries) 0)
       (clrhash ffi-calls)
       (clrhash callbacks)
-      (destructuring-bind (saved-ffi-calls saved-callbacks) template
+      (destructuring-bind (saved-libraries saved-ffi-calls saved-callbacks) template
+        (dolist (library saved-libraries)
+          (vector-push-extend library libraries))
         (dolist (ffi-call saved-ffi-calls)
           (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call))
         (dolist (callback saved-callbacks)
