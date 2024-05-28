@@ -130,6 +130,10 @@
   name
   ffi-library)
 
+(defstruct ffi-call
+  name
+  library)
+
 (defstruct callback
   name
   xt
@@ -138,31 +142,42 @@
 
 (defclass ffi ()
   ((foreign-space :accessor ffi-foreign-space :initform (make-instance 'foreign-space))
-   (libraries :initform (make-array 0 :fill-pointer 0 :adjustable t))
+   (libraries :accessor ffi-libraries :initform (make-array 0 :fill-pointer 0 :adjustable t))
    (current-library :accessor ffi-current-library :initform nil)
+   (ffi-calls :accessor ffi-ffi-calls :initform (make-hash-table :test #'equalp))
    (callbacks :initform (make-hash-table :test #'equalp)))
   )
 
 ;;;---*** TODO: Save foreign libraries?
 (defmethod save-to-template ((ffi ffi))
-  (with-slots (callbacks) ffi
-    (let ((callback-list nil))
+  (with-slots (ffi-calls callbacks) ffi
+    (let ((saved-ffi-calls nil)
+          (saved-callbacks nil))
+      (maphash #'(lambda (name ffi-call)
+                   (declare (ignore name))
+                   (push ffi-call saved-ffi-calls))
+               ffi-calls)
       (maphash #'(lambda (name callback)
                    (declare (ignore name))
-                   (push callback callback-list))
+                   (push callback saved-callbacks))
                callbacks)
-      (list callback-list))))
+      (list saved-ffi-calls saved-callbacks))))
 
 ;;;---*** TODO: Reload foreign libraries?
 (defmethod load-from-template ((ffi ffi) template fs)
   (with-slots (word-lists) fs
-    (destructuring-bind (callbacks) template
-      (dolist (callback callbacks)
-        (let ((word (lookup word-lists (callback-name callback))))
-          (when word
-            (setf (first (word-parameters word))
-                  (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
-                                      (callback-parameters callback) (callback-return-value callback))))))))
+    (with-slots (ffi-calls callbacks) fs
+      (clrhash ffi-calls)
+      (clrhash callbacks)
+      (destructuring-bind (saved-ffi-calls saved-callbacks) template
+        (dolist (ffi-call saved-ffi-calls)
+          (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call)
+          (dolist (callback saved-callbacks)
+            (let ((word (lookup word-lists (callback-name callback))))
+              (when word
+                (setf (first (word-parameters word))
+                      (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
+                                          (callback-parameters callback) (callback-return-value callback))))))))))
   nil)
 
 (defmethod load-foreign-library ((ffi ffi) name-or-path)
@@ -183,54 +198,56 @@
         (forth-exception :cant-load-foreign-library "~A" e)))))
 
 (defmethod build-ffi-call ((ffi ffi) name library parameters return-value)
-  (let* ((lambda-name (intern (string-upcase name) '#:forth-ffi-symbols))
-         (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters))
-         (result-symbol (gensym "RESULT"))
-         (parameter-forms
-           (loop for parameter in parameters
-                 for symbol in parameter-symbols
-                 collect `(,symbol ,@(case parameter
-                                       (:int64
-                                        `((cell-signed (stack-pop data-stack))))
-                                       (:uint64
-                                        `((cell-unsigned (stack-pop data-stack))))
-                                       (:int32
-                                        `((quad-byte-signed (stack-pop data-stack))))
-                                       (:uint32
-                                        `((quad-byte-unsigned (stack-pop data-stack))))
-                                       (:pointer
-                                        `((foreign-pointer memory (stack-pop data-stack))))
-                                       (:single
-                                        `((>single-float (stack-pop float-stack))))
-                                       (:double
-                                        `((>double-float (stack-pop float-stack))))))))
-         (call-form
-           `((,result-symbol (cffi:foreign-funcall (,name :library ,(library-ffi-library library))
-                                                   ,@(loop for parameter in parameters
-                                                           for symbol in parameter-symbols
-                                                           collect parameter
-                                                           collect symbol)
-                                                   ,return-value))))
-         (return-form
-           (case return-value
-             (:void
-              nil)
-             ((:int64 :uint64 :int32 :uint32)
-              `((stack-push data-stack ,result-symbol)))
-             (:pointer
-              `((stack-push data-stack (native-address memory ,result-symbol))))
-             (:single
-              `((stack-push float-stack (native-float ,result-symbol))))
-             (:double
-              `((stack-push float-stack (native-float ,result-symbol))))))
-         (thunk `(named-lambda ,lambda-name (fs &rest parameters)
-                   (declare (ignorable parameters))
-                   (with-forth-system (fs)
-                     (let* (,@(reverse parameter-forms)
-                            ,@call-form)
-                       (declare (ignorable ,result-symbol))
-                       ,@return-form)))))
-    (compile nil (eval thunk))))
+  (with-slots (ffi-calls) ffi
+    (setf (gethash name ffi-calls) (make-ffi-call :name name :library library))
+    (let* ((lambda-name (intern (string-upcase name) '#:forth-ffi-symbols))
+           (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters))
+           (result-symbol (gensym "RESULT"))
+           (parameter-forms
+             (loop for parameter in parameters
+                   for symbol in parameter-symbols
+                   collect `(,symbol ,@(case parameter
+                                         (:int64
+                                          `((cell-signed (stack-pop data-stack))))
+                                         (:uint64
+                                          `((cell-unsigned (stack-pop data-stack))))
+                                         (:int32
+                                          `((quad-byte-signed (stack-pop data-stack))))
+                                         (:uint32
+                                          `((quad-byte-unsigned (stack-pop data-stack))))
+                                         (:pointer
+                                          `((foreign-pointer memory (stack-pop data-stack))))
+                                         (:single
+                                          `((>single-float (stack-pop float-stack))))
+                                         (:double
+                                          `((>double-float (stack-pop float-stack))))))))
+           (call-form
+             `((,result-symbol (cffi:foreign-funcall (,name :library ,(library-ffi-library library))
+                                                     ,@(loop for parameter in parameters
+                                                             for symbol in parameter-symbols
+                                                             collect parameter
+                                                             collect symbol)
+                                                     ,return-value))))
+           (return-form
+             (case return-value
+               (:void
+                nil)
+               ((:int64 :uint64 :int32 :uint32)
+                `((stack-push data-stack ,result-symbol)))
+               (:pointer
+                `((stack-push data-stack (native-address memory ,result-symbol))))
+               (:single
+                `((stack-push float-stack (native-float ,result-symbol))))
+               (:double
+                `((stack-push float-stack (native-float ,result-symbol))))))
+           (thunk `(named-lambda ,lambda-name (fs &rest parameters)
+                     (declare (ignorable parameters))
+                     (with-forth-system (fs)
+                       (let* (,@(reverse parameter-forms)
+                              ,@call-form)
+                         (declare (ignorable ,result-symbol))
+                         ,@return-form)))))
+      (compile nil (eval thunk)))))
 
 (defmethod build-ffi-callback ((ffi ffi) fs name xt parameters return-value)
   (with-slots (callbacks) ffi

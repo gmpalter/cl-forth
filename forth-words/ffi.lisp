@@ -151,15 +151,34 @@
   ""
   )
 
-#+TODO
 (define-word show-libraries (:word ".LIBS")
   "Displays a list of all available libraries opened by LIBRARY or XLIBRARY"
-  )
+  (cond ((zerop (length (ffi-libraries ffi)))
+         (write-line "No foreign libraries"))
+        (t
+         (write-line "Foreign Libraries:")
+         (loop for library across (ffi-libraries ffi)
+               do (format t "~& ~A~%" (library-name library))))))
 
-#+TODO
 (define-word show-imports (:word ".IMPORTS")
   "Displays a list of all currently available functions imported by FUNCTION:"
-  )
+  (let ((imports nil))
+    (maphash #'(lambda (name ffi-call)
+                 (declare (ignore name))
+                 (push ffi-call imports))
+             (ffi-ffi-calls ffi))
+    (cond ((zerop (length imports))
+           (write-line "No imported functions"))
+          (t
+           (setf imports (sort imports #'(lambda (f1 f2)
+                                           (< (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name f1)))
+                                              (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name f2)))))))
+           (write-line "Imported functions:")
+           (dolist (import imports)
+             (format t "~&  ~16,'0X ~A ~A~%"
+                     (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name import)))
+                     (library-name (ffi-call-library import))
+                     (ffi-call-name import)))))))
 
 (define-word ffi-callback (:word "CALLBACK:")
   "CALLBACK: <name> ( params -- return )" "( xt -- )"
