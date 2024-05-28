@@ -5,7 +5,8 @@
    (cells :accessor stack-cells)
    (size :accessor stack-size :initarg :size)
    (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
-   (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)))
+   (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)
+   (saved-cells :initform nil)))
 
 (defmethod initialize-instance :after ((st stack) &key &allow-other-keys)
   (with-slots (cells size underflow-key overflow-key) st
@@ -190,3 +191,15 @@
               do (setf (stack-cell st (1+ i)) (stack-cell st i)))
         cell)
     (decf (fill-pointer (stack-cells st)))))
+
+;;; Save/Restore stack contents for FFI callbacks
+
+(defmethod save-stack ((st stack))
+  (with-slots (cells saved-cells) st
+    (setf saved-cells (copy-seq cells)
+          (fill-pointer cells) 0)))
+
+(defmethod restore-stack ((st stack))
+  (with-slots (cells saved-cells) st
+    (setf (fill-pointer cells) (length saved-cells))
+    (replace cells saved-cells)))

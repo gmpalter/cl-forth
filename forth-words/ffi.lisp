@@ -161,22 +161,19 @@
   "Displays a list of all currently available functions imported by FUNCTION:"
   )
 
-;;;---*** TODO: Need arglist to handle pointers right
-#+TODO
 (define-word ffi-callback (:word "CALLBACK:")
-  "CALLBACK: <name>" "( xt n -- )"
-  "Creates an FFI callback which calls the execution token XT and expects N parameters."
+  "CALLBACK: <name> ( params -- return )" "( xt -- )"
+  "Creates an FFI callback which calls the execution token XT. The parameters specified by PARAMS are pushed"
+  "on the data stack and/or floating-point stack as appropriate. The callback returns zero or one value as"
+  "specified by RETURN."
   "Defines the word NAME which pushes the address of the callback onto the data stack"
-  (let ((count (stack-pop data-stack))
-        (xt (stack-pop data-stack))
+  (let ((xt (stack-pop data-stack))
         (name (word files #\Space)))
-    (when (minusp count)
-      (forth-exception :invalid-numeric-argument "Parameter count to CALLBACK: can't be negative"))
     (verify-execution-token execution-tokens xt)
     (when (null name)
       (forth-exception :zero-length-name))
-    ;;---*** TODO: Use CFFI-SYS:%DEFCALLBACK to create callback and need a new helper using CFFI-SYS:%CALLBACK
-    (let* ((callback (gensym "CB"))
-           (word (make-word name #'push-parameter-as-callback-ptr :parameters (list callback))))
-      (add-and-register-word fs word))))
-
+    (multiple-value-bind (parameters return-value)
+        (parse-parameters-and-return fs "FUNCTION:")
+      (let* ((callback (build-ffi-callback ffi fs name xt parameters return-value))
+             (word (make-word name #'push-parameter-as-callback-ptr :parameters (list callback))))
+        (add-and-register-word fs word)))))

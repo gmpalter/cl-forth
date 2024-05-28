@@ -212,6 +212,48 @@
                        ,@return-form)))))
     (compile nil (eval thunk))))
 
-#+TODO
-(defmethod build-ffi-callback ((ffi ffi) xt parameters return-value)
-  )
+(defmethod build-ffi-callback ((ffi ffi) fs name xt parameters return-value)
+  (let* ((callback (intern name '#:forth-ffi-symbols))
+         (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters)))
+    (eval
+     `(cffi:defcallback ,callback ,return-value (,@(loop for parameter in parameters
+                                                         for parameter-symbol in parameter-symbols
+                                                         collect `(,parameter-symbol ,parameter)))
+        (funcall #'(lambda (fs xt)
+                     (with-forth-system (fs)
+                       (unwind-protect
+                            (progn
+                              (save-stack data-stack)
+                              (save-stack float-stack)
+                              ,@(loop for parameter in parameters
+                                      for parameter-symbol in parameter-symbols
+                                      collect (case parameter
+                                                ((:int64 :uint64 :int32 :uint32)
+                                                 `(stack-push data-stack ,parameter-symbol))
+                                                (:pointer
+                                                 `(stack-push data-stack (native-address memory ,parameter-symbol)))
+                                                (:single
+                                                 `(stack-push float-stack (native-float ,parameter-symbol)))
+                                                (:double
+                                                 `(stack-push float-stack (native-float ,parameter-symbol)))))
+                              (execute execution-tokens xt fs)
+                              ,@(case return-value
+                                  (:void nil)
+                                  (:int64
+                                   `((cell-signed (stack-pop data-stack))))
+                                  (:uint64
+                                   `((cell-unsigned (stack-pop data-stack))))
+                                  (:int32
+                                   `((quad-byte-signed (stack-pop data-stack))))
+                                  (:uint32
+                                   `((quad-byte-unsigned (stack-pop data-stack))))
+                                  (:pointer
+                                   `((foreign-pointer memory (stack-pop data-stack))))
+                                  (:single
+                                   `((>single-float (stack-pop float-stack))))
+                                  (:double
+                                   `((>double-float (stack-pop float-stack)))))))
+                       (restore-stack data-stack)
+                       (restore-stack float-stack)))
+                 ,fs ,xt)))))
+  

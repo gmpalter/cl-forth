@@ -40,7 +40,8 @@
   (with-forth-system (fs)
     (replace-top-of-search-order word-lists (first parameters))))
 
-;;;
+
+;;; Structure (BEGIN-STRUCTURE) helpers
 
 (defstruct (forth-structure (:conc-name #:fs-))
   (size 0)
@@ -54,6 +55,7 @@
 (defun push-field-address-from-parameter (fs &rest parameters)
   (with-forth-system (fs)
     (stack-push data-stack (+ (stack-pop data-stack) (first parameters)))))
+
 
 ;;; Helpers for FFI words
 
@@ -70,6 +72,4 @@
 #+CFFI
 (defun push-parameter-as-callback-ptr (fs &rest parameters)
   (with-forth-system (fs)
-    ;;---*** TODO
-    ;; (stack-push data-stack (native-address memory (cffi:get-callback (first parameters))))
-    (stack-push data-stack (length (first parameters)))))
+    (stack-push data-stack (native-address memory (cffi:get-callback (first parameters))))))
