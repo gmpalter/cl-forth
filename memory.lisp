@@ -154,7 +154,8 @@
         (setf (aref template i) (space-save-to-template (aref all-spaces i))))
       template)))
 
-(defmethod load-from-template ((memory memory) template)
+(defmethod load-from-template ((memory memory) template fs)
+  (declare (ignore fs))
   (with-slots (all-spaces) memory
     (let ((n-spaces (length all-spaces)))
       (assert (= n-spaces (length template)) () "Memory template mismatch")

@@ -90,7 +90,7 @@
     (add-space memory execution-tokens)
     (add-space memory (ffi-foreign-space ffi))
     (cond (template
-           (load-from-template fs template))
+           (load-from-template fs template fs))
           (t
            (reset-word-lists word-lists)
            (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))))

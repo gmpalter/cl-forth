@@ -204,7 +204,8 @@
         (setf (aref template-markers i) (save-marker-to-template wls (aref markers i))))
       (list template-word-lists template-words template-search-order template-compilation-word-list template-markers))))
 
-(defmethod load-from-template ((wls word-lists) template)
+(defmethod load-from-template ((wls word-lists) template fs)
+  (declare (ignore fs))
   (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map markers) wls
     (clrhash all-word-lists)
     (clrhash wid-to-word-list-map)

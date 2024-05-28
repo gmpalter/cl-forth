@@ -130,19 +130,39 @@
   name
   ffi-library)
 
+(defstruct callback
+  name
+  xt
+  parameters
+  return-value)
+
 (defclass ffi ()
   ((foreign-space :accessor ffi-foreign-space :initform (make-instance 'foreign-space))
    (libraries :initform (make-array 0 :fill-pointer 0 :adjustable t))
-   (current-library :accessor ffi-current-library :initform nil))
+   (current-library :accessor ffi-current-library :initform nil)
+   (callbacks :initform (make-hash-table :test #'equalp)))
   )
 
 ;;;---*** TODO: Save foreign libraries?
 (defmethod save-to-template ((ffi ffi))
-  nil)
+  (with-slots (callbacks) ffi
+    (let ((callback-list nil))
+      (maphash #'(lambda (name callback)
+                   (declare (ignore name))
+                   (push callback callback-list))
+               callbacks)
+      (list callback-list))))
 
 ;;;---*** TODO: Reload foreign libraries?
-(defmethod load-from-template ((ffi ffi) template)
-  (declare (ignore template))
+(defmethod load-from-template ((ffi ffi) template fs)
+  (with-slots (word-lists) fs
+    (destructuring-bind (callbacks) template
+      (dolist (callback callbacks)
+        (let ((word (lookup word-lists (callback-name callback))))
+          (when word
+            (setf (first (word-parameters word))
+                  (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
+                                      (callback-parameters callback) (callback-return-value callback))))))))
   nil)
 
 (defmethod load-foreign-library ((ffi ffi) name-or-path)
@@ -213,47 +233,50 @@
     (compile nil (eval thunk))))
 
 (defmethod build-ffi-callback ((ffi ffi) fs name xt parameters return-value)
-  (let* ((callback (intern name '#:forth-ffi-symbols))
-         (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters)))
-    (eval
-     `(cffi:defcallback ,callback ,return-value (,@(loop for parameter in parameters
-                                                         for parameter-symbol in parameter-symbols
-                                                         collect `(,parameter-symbol ,parameter)))
-        (funcall #'(lambda (fs xt)
-                     (with-forth-system (fs)
-                       (unwind-protect
-                            (progn
-                              (save-stack data-stack)
-                              (save-stack float-stack)
-                              ,@(loop for parameter in parameters
-                                      for parameter-symbol in parameter-symbols
-                                      collect (case parameter
-                                                ((:int64 :uint64 :int32 :uint32)
-                                                 `(stack-push data-stack ,parameter-symbol))
-                                                (:pointer
-                                                 `(stack-push data-stack (native-address memory ,parameter-symbol)))
-                                                (:single
-                                                 `(stack-push float-stack (native-float ,parameter-symbol)))
-                                                (:double
-                                                 `(stack-push float-stack (native-float ,parameter-symbol)))))
-                              (execute execution-tokens xt fs)
-                              ,@(case return-value
-                                  (:void nil)
-                                  (:int64
-                                   `((cell-signed (stack-pop data-stack))))
-                                  (:uint64
-                                   `((cell-unsigned (stack-pop data-stack))))
-                                  (:int32
-                                   `((quad-byte-signed (stack-pop data-stack))))
-                                  (:uint32
-                                   `((quad-byte-unsigned (stack-pop data-stack))))
-                                  (:pointer
-                                   `((foreign-pointer memory (stack-pop data-stack))))
-                                  (:single
-                                   `((>single-float (stack-pop float-stack))))
-                                  (:double
-                                   `((>double-float (stack-pop float-stack)))))))
-                       (restore-stack data-stack)
-                       (restore-stack float-stack)))
-                 ,fs ,xt)))))
+  (with-slots (callbacks) ffi
+    (setf (gethash name callbacks) (make-callback :name name :xt xt
+                                                  :parameters (copy-list parameters) :return-value return-value))
+    (let* ((callback (gentemp (format nil "~A-CALLBACK" (string-upcase name)) '#:forth-ffi-symbols))
+           (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters)))
+      (eval
+       `(cffi:defcallback ,callback ,return-value (,@(loop for parameter in parameters
+                                                           for parameter-symbol in parameter-symbols
+                                                           collect `(,parameter-symbol ,parameter)))
+          (funcall #'(lambda (fs xt)
+                       (with-forth-system (fs)
+                         (unwind-protect
+                              (progn
+                                (save-stack data-stack)
+                                (save-stack float-stack)
+                                ,@(loop for parameter in parameters
+                                        for parameter-symbol in parameter-symbols
+                                        collect (case parameter
+                                                  ((:int64 :uint64 :int32 :uint32)
+                                                   `(stack-push data-stack ,parameter-symbol))
+                                                  (:pointer
+                                                   `(stack-push data-stack (native-address memory ,parameter-symbol)))
+                                                  (:single
+                                                   `(stack-push float-stack (native-float ,parameter-symbol)))
+                                                  (:double
+                                                   `(stack-push float-stack (native-float ,parameter-symbol)))))
+                                (execute execution-tokens xt fs)
+                                ,@(case return-value
+                                    (:void nil)
+                                    (:int64
+                                     `((cell-signed (stack-pop data-stack))))
+                                    (:uint64
+                                     `((cell-unsigned (stack-pop data-stack))))
+                                    (:int32
+                                     `((quad-byte-signed (stack-pop data-stack))))
+                                    (:uint32
+                                     `((quad-byte-unsigned (stack-pop data-stack))))
+                                    (:pointer
+                                     `((foreign-pointer memory (stack-pop data-stack))))
+                                    (:single
+                                     `((>single-float (stack-pop float-stack))))
+                                    (:double
+                                     `((>double-float (stack-pop float-stack)))))))
+                         (restore-stack data-stack)
+                         (restore-stack float-stack)))
+                   ,fs ,xt))))))
   

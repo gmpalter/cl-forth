@@ -100,7 +100,8 @@
       (maphash #'(lambda (token xt) (setf (gethash token saved-token-to-xt-map) xt)) token-to-xt-map)
       (list high-water-mark saved-token-to-xt-map))))
 
-(defmethod load-from-template ((xts execution-tokens) template)
+(defmethod load-from-template ((xts execution-tokens) template fs)
+  (declare (ignore fs))
   (with-slots (high-water-mark token-to-xt-map) xts
     (destructuring-bind (saved-high-water-mark saved-token-to-xt-map) template
       (setf high-water-mark saved-high-water-mark)

@@ -67,7 +67,8 @@
       (maphash #'(lambda (name substitution) (setf (gethash name saved-table) substitution)) table)
       saved-table)))
 
-(defmethod load-from-template ((replacements replacements) template)
+(defmethod load-from-template ((replacements replacements) template fs)
+  (declare (ignore fs))
   (with-slots (table) replacements
     (clrhash table)
     (maphash #'(lambda (name substitution) (setf (gethash name table) substitution)) template))
