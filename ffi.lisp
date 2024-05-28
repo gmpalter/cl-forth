@@ -171,13 +171,13 @@
       (clrhash callbacks)
       (destructuring-bind (saved-ffi-calls saved-callbacks) template
         (dolist (ffi-call saved-ffi-calls)
-          (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call)
-          (dolist (callback saved-callbacks)
-            (let ((word (lookup word-lists (callback-name callback))))
-              (when word
-                (setf (first (word-parameters word))
-                      (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
-                                          (callback-parameters callback) (callback-return-value callback))))))))))
+          (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call))
+        (dolist (callback saved-callbacks)
+          (let ((word (lookup word-lists (callback-name callback))))
+            (when word
+              (setf (first (word-parameters word))
+                    (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
+                                        (callback-parameters callback) (callback-return-value callback)))))))))
   nil)
 
 (defmethod load-foreign-library ((ffi ffi) name-or-path)
