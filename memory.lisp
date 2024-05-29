@@ -667,7 +667,7 @@
 
 (defmethod space-foreign-address ((sp data-space) native-address)
   (with-slots (data data-foreign-address) sp
-    (when (null data-foreign-address)
+    (when t ;;(null data-foreign-address)
       (setf data-foreign-address (%address-of data)))
     (+ data-foreign-address native-address)))
 
@@ -1331,7 +1331,7 @@
       (if (< chunk-number (fill-pointer chunks))
           (let ((chunk (aref chunks chunk-number)))
             (cond ((chunk-in-use? chunk)
-                   (when (null (chunk-data-foreign-address chunk))
+                   (when t ;;(null (chunk-data-foreign-address chunk))
                      (setf (chunk-data-foreign-address chunk) (%address-of (chunk-data chunk))))
                    (+ (chunk-data-foreign-address chunk) subaddress))
                   (t
