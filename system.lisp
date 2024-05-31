@@ -168,7 +168,7 @@
                         (when exception-prefix
                           (write-string exception-prefix))
                         (write-line (forth-exception-phrase e)))
-                      (when show-backtraces-on-error?
+                      (when (truep show-backtraces-on-error?)
                         (show-backtrace fs))
                       (clear-input)
                       (reset-interpreter/compiler fs)
@@ -371,7 +371,7 @@
              (when locals-block
                ;; Ensure subsequent inlining of this definition will include the locals block
                (push (car locals-block) (word-inline-forms (definition-word definition))))
-             (when (not (zerop show-definition-code?))
+             (when (truep show-definition-code?)
                (show-definition fs word))
              (setf (word-smudge? word) nil
                    (definition-in-progress? definition) nil))))
