@@ -69,6 +69,8 @@
    (show-redefinition-warnings? :initform +true+)
    (reset-redefinition-warnings? :initform nil)
    (show-definition-code? :initform +false+)
+   (show-backtraces-on-error? :initform +false+)
+   (current-frame :initform nil)
    (exception-hook :initform nil
       :documentation "If non-NIL, called after an exception, including ABORT and ABORT\",  to perform additional processing")
    (exception-prefix :initform nil
@@ -77,7 +79,8 @@
       :documentation "If non-NIL, called before a non-fatal exit to perform additional processing")
    (announce-addendum  :accessor forth-system-announce-addendum :initform nil
       :documentation "If non-NIL, a string that's displayed after Forth's initial announcement")
-   (prompt-string :initform #.(format nil "OK.~%")))
+   (prompt-string :initform #.(format nil "OK.~%"))
+   (extensions :initform nil))
   )
 
 (defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
@@ -112,13 +115,14 @@
 (defmacro with-forth-system ((fs) &body body)
   `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
                 word-lists files execution-tokens ffi replacements base float-precision state definition compiling-paused?
-                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
-                exception-hook exception-prefix exit-hook announce-addendum prompt-string)
+                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? show-backtraces-on-error?
+                current-frame exception-hook exception-prefix exit-hook announce-addendum prompt-string extensions)
        ,fs
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
                          definitions-stack word-lists files execution-tokens ffi replacements base float-precision state
                          definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
-                         show-definition-code? exception-hook exception-prefix exit-hook announce-addendum prompt-string))
+                         show-definition-code? show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
+                         announce-addendum prompt-string extensions))
      ,@body))
 
 (defmacro define-forth-method (name (fs &rest args) &body body)
@@ -129,6 +133,7 @@
 (define-forth-method reset-interpreter/compiler (fs)
   (stack-reset data-stack)
   (stack-reset return-stack)
+  (setf current-frame nil)
   (stack-reset control-flow-stack)
   (stack-reset exception-stack)
   (stack-reset loop-stack)
@@ -163,6 +168,8 @@
                         (when exception-prefix
                           (write-string exception-prefix))
                         (write-line (forth-exception-phrase e)))
+                      (when show-backtraces-on-error?
+                        (show-backtrace fs))
                       (clear-input)
                       (reset-interpreter/compiler fs)
                       (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
@@ -248,12 +255,26 @@
 (defun forth-call (fs word psuedo-pc)
   (with-forth-system (fs)
     (stack-push return-stack psuedo-pc)
-    (unwind-protect
-         (progn
-           (apply (word-code word) fs (word-parameters word))
-           (when (word-does> word)
-             (apply (word-code (word-does> word)) fs (word-parameters word))))
-      (stack-pop return-stack))))
+    (setf current-frame (make-psuedo-pc word -1))
+    (apply (word-code word) fs (word-parameters word))
+    (when (word-does> word)
+      (apply (word-code (word-does> word)) fs (word-parameters word)))
+    (stack-pop return-stack)))
+
+(define-forth-method show-backtrace (fs)
+  (let* ((cells (stack-cells return-stack))
+         (depth (stack-depth return-stack))
+         (nframes (reduce #'(lambda (n cell) (if (psuedo-pc-p cell) (1+ n) n)) cells :initial-value 0)))
+    (if (and (null current-frame) (zerop nframes))
+        (write-line "Backtrace unavailable?")
+        (let ((frame -1))
+          (write-line "Backtrace:")
+          (when current-frame
+            (format t "~2D: ~A~%" (incf frame) (word-name (ppc-word current-frame))))
+          (dotimes (i depth)
+            (let ((cell (aref cells (- depth i 1))))
+              (when (psuedo-pc-p cell)
+                (format t "~2D: ~A~%" (incf frame) cell))))))))
 
 ;;;
 

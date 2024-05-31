@@ -274,3 +274,8 @@
           (write-line "Contents of return stack:")
           (dotimes (i depth)
             (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))
+
+(define-word show-definition-code (:word "SHOW-BACKTRACES")
+  "( - addr )"
+  "Return the address of the flag that controls whether to show a backtrace when an exception occurs"
+  (stack-push data-stack (state-slot-address memory 'show-backtraces-on-error?)))
