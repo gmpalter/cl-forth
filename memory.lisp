@@ -24,6 +24,13 @@
 (defun address-prefix (address)
   (ldb +address-prefix-byte+ address))
 
+(declaim (inline address-space))
+(defun address-space (address all-spaces)
+  (let ((prefix (address-prefix address)))
+    (if (< -1 prefix (length all-spaces))
+        (aref all-spaces prefix)
+        (forth-exception :invalid-memory))))
+
 (declaim (inline address-address))
 (defun address-address (address)
   (ldb +address-address-byte+ address))
@@ -126,8 +133,7 @@
 
 (defmethod seal-transient-space ((memory memory) (address integer))
   (with-slots (all-spaces) memory
-    (let ((prefix (address-prefix address)))
-      (space-seal (aref all-spaces prefix)))))
+    (space-seal (address-space address all-spaces))))
 
 (defmethod reserve-string-space ((memory memory))
   (with-slots (string-spaces current-string-space-index) memory
@@ -178,36 +184,31 @@
 
 (defmethod memory-cell ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (cell-at space address))))
 
 (defmethod (setf memory-cell) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (setf (cell-at space address) value))))
 
 (defmethod memory-cell-unsigned ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (cell-unsigned-at space address))))
 
 (defmethod (setf memory-cell-unsigned) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (setf (cell-unsigned-at space address) value))))
 
 (defmethod memory-double-cell ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address))
            (low (cell-unsigned-at space (+ address +cell-size+)))
            (high (cell-unsigned-at space address)))
@@ -215,8 +216,7 @@
       
 (defmethod (setf memory-double-cell) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (multiple-value-bind (low high)
           (double-components value)
@@ -226,8 +226,7 @@
   
 (defmethod memory-double-cell-unsigned ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address))
            (low (cell-unsigned-at space (+ address +cell-size+)))
            (high (cell-unsigned-at space address)))
@@ -235,8 +234,7 @@
       
 (defmethod (setf memory-double-cell-unsigned) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (multiple-value-bind (low high)
           (double-components value)
@@ -246,43 +244,37 @@
 
 (defmethod memory-quad-byte ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (quad-byte-at space address))))
 
 (defmethod (setf memory-quad-byte) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (setf (quad-byte-at space address) value))))
 
 (defmethod memory-double-byte ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (double-byte-at space address))))
 
 (defmethod (setf memory-double-byte) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (setf (double-byte-at space address) value))))
 
 (defmethod memory-byte ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (byte-at space address))))
 
 (defmethod (setf memory-byte) (value (memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (setf (byte-at space address) value))))
 
@@ -331,18 +323,15 @@
 
 (defmethod memory-fill ((memory memory) address count byte)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (space-fill space address count byte))))
 
 (defmethod memory-copy ((memory memory) source destination count)
   (with-slots (all-spaces) memory
-    (let* ((source-prefix (address-prefix source))
-           (source-space (aref all-spaces source-prefix))
+    (let* ((source-space (address-space source all-spaces))
            (source-address (address-address source))
-           (destination-prefix (address-prefix destination))
-           (destination-space (aref all-spaces destination-prefix))
+           (destination-space (address-space destination all-spaces))
            (destination-address (address-address destination)))
       (space-copy source-space source-address destination-space destination-address count))))
 
@@ -350,8 +339,7 @@
 
 (defmethod memory-decode-address ((memory memory) address &optional size-hint)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (space-decode-address space address size-hint))))
 
@@ -364,15 +352,13 @@
 
 (defmethod foreign-pointer ((memory memory) native-address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix native-address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space native-address all-spaces))
            (address (address-address native-address)))
       (address-pointer (space-foreign-address space address)))))
 
 (defmethod address-is-foreign? ((memory memory) address)
   (with-slots (all-spaces) memory
-    (let* ((prefix (address-prefix address))
-           (space (aref all-spaces prefix))
+    (let* ((space (address-space address all-spaces))
            (address (address-address address)))
       (space-address-is-foreign? space address))))
 
