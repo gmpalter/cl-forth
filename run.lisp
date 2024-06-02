@@ -11,8 +11,10 @@
              (announce-forth fs asdf-system)
              (forth-toplevel fs :interpret interpret)))
       (if transcript-file
-          (with-open-file (transcript transcript-file :direction :output :element-type 'character :if-exists :supersede
-                                                      #+CCL :sharing #+CCL  :lock)
+          ;; Don't use WITH-OPEN-FILE as it will close with :ABORT T if the body does not finish cleanly.
+          ;; Our client's application always aborts the connection even after sending the BYE word.
+          (with-open-stream (transcript (open transcript-file :direction :output :element-type 'character :if-exists :supersede
+                                                              #+CCL :sharing #+CCL  :lock))
             (let* ((timestamped-transcript (make-timestamped-stream transcript))
                    (input-transcript (make-prefixed-stream "IN: " timestamped-transcript))
                    (output-transcript (make-prefixed-stream "OUT: " timestamped-transcript))
