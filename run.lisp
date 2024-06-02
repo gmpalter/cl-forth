@@ -13,6 +13,7 @@
       (if transcript-file
           ;; Don't use WITH-OPEN-FILE as it will close with :ABORT T if the body does not finish cleanly.
           ;; Our client's application always aborts the connection even after sending the BYE word.
+          ;; Also, we want the transcript to persist if the Forth process should get a fatal error.
           (with-open-stream (transcript (open transcript-file :direction :output :element-type 'character :if-exists :supersede
                                                               #+CCL :sharing #+CCL  :lock))
             (let* ((timestamped-transcript (make-timestamped-stream transcript))
