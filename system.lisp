@@ -259,7 +259,7 @@
     (apply (word-code word) fs (word-parameters word))
     (when (word-does> word)
       (apply (word-code (word-does> word)) fs (word-parameters word)))
-    (stack-pop return-stack)))
+    (setf current-frame (stack-pop return-stack))))
 
 (define-forth-method show-backtrace (fs)
   (let* ((cells (stack-cells return-stack))
