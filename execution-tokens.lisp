@@ -4,7 +4,8 @@
                       (:constructor %make-psuedo-pc)
                       (:print-function (lambda (ppc stream depth)
                                          (declare (ignore depth))
-                                         (format stream "~A|~D" (word-name (ppc-word ppc)) (ppc-call-site ppc)))))
+                                         (format stream "~A|~D" (or (word-name (ppc-word ppc)) "<Anonymous>")
+                                                                    (ppc-call-site ppc)))))
                                                  
   word
   call-site)
@@ -53,12 +54,12 @@
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not an execution token" token)))))
   
-(defmethod execute ((xts execution-tokens) token fs)
+(defmethod execute ((xts execution-tokens) token fs &optional (pc *interpreter-psuedo-pc*))
   (with-slots (token-to-xt-map) xts
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
-      (forth-call fs (xt-word xt) *interpreter-psuedo-pc*))))
+      (forth-call fs (xt-word xt) pc))))
 
 (defmethod find-word ((xts execution-tokens) token)
   (with-slots (token-to-xt-map) xts

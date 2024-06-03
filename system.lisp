@@ -270,7 +270,7 @@
         (let ((frame -1))
           (write-line "Backtrace:")
           (when current-frame
-            (format t "~2D: ~A~%" (incf frame) (word-name (ppc-word current-frame))))
+            (format t "~2D: ~A~%" (incf frame) (or (word-name (ppc-word current-frame)) "<Anonymous>")))
           (dotimes (i depth)
             (let ((cell (aref cells (- depth i 1))))
               (when (psuedo-pc-p cell)

@@ -954,45 +954,46 @@
   (declare (ignore boundary))
   (forth-exception :null-pointer-reference))
 
+(declaim (inline null-space-error))
+(defun null-space-error (address why)
+  (if (zerop address)
+      (forth-exception :null-pointer-reference)
+      (forth-exception :invalid-memory "Attempt to ~A #x~16,'0X" why address)))
+      
 (defmethod cell-at ((sp null-space) address)
-  (declare (ignore address))
-  (forth-exception :null-pointer-reference))
+  (null-space-error address "read from"))
 
 (defmethod (setf cell-at) (value (sp null-space) address)
-  (declare (ignore value address))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore value))
+  (null-space-error address "write to"))
 
 (defmethod cell-unsigned-at ((sp null-space) address)
-  (declare (ignore address))
-  (forth-exception :null-pointer-reference))
+  (null-space-error address "read from"))
 
 (defmethod (setf cell-unsigned-at) (value (sp null-space) address)
-  (declare (ignore value address))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore value))
+  (null-space-error address "write to"))
 
 (defmethod quad-byte-at ((sp null-space) address)
-  (declare (ignore address))
-  (forth-exception :null-pointer-reference))
+  (null-space-error address "read from"))
 
 (defmethod (setf quad-byte-at) (value (sp null-space) address)
-  (declare (ignore value address))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore value))
+  (null-space-error address "write to"))
 
 (defmethod double-byte-at ((sp null-space) address)
-  (declare (ignore address))
-  (forth-exception :null-pointer-reference))
+  (null-space-error address "read from"))
 
 (defmethod (setf double-byte-at) (value (sp null-space) address)
-  (declare (ignore value address))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore value))
+  (null-space-error address "write to"))
 
 (defmethod byte-at ((sp null-space) address)
-  (declare (ignore address))
-  (forth-exception :null-pointer-reference))
+  (null-space-error address "read from"))
 
 (defmethod (setf byte-at) (value (sp null-space) address)
-  (declare (ignore value address))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore value))
+  (null-space-error address "write to"))
 
 (defmethod space-decode-address ((sp null-space) address &optional size-hint)
   (declare (ignore address size-hint))
@@ -1003,26 +1004,26 @@
     (when (<= 0 foreign-address (1- size))
       (make-address prefix foreign-address))))
 
-;;; Convert any address on "Page 0" to a foreign null pointer to ensure references will fault
 (defmethod space-foreign-address ((sp null-space) native-address)
-  (declare (ignore native-address))
-  0)
+  (if (zerop native-address)
+      0
+      (null-space-error native-address "interpret as a pointer")))
 
 (defmethod space-fill ((sp null-space) address count byte)
-  (declare (ignore address count byte))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore count byte))
+  (null-space-error address "write to"))
 
 (defmethod space-copy ((ssp null-space) source-address (dsp null-space) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore destination-address count))
+  (null-space-error source-address "read from"))
 
 (defmethod space-copy ((ssp null-space) source-address (dsp mspace) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore destination-address count))
+  (null-space-error source-address "read from"))
 
 (defmethod space-copy ((ssp mspace) source-address (dsp null-space) destination-address count)
-  (declare (ignore source-address destination-address count))
-  (forth-exception :null-pointer-reference))
+  (declare (ignore source-address count))
+  (null-space-error destination-address "write to"))
 
 
 ;;;

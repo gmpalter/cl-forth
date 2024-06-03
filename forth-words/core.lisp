@@ -553,11 +553,17 @@
         (source-push files :evaluate string :source-address address)))
     (interpreter/compiler fs :toplevel? nil)))
 
-(define-word execute (:word "EXECUTE")
+;;; Declared IMMEDIATE and not inlineable so we can generate the proper PC for the call
+(define-word execute (:word "EXECUTE" :immediate? t :inlineable? nil)
   "( i*x xt - j*x )"
   "Remove XT from the stack and perform the semantics identified by it. Other stack effects are due"
   "to the worde executed"
-  (execute execution-tokens (stack-pop data-stack) fs))
+  (case (state fs)
+    (:interpreting
+     (execute execution-tokens (stack-pop data-stack) fs))
+    (:compiling
+     (add-to-definition fs
+       `(execute execution-tokens (stack-pop data-stack) fs ,(next-psuedo-pc definition))))))
 
 ;;; Marked as IMMEDIATE so we can generate the proper code sequence
 (define-word exit (:word "EXIT" :immediate? t)
