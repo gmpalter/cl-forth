@@ -52,16 +52,16 @@
   (setf (cffi:mem-ref (address-pointer address) :uint64) value))
 
 (defmethod quad-byte-at ((sp foreign-space) address)
-  (cffi:mem-ref (address-pointer address) :uint32))
+  (cffi:mem-ref (address-pointer address) :int32))
 
 (defmethod (setf quad-byte-at) (value (sp foreign-space) address)
-  (setf (cffi:mem-ref (address-pointer address) :uint32) value))
+  (setf (cffi:mem-ref (address-pointer address) :int32) value))
 
 (defmethod double-byte-at ((sp foreign-space) address)
-  (cffi:mem-ref (address-pointer address) :uint16))
+  (cffi:mem-ref (address-pointer address) :int16))
 
 (defmethod (setf double-byte-at) (value (sp foreign-space) address)
-  (setf (cffi:mem-ref (address-pointer address) :uint16) value))
+  (setf (cffi:mem-ref (address-pointer address) :int16) value))
 
 (defmethod byte-at ((sp foreign-space) address)
   (cffi:mem-ref (address-pointer address) :uint8))
