@@ -49,7 +49,7 @@
    (loop-stack :initform (make-instance 'stack :name "Loop Control"
                                                :size 32
                                                :underflow-key :loop-stack-underflow :overflow-key :do-loops-nesting))
-   (float-stack :initform (make-instance 'stack :name "Float"
+   (float-stack :initform (make-instance 'stack :name "Floating-point"
                                                 :size 32
                                                 :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
    (definitions-stack :initform (make-instance 'stack :name "Definitions"
@@ -274,7 +274,8 @@
           (dotimes (i depth)
             (let ((cell (aref cells (- depth i 1))))
               (when (psuedo-pc-p cell)
-                (format t "~2D: ~A~%" (incf frame) cell))))))))
+                (format t "~2D: ~A~%" (incf frame) cell)))))))
+  (show-stack data-stack base))
 
 ;;;
 

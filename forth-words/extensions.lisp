@@ -255,25 +255,11 @@
 
 (define-word show-float-stack (:word ".SF")
   "Show the contents of the floating-point stack"
-  (let ((cells (stack-cells float-stack))
-        (depth (stack-depth float-stack)))
-    (if (zerop depth)
-        (write-line "Floating-point stack empty")
-        (progn
-          (write-line "Contents of floating-point stack:")
-          (dotimes (i depth)
-            (format t "~2D: ~G~%" i (aref cells (- depth i 1))))))))
+  (show-stack float-stack base))
 
 (define-word show-return-stack (:word ".SR")
   "Show the contents of the return stack"
-  (let ((cells (stack-cells return-stack))
-        (depth (stack-depth return-stack)))
-    (if (zerop depth)
-        (write-line "Return stack empty")
-        (progn
-          (write-line "Contents of return stack:")
-          (dotimes (i depth)
-            (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))
+  (show-stack return-stack base))
 
 (define-word show-definition-code (:word "SHOW-BACKTRACES")
   "( - addr )"

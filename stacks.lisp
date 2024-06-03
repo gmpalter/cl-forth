@@ -203,3 +203,15 @@
   (with-slots (cells saved-cells) st
     (setf (fill-pointer cells) (length saved-cells))
     (replace cells saved-cells)))
+
+;;; Display stack contents
+
+(defmethod show-stack ((st stack) base)
+  (with-slots (name cells) st
+    (let ((depth (fill-pointer cells)))
+      (if (zerop depth)
+          (format t "~&~A stack empty~%" name)
+          (progn
+            (format t "~&Contents of ~A stack:~%" (string-downcase name))
+            (dotimes (i depth)
+              (format t "~2D: ~VR~%" i base (aref cells (- depth i 1)))))))))

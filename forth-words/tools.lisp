@@ -5,14 +5,7 @@
 (define-word dump-stack (:word ".S")
   "( - )"
   "Copy and display the values currently on the data stack. The format of the display is implementation-dependent"
-  (let ((cells (stack-cells data-stack))
-        (depth (stack-depth data-stack)))
-    (if (zerop depth)
-        (write-line "Data stack empty")
-        (progn
-          (write-line "Contents of data stack:")
-          (dotimes (i depth)
-            (format t "~2D: ~VR~%" i base (aref cells (- depth i 1))))))))
+  (show-stack data-stack base))
 
 (define-word print-tos (:word "?")
   "( a-addr - )"
