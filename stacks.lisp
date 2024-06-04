@@ -16,6 +16,9 @@
     (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)
     (setf cells (make-array size :adjustable t :fill-pointer 0))))
 
+(defun make-stack (name size overflow-key underflow-key)
+  (make-instance 'stack :name name :size size :overflow-key overflow-key :underflow-key underflow-key))
+
 (defmethod print-object ((sp stack) stream)
   (with-slots (name cells) sp
     (print-unreadable-object (sp stream :type t :identity t)

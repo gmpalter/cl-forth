@@ -34,28 +34,13 @@
 
 (defclass forth-system ()
   ((memory :initform (make-instance 'memory))
-   (data-stack :initform (make-instance 'stack :name "Data" :size 1024
-                                               :underflow-key :stack-underflow :overflow-key :stack-overflow))
-   (return-stack :initform (make-instance 'stack :name "Return" :size 128
-                                                 :underflow-key :return-stack-underflow :overflow-key :return-stack-overflow))
-   (control-flow-stack :initform (make-instance 'stack :name "Control-flow"
-                                                       :size 128
-                                                       :underflow-key :control-flow-stack-underflow
-                                                       :overflow-key :control-flow-stack-overflow))
-   (exception-stack :initform (make-instance 'stack :name "Exception"
-                                                    :size 128
-                                                    :underflow-key :exception-stack-underflow
-                                                    :overflow-key :exception-stack-overflow))
-   (loop-stack :initform (make-instance 'stack :name "Loop Control"
-                                               :size 32
-                                               :underflow-key :loop-stack-underflow :overflow-key :do-loops-nesting))
-   (float-stack :initform (make-instance 'stack :name "Floating-point"
-                                                :size 32
-                                                :underflow-key :float-stack-underflow :overflow-key :float-stack-overflow))
-   (definitions-stack :initform (make-instance 'stack :name "Definitions"
-                                                      :size 32
-                                                      :underflow-key :definitions-stack-underflow
-                                                      :overflow-key :definitions-stack-overflow))
+   (data-stack :initform (make-stack "Data" 1024 :stack-overflow :stack-underflow))
+   (return-stack :initform (make-stack "Return" 128 :return-stack-overflow :return-stack-underflow))
+   (control-flow-stack :initform (make-stack "Control-flow" 128 :control-flow-stack-overflow :control-flow-stack-underflow))
+   (exception-stack :initform (make-stack "Exception" 128 :exception-stack-overflow :exception-stack-underflow))
+   (loop-stack :initform (make-stack "Loop Control" 32 :do-loops-nesting :loop-stack-underflow))
+   (float-stack :initform (make-stack "Floating-point" 32 :float-stack-overflow :float-stack-underflow))
+   (definitions-stack :initform (make-stack "Definitions" 32 :definitions-stack-overflow :definitions-stack-underflow))
    (word-lists :initform (make-instance 'word-lists))
    (files :reader forth-system-files :initform (make-instance 'files))
    (execution-tokens :initform (make-instance 'execution-tokens))
