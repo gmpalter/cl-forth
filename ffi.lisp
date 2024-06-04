@@ -107,7 +107,8 @@
       (space-decode-address dsp destination-address count)
     (unless (<= (+ destination-address count) destination-size)
       (forth-exception :invalid-memory))
-    (cffi:foreign-funcall "memcpy" :pointer (cffi:inc-pointer (%address-of destination-data) destination-address)
+    (cffi:foreign-funcall "memcpy" :pointer (cffi:inc-pointer (address-pointer (%address-of destination-data))
+                                                              destination-address)
                                    :pointer (address-pointer source-address)
                                    :size count :pointer)
     nil))
@@ -119,7 +120,7 @@
     (unless (<= (+ source-address count) source-size)
       (forth-exception :invalid-memory))
     (cffi:foreign-funcall "memcpy" :pointer (address-pointer destination-address)
-                                   :pointer (cffi:inc-pointer (%address-of source-data) source-address)
+                                   :pointer (cffi:inc-pointer (address-pointer (%address-of source-data)) source-address)
                                    :size count :pointer)
     nil))
 
