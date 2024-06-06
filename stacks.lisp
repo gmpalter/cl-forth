@@ -1,156 +1,154 @@
 (in-package #:forth)
 
-(defclass stack ()
-  ((name :initarg :name :initform "<unnamed>")
-   (cells :accessor stack-cells)
-   (size :accessor stack-size :initarg :size)
-   (underflow-key :accessor stack-underflow-key :initarg :underflow-key :initform nil)
-   (overflow-key :accessor stack-overflow-key :initarg :overflow-key :initform nil)
-   (saved-cells :initform nil)))
+(defstruct (stack (:constructor %make-stack) (:print-function %print-stack))
+  name
+  (cells #() :type array)
+  (size 0 :type fixnum)
+  (depth 0 :type fixnum)
+  overflow-key
+  underflow-key
+  saved-cells
+  (saved-depth 0))
 
-(defmethod initialize-instance :after ((st stack) &key &allow-other-keys)
-  (with-slots (cells size underflow-key overflow-key) st
-    (assert (and (numberp size) (plusp size)) ((stack-size st))
-            "Value of ~S must be a positive integer" :size)
-    (assert (keywordp underflow-key) ((stack-underflow-key st)) "Value of ~S must be a keyword" :underflow-key)
-    (assert (keywordp overflow-key) ((stack-overflow-key st)) "Value of ~S must be a keyword" :overflow-key)
-    (setf cells (make-array size :adjustable t :fill-pointer 0))))
+(defun %print-stack (st stream depth)
+  (declare (ignore depth))
+  (print-unreadable-object (st stream :type t :identity t)
+    (format stream "~A (~D/~D cell~:P)" (stack-name st) (stack-depth st) (stack-size st))))
 
 (defun make-stack (name size overflow-key underflow-key)
-  (make-instance 'stack :name name :size size :overflow-key overflow-key :underflow-key underflow-key))
+  (%make-stack :name name :cells (make-array size :initial-element 0) :size size
+               :overflow-key overflow-key :underflow-key underflow-key))
 
-(defmethod print-object ((sp stack) stream)
-  (with-slots (name cells) sp
-    (print-unreadable-object (sp stream :type t :identity t)
-      (format stream "~A (~D cell~:P)" name (length cells)))))
+(defmacro define-stack-fun (name arglist &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name (,@arglist)
+       (declare (optimize (speed 3) (safety 0)))
+       ,@body)))
 
-(declaim (inline stack-overflow-check))
-(defun stack-overflow-check (st &optional (minimum-space 1))
-  (with-slots (cells size overflow-key) st
-    (unless (< (fill-pointer cells) (- size minimum-space -1))
-      (forth-exception overflow-key))))
+(define-stack-fun stack-overflow-check (st &optional (minimum-space 1))
+  (declare (fixnum minimum-space))
+  (unless (< (stack-depth st) (the fixnum (- (stack-size st) minimum-space -1)))
+    (forth-exception (stack-overflow-key st))))
 
-(declaim (inline stack-underflow-check))
-(defun stack-underflow-check (st &optional (minimum-depth 1))
-  (with-slots (cells underflow-key) st
-    (when (< (fill-pointer cells) minimum-depth)
-      (forth-exception underflow-key))))
-  
-(declaim (inline stack-cell))
-;;; INDEX is zero-based index of element from top of stack
-(defun stack-cell (st index)
-  (with-slots (cells) st
-    (aref cells (- (fill-pointer cells) index 1))))
+(define-stack-fun stack-underflow-check (st &optional (minimum-depth 1))
+  (declare (fixnum minimum-depth))
+  (when (< (stack-depth st) minimum-depth)
+    (forth-exception (stack-underflow-key st))))
 
-(declaim (inline set-stack-cell))
-(defun set-stack-cell (st index value)
-  (with-slots (cells) st
-    (setf (aref cells (- (fill-pointer cells) index 1)) value)))
+(define-stack-fun stack-cell (st index)
+  ;; INDEX is zero-based index of element from top of stack
+  (declare (fixnum index))
+  (aref (stack-cells st) (- (stack-depth st) index 1)))
+
+(define-stack-fun set-stack-cell (st index value)
+  (declare (fixnum index))
+  (setf (aref (stack-cells st) (- (stack-depth st) index 1)) value))
 
 (defsetf stack-cell set-stack-cell)
 
-(defmethod stack-reset ((st stack))
-  (setf (fill-pointer (stack-cells st)) 0))
+(define-stack-fun stack-reset (st)
+  (setf (stack-depth st) 0))
 
-(defmethod stack-push ((st stack) value)
+(define-stack-fun stack-push (st value)
   (stack-overflow-check st)
-  (vector-push-extend value (stack-cells st)))
+  (prog1
+      (setf (aref (stack-cells st) (stack-depth st)) value)
+    (incf (stack-depth st))))
 
-(defmethod stack-push-double ((st stack) value)
+(define-stack-fun stack-push-double (st value)
   (stack-overflow-check st 2)
-  (with-slots (cells) st
-    (multiple-value-bind (low high)
-        (double-components value)
-      (vector-push-extend low cells)
-      (vector-push-extend high cells))))
+  (multiple-value-bind (low high)
+      (double-components value)
+    (setf (aref (stack-cells st) (stack-depth st)) low)
+    (setf (aref (stack-cells st) (1+ (stack-depth st))) high)
+    (incf (stack-depth st) 2)
+    value))
 
-(defmethod stack-pop ((st stack))
+(define-stack-fun stack-pop (st)
   (stack-underflow-check st)
   (prog1
       (stack-cell st 0)
-    (decf (fill-pointer (stack-cells st)))))
+    (decf (stack-depth st))))
 
-(defmethod stack-pop-double ((st stack))
+(define-stack-fun stack-pop-double (st)
   (stack-underflow-check st 2)
   (prog1
       (double-cell-signed (stack-cell st 1) (stack-cell st 0))
-    (decf (fill-pointer (stack-cells st)) 2)))
+    (decf (stack-depth st) 2)))
 
-(defmethod stack-pop-double-unsigned ((st stack))
+(define-stack-fun stack-pop-double-unsigned (st)
   (stack-underflow-check st 2)
   (prog1
       (double-cell-unsigned (stack-cell st 1) (stack-cell st 0))
-    (decf (fill-pointer (stack-cells st)) 2)))
+    (decf (stack-depth st) 2)))
 
-(defmethod stack-depth ((st stack))
-  (fill-pointer (stack-cells st)))
-
-(defmethod (setf stack-depth) (depth (st stack))
-  (setf (fill-pointer (stack-cells st)) depth))
-
-(defmethod stack-drop ((st stack) &optional (n 1))
+(define-stack-fun stack-drop (st &optional (n 1))
   "( x(n) ... x(1) - )"
+  (declare (fixnum n))
   (stack-underflow-check st n)
-  (decf (fill-pointer (stack-cells st)) n))
+  (decf (stack-depth st) n))
 
-(defmethod stack-dup ((st stack))
+(define-stack-fun stack-dup (st)
   "( x - x x )"
   (stack-underflow-check st)
   (stack-push st (stack-cell st 0)))
 
-(defmethod stack-?dup ((st stack))
+(define-stack-fun stack-?dup (st)
   "( x - 0 | x x )"
   (stack-underflow-check st)
   (unless (zerop (stack-cell st 0))
     (stack-push st (stack-cell st 0))))
 
-(defmethod stack-nip ((st stack))
+(define-stack-fun stack-nip (st)
   "( x1 x2 - x2 )"
   (stack-underflow-check st 2)
   (prog1
       (setf (stack-cell st 1) (stack-cell st 0))
-    (decf (fill-pointer (stack-cells st)))))
+    (decf (stack-depth st))))
 
-(defmethod stack-over ((st stack))
+(define-stack-fun stack-over (st)
   "( x1 x2 - x1 x2 x1 )"
   (stack-underflow-check st 2)
   (stack-push st (stack-cell st 1)))
 
-(defmethod stack-pick ((st stack) n)
+(define-stack-fun stack-pick (st n)
   "( +n - x )"
+  (declare (fixnum n))
   (stack-underflow-check st n)
   (stack-push st (stack-cell st n)))
 
-(defmethod stack-roll ((st stack) n)
+(define-stack-fun stack-roll (st n)
   "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 xn )"
+  (declare (fixnum n))
   (stack-underflow-check st n)
   (let ((cell (stack-cell st n)))
     (loop for i downfrom (1- n) to 0
           do (setf (stack-cell st (1+ i)) (stack-cell st i)))
     (setf (stack-cell st 0) cell)))
 
-(defmethod stack-rot ((st stack))
+(define-stack-fun stack-rot (st)
   "( x1 x2 x3 - x2 x3 x1 )"
   (stack-underflow-check st 3)
   (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 0) (stack-cell st 2)))
   
-(defmethod stack-swap ((st stack))
+(define-stack-fun stack-swap (st)
   "( x1 x2 - x2 x1 )"
   (stack-underflow-check st 2)
   (shiftf (stack-cell st 1) (stack-cell st 0) (stack-cell st 1)))
 
-(defmethod stack-tuck ((st stack))
+(define-stack-fun stack-tuck (st)
   "( x1 x2 - x2 x1 x2 )"
   (stack-underflow-check st 2)
   (stack-push st (stack-cell st 0))
   (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 2)))
 
-(defmethod stack-2drop ((st stack))
+(define-stack-fun stack-2drop (st)
   "( x1 x2 - )"
   (stack-underflow-check st 2)
-  (decf (fill-pointer (stack-cells st)) 2))
+  (decf (stack-depth st) 2))
 
-(defmethod stack-2dup ((st stack))
+(define-stack-fun stack-2dup (st)
   "( x1 x2 - x1 x2 x1 x2 )"
   (stack-underflow-check st 2)
   (let ((x1 (stack-cell st 1))
@@ -158,7 +156,7 @@
     (stack-push st x1)
     (stack-push st x2)))
 
-(defmethod stack-2over ((st stack))
+(define-stack-fun stack-2over (st)
   "( x1 x2 x3 x4 - x1 x2 x3 x4 x1 x2 )"
   (stack-underflow-check st 4)
   (let ((x1 (stack-cell st 3))
@@ -166,13 +164,13 @@
     (stack-push st x1)
     (stack-push st x2)))
 
-(defmethod stack-2rot ((st stack))
+(define-stack-fun stack-2rot (st)
   "( x1 x2 x3 x4 x5 x6 - x3 x4 x5 x6 x1 x2 )"
   (stack-underflow-check st 6)
   (shiftf (stack-cell st 4) (stack-cell st 2) (stack-cell st 0) (stack-cell st 4))
   (shiftf (stack-cell st 5) (stack-cell st 3) (stack-cell st 1) (stack-cell st 5)))
 
-(defmethod stack-2swap ((st stack))
+(define-stack-fun stack-2swap (st)
   "( x1 x2 x3 x4 - x3 x4 x1 x2 )"
   (stack-underflow-check st 4)
   (shiftf (stack-cell st 2) (stack-cell st 0) (stack-cell st 2))
@@ -180,41 +178,42 @@
 
 ;;; Control flow stack manipulation
 
-(defmethod stack-find-if (predicate (st stack))
+(define-stack-fun stack-find-if (predicate st)
   (loop for n below (stack-depth st)
         when (funcall predicate (stack-cell st n))
           return n))
 
-(defmethod stack-snip ((st stack) n)
+(define-stack-fun stack-snip (st n)
   "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 )"
+  (declare (fixnum n))
   (stack-underflow-check st n)
   (prog1
       (let ((cell (stack-cell st n)))
         (loop for i downfrom (1- n) to 0
               do (setf (stack-cell st (1+ i)) (stack-cell st i)))
         cell)
-    (decf (fill-pointer (stack-cells st)))))
+    (decf (stack-depth st))))
 
 ;;; Save/Restore stack contents for FFI callbacks
 
-(defmethod save-stack ((st stack))
-  (with-slots (cells saved-cells) st
-    (setf saved-cells (copy-seq cells)
-          (fill-pointer cells) 0)))
+(define-stack-fun save-stack (st)
+  (setf (stack-saved-cells st) (copy-seq (stack-cells st))
+        (stack-saved-depth st) (stack-depth st)
+        (stack-depth st) 0))
 
-(defmethod restore-stack ((st stack))
-  (with-slots (cells saved-cells) st
-    (setf (fill-pointer cells) (length saved-cells))
-    (replace cells saved-cells)))
+(define-stack-fun restore-stack (st)
+  (setf (stack-cells st) (copy-seq (stack-saved-cells st))
+        (stack-depth st) (stack-saved-depth st)
+        (stack-saved-cells st) nil))
 
 ;;; Display stack contents
 
-(defmethod show-stack ((st stack) base)
-  (with-slots (name cells) st
-    (let ((depth (fill-pointer cells)))
-      (if (zerop depth)
-          (format t "~&~A stack empty~%" name)
-          (progn
-            (format t "~&Contents of ~A stack:~%" (string-downcase name))
-            (dotimes (i depth)
-              (format t "~2D: ~VR~%" i base (aref cells (- depth i 1)))))))))
+(define-stack-fun show-stack (st base)
+  (let ((depth (stack-depth st)))
+    (declare (fixnum depth))
+    (if (zerop depth)
+        (format t "~&~A stack empty~%" (stack-name st))
+        (progn
+          (format t "~&Contents of ~A stack:~%" (string-downcase (stack-name st)))
+          (dotimes (i depth)
+            (format t "~2D: ~VR~%" i base (aref (stack-cells st) (- depth i 1))))))))

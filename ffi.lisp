@@ -243,7 +243,7 @@
                (:double
                 `((stack-push float-stack (native-float ,result-symbol))))))
            (thunk `(named-lambda ,lambda-name (fs &rest parameters)
-                     (declare (ignorable parameters))
+                     (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
                      (with-forth-system (fs)
                        (let* (,@(reverse parameter-forms)
                               ,@call-form)
@@ -262,6 +262,7 @@
                                                            for parameter-symbol in parameter-symbols
                                                            collect `(,parameter-symbol ,parameter)))
           (funcall #'(lambda (fs xt)
+                       (declare (optimize (speed 3) (safety 0)))
                        (with-forth-system (fs)
                          (unwind-protect
                               (progn

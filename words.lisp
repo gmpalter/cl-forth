@@ -361,7 +361,7 @@
                      do (pop forms)
                      finally (return forms)))
          (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs &rest parameters)
-                   (declare (ignorable parameters))
+                   (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
                    (with-forth-system (fs)
                      ,@body))))
     `(eval-when (:load-toplevel :execute)

@@ -346,7 +346,7 @@
                              (tagbody
                                 ,@(reverse (locals-forms locals)))))))))
                   (thunk `(named-lambda ,name (fs &rest parameters)
-                            (declare (ignorable parameters))
+                            (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
                             (with-forth-system (fs)
                               (tagbody
                                  ,@(reverse (word-inline-forms word))
