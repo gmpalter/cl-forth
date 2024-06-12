@@ -7,6 +7,7 @@
   :serial t
   :depends-on ((:feature :ccl #:cffi))
   :components ((:file "packages")
+               (:file "in-memory-streams" :if-feature :ccl)
                (:file "compatibility")
                (:file "exceptions")
                (:file "strings")

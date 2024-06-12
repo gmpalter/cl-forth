@@ -46,36 +46,19 @@
 ;;; MAKE-PIPED-STREAMS
 
 #+CCL
-(defun make-piped-streams (&key (element-type 'character) (external-format :default))
-  (let* ((char-p (or (eq element-type 'character) (subtypep element-type 'character)))
-         (real-external-format (when char-p
-                                 (ccl::normalize-external-format :pipe external-format)))
-         (encoding (when char-p (ccl:external-format-character-encoding real-external-format)))
-         (line-termination (when char-p (ccl:external-format-line-termination real-external-format))))
-    (multiple-value-bind (read-fd write-fd) (ccl::pipe)
-      (let ((is (ccl::make-fd-stream read-fd
-                                     :direction :input
-                                     :interactive t
-                                     :element-type element-type
-                                     :sharing :lock
-                                     :basic t
-                                     :encoding encoding
-                                     :line-termination line-termination
-                                     :auto-close t))
-            (os (ccl::make-fd-stream write-fd
-                                     :direction :output
-                                     :interactive t
-                                     :element-type element-type
-                                     :sharing :lock
-                                     :basic t
-                                     :encoding encoding
-                                     :line-termination line-termination
-                                     :auto-close t)))
-        (ccl::add-auto-flush-stream os)
-        (values is os)))))
+;;; Using OS pipes to communicate between threads in the same process in CCL isn't practical because of CCL's buffering
+(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
+  (assert (eq element-type 'character) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :element-type 'character element-type)
+  (assert (eq external-format :default) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :external-format :default external-format)
+  (let ((buffer (make-in-memory-buffer +default-in-memory-buffer-size+)))
+    (values (make-in-memory-character-input-stream buffer name)
+            (make-in-memory-character-output-stream buffer name))))
 
 #+SBCL
-(defun make-piped-streams (&key (element-type 'character) (external-format :default))
+(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
+  (declare (ignore name))
   (multiple-value-bind (read-fd write-fd) (sb-unix:unix-pipe)
     (let ((is (sb-impl::make-fd-stream read-fd
                                        :input t
@@ -92,8 +75,8 @@
       (values is os))))
 
 #+LispWorks
-(defun make-piped-streams (&key (element-type 'character) (external-format :default))
-  (declare (ignore element-type external-format))
+(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
+  (declare (ignore name element-type external-format))
   (error "NYI: ~S" 'make-piped-streams))
 
 

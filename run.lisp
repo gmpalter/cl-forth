@@ -29,9 +29,9 @@
 
 (defun run-forth-process (template &key (asdf-system '#:cl-forth) name interpret transcript-file)
   (multiple-value-bind (remote-input local-output)
-      (make-piped-streams)
+      (make-piped-streams :name "stdin")
     (multiple-value-bind (local-input remote-output)
-        (make-piped-streams)
+        (make-piped-streams :name "stdout")
       (let ((system (asdf:find-system asdf-system))
             (local-io (make-two-way-stream local-input local-output)))
         (process-run-function (or name (asdf:system-long-name system))
