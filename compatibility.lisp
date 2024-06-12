@@ -46,6 +46,55 @@
 ;;; MAKE-PIPED-STREAMS
 
 #+CCL
+(defclass unbuffered-fd-character-output-stream (ccl::fd-character-output-stream)
+  ())
+
+#+CCL
+(defmethod ccl:stream-write-char :after ((st unbuffered-fd-character-output-stream) char)
+  (declare (ignore char))
+  (force-output st))
+
+#+CCL
+(defmethod ccl:stream-write-string :after ((st unbuffered-fd-character-output-stream) string &optional start end)
+  (declare (ignore string start end))
+  (force-output st))
+
+#+CCL
+(defmethod ccl:stream-terpri :after ((st unbuffered-fd-character-output-stream))
+  (force-output st))
+
+#+CCL
+(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
+  (declare (ignore name))
+  (let* ((char-p (or (eq element-type 'character) (subtypep element-type 'character)))
+         (real-external-format (when char-p
+                                 (ccl::normalize-external-format :pipe external-format)))
+         (encoding (when char-p (ccl:external-format-character-encoding real-external-format)))
+         (line-termination (when char-p (ccl:external-format-line-termination real-external-format))))
+    (multiple-value-bind (read-fd write-fd) (ccl::pipe)
+      (let ((is (ccl::make-fd-stream read-fd
+                                     :direction :input
+                                     :interactive t
+                                     :element-type element-type
+                                     :sharing :lock
+                                     :basic t
+                                     :encoding encoding
+                                     :line-termination line-termination
+                                     :auto-close t))
+            (os (ccl::make-fd-stream write-fd
+                                     :direction :output
+                                     :interactive t
+                                     :element-type element-type
+                                     :sharing :lock
+                                     :basic nil
+                                     :encoding encoding
+                                     :line-termination line-termination
+                                     :auto-close t)))
+        (change-class os 'unbuffered-fd-character-output-stream)
+        (values is os)))))
+
+#||
+#+CCL
 ;;; Using OS pipes to communicate between threads in the same process in CCL isn't practical because of CCL's buffering
 (defun make-piped-streams (&key name (element-type 'character) (external-format :default))
   (assert (eq element-type 'character) () "~S only supports ~S ~S, not ~S"
@@ -55,6 +104,7 @@
   (let ((buffer (make-in-memory-buffer +default-in-memory-buffer-size+)))
     (values (make-in-memory-character-input-stream buffer name)
             (make-in-memory-character-output-stream buffer name))))
+||#
 
 #+SBCL
 (defun make-piped-streams (&key name (element-type 'character) (external-format :default))
