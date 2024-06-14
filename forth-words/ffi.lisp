@@ -23,7 +23,7 @@
          (library (find target-suffix libraries :key #'pathname-type :test #'equalp)))
     (if library
         (load-foreign-library ffi library)
-        (forth-exception :no-platform-library))))
+        (format t "~&Warning: No library for this platform specified in: XLIBRARY ~{~A ~}~%" libraries))))
 
 ;;; The form of a parameter list is
 ;;;
