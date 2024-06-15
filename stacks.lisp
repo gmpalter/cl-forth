@@ -2,7 +2,7 @@
 
 (defstruct (stack (:constructor %make-stack) (:print-function %print-stack))
   name
-  (cells #() :type array)
+  (cells #() :type (simple-array t (*)))
   (size 0 :type fixnum)
   (depth 0 :type fixnum)
   overflow-key
@@ -28,7 +28,7 @@
 
 (define-stack-fun stack-overflow-check (st &optional (minimum-space 1))
   (declare (fixnum minimum-space))
-  (unless (< (stack-depth st) (the fixnum (- (stack-size st) minimum-space -1)))
+  (unless (< (stack-depth st) (the fixnum (- (the fixnum (- (stack-size st) minimum-space)) -1)))
     (forth-exception (stack-overflow-key st))))
 
 (define-stack-fun stack-underflow-check (st &optional (minimum-depth 1))
@@ -39,11 +39,11 @@
 (define-stack-fun stack-cell (st index)
   ;; INDEX is zero-based index of element from top of stack
   (declare (fixnum index))
-  (aref (stack-cells st) (- (stack-depth st) index 1)))
+  (aref (stack-cells st) (the fixnum (- (the fixnum (- (stack-depth st) index)) 1))))
 
 (define-stack-fun set-stack-cell (st index value)
   (declare (fixnum index))
-  (setf (aref (stack-cells st) (- (stack-depth st) index 1)) value))
+  (setf (aref (stack-cells st) (the fixnum (- (the fixnum (- (stack-depth st) index)) 1))) value))
 
 (defsetf stack-cell set-stack-cell)
 
@@ -54,40 +54,40 @@
   (stack-overflow-check st)
   (prog1
       (setf (aref (stack-cells st) (stack-depth st)) value)
-    (incf (stack-depth st))))
+    (setf (stack-depth st) (the fixnum (1+ (stack-depth st))))))
 
 (define-stack-fun stack-push-double (st value)
   (stack-overflow-check st 2)
   (multiple-value-bind (low high)
       (double-components value)
     (setf (aref (stack-cells st) (stack-depth st)) low)
-    (setf (aref (stack-cells st) (1+ (stack-depth st))) high)
-    (incf (stack-depth st) 2)
+    (setf (aref (stack-cells st) (the fixnum (1+ (stack-depth st)))) high)
+    (setf (stack-depth st) (the fixnum (+  (stack-depth st) 2)))
     value))
 
 (define-stack-fun stack-pop (st)
   (stack-underflow-check st)
   (prog1
       (stack-cell st 0)
-    (decf (stack-depth st))))
+    (setf (stack-depth st) (the fixnum (1- (stack-depth st))))))
 
 (define-stack-fun stack-pop-double (st)
   (stack-underflow-check st 2)
   (prog1
       (double-cell-signed (stack-cell st 1) (stack-cell st 0))
-    (decf (stack-depth st) 2)))
+    (setf (stack-depth st) (the fixnum (-  (stack-depth st) 2)))))
 
 (define-stack-fun stack-pop-double-unsigned (st)
   (stack-underflow-check st 2)
   (prog1
       (double-cell-unsigned (stack-cell st 1) (stack-cell st 0))
-    (decf (stack-depth st) 2)))
+    (setf (stack-depth st) (the fixnum (-  (stack-depth st) 2)))))
 
 (define-stack-fun stack-drop (st &optional (n 1))
   "( x(n) ... x(1) - )"
   (declare (fixnum n))
   (stack-underflow-check st n)
-  (decf (stack-depth st) n))
+  (setf (stack-depth st) (the fixnum (-  (stack-depth st) n))))
 
 (define-stack-fun stack-dup (st)
   "( x - x x )"
@@ -105,7 +105,7 @@
   (stack-underflow-check st 2)
   (prog1
       (setf (stack-cell st 1) (stack-cell st 0))
-    (decf (stack-depth st))))
+    (setf (stack-depth st) (the fixnum (1- (stack-depth st))))))
 
 (define-stack-fun stack-over (st)
   "( x1 x2 - x1 x2 x1 )"
@@ -123,30 +123,33 @@
   (declare (fixnum n))
   (stack-underflow-check st n)
   (let ((cell (stack-cell st n)))
-    (loop for i downfrom (1- n) to 0
-          do (setf (stack-cell st (1+ i)) (stack-cell st i)))
+    (loop for i fixnum downfrom (the fixnum (1- n)) to 0
+          do (setf (stack-cell st (the fixnum (1+ i))) (stack-cell st i)))
     (setf (stack-cell st 0) cell)))
 
 (define-stack-fun stack-rot (st)
   "( x1 x2 x3 - x2 x3 x1 )"
   (stack-underflow-check st 3)
-  (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 0) (stack-cell st 2)))
+  (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 0) (stack-cell st 2))
+  nil)
   
 (define-stack-fun stack-swap (st)
   "( x1 x2 - x2 x1 )"
   (stack-underflow-check st 2)
-  (shiftf (stack-cell st 1) (stack-cell st 0) (stack-cell st 1)))
+  (shiftf (stack-cell st 1) (stack-cell st 0) (stack-cell st 1))
+  nil)
 
 (define-stack-fun stack-tuck (st)
   "( x1 x2 - x2 x1 x2 )"
   (stack-underflow-check st 2)
   (stack-push st (stack-cell st 0))
-  (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 2)))
+  (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 2))
+  nil)
 
 (define-stack-fun stack-2drop (st)
   "( x1 x2 - )"
   (stack-underflow-check st 2)
-  (decf (stack-depth st) 2))
+  (setf (stack-depth st) (the fixnum (-  (stack-depth st) 2))))
 
 (define-stack-fun stack-2dup (st)
   "( x1 x2 - x1 x2 x1 x2 )"
@@ -168,18 +171,20 @@
   "( x1 x2 x3 x4 x5 x6 - x3 x4 x5 x6 x1 x2 )"
   (stack-underflow-check st 6)
   (shiftf (stack-cell st 4) (stack-cell st 2) (stack-cell st 0) (stack-cell st 4))
-  (shiftf (stack-cell st 5) (stack-cell st 3) (stack-cell st 1) (stack-cell st 5)))
+  (shiftf (stack-cell st 5) (stack-cell st 3) (stack-cell st 1) (stack-cell st 5))
+  nil)
 
 (define-stack-fun stack-2swap (st)
   "( x1 x2 x3 x4 - x3 x4 x1 x2 )"
   (stack-underflow-check st 4)
   (shiftf (stack-cell st 2) (stack-cell st 0) (stack-cell st 2))
-  (shiftf (stack-cell st 1) (stack-cell st 3) (stack-cell st 1)))
+  (shiftf (stack-cell st 1) (stack-cell st 3) (stack-cell st 1))
+  nil)
 
 ;;; Control flow stack manipulation
 
 (define-stack-fun stack-find-if (predicate st)
-  (loop for n below (stack-depth st)
+  (loop for n fixnum below (stack-depth st)
         when (funcall predicate (stack-cell st n))
           return n))
 
@@ -189,10 +194,10 @@
   (stack-underflow-check st n)
   (prog1
       (let ((cell (stack-cell st n)))
-        (loop for i downfrom (1- n) to 0
+        (loop for i fixnum downfrom (the fixnum (1- n)) to 0
               do (setf (stack-cell st (1+ i)) (stack-cell st i)))
         cell)
-    (decf (stack-depth st))))
+    (setf (stack-depth st) (the fixnum (1- (stack-depth st))))))
 
 ;;; Save/Restore stack contents for FFI callbacks
 
@@ -216,4 +221,4 @@
         (progn
           (format t "~&Contents of ~A stack:~%" (string-downcase (stack-name st)))
           (dotimes (i depth)
-            (format t "~2D: ~VR~%" i base (aref (stack-cells st) (- depth i 1))))))))
+            (format t "~2D: ~VR~%" i base (aref (stack-cells st) (the fixnum (- (the fixnum (- depth i)) 1)))))))))
