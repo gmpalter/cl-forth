@@ -33,7 +33,7 @@
   (make-psuedo-pc (definition-word definition) (incf (definition-call-site definition))))
 
 (defclass forth-system ()
-  ((memory :initform (make-instance 'memory))
+  ((memory :initform (make-memory))
    (data-stack :initform (make-stack "Data" 1024 :stack-overflow :stack-underflow))
    (return-stack :initform (make-stack "Return" 128 :return-stack-overflow :return-stack-underflow))
    (control-flow-stack :initform (make-stack "Control-flow" 128 :control-flow-stack-overflow :control-flow-stack-underflow))

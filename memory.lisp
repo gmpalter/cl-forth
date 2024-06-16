@@ -60,6 +60,9 @@
    (native-memory :initform (make-instance 'native-memory)))
   )
 
+(defun make-memory ()
+  (make-instance 'memory))
+
 (defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
   (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces native-memory) memory
     (flet ((setup (space)
