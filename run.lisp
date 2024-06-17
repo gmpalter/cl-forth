@@ -1,8 +1,10 @@
 (in-package #:forth)
 
 (defun announce-forth (fs asdf-system)
-  (let ((me (asdf:find-system asdf-system)))
-    (format t "~&~A ~A~%Running under ~A ~A~%~@[~A~%~]" (asdf:system-long-name me) (asdf:component-version me)
+  (let* ((system (asdf:registered-system asdf-system))
+         (system-name (if system (asdf:system-long-name system) "CL-Forth"))
+         (system-version (if system (asdf:component-version system) "(unknown version)")))
+    (format t "~&~A ~A~%Running under ~A ~A~%~@[~A~%~]" system-name system-version
             (lisp-implementation-type) (lisp-implementation-version) (forth-system-announce-addendum fs))))
 
 (defun run (&key (asdf-system '#:cl-forth) template interpret transcript-file)
@@ -32,16 +34,19 @@
       (make-piped-streams :name "stdin")
     (multiple-value-bind (local-input remote-output)
         (make-piped-streams :name "stdout")
-      (let ((system (asdf:find-system asdf-system))
-            (local-io (make-two-way-stream local-input local-output)))
-        (process-run-function (or name (asdf:system-long-name system))
-                                  #'(lambda ()
-                                      (unwind-protect
-                                           (let ((*standard-input* remote-input)
-                                                 (*standard-output* remote-output))
-                                             (run :asdf-system asdf-system :template template
-                                                  :interpret interpret :transcript-file transcript-file))
-                                        (close remote-input)
-                                        (close remote-output)
-                                        (close local-io))))
+      (let* ((system (asdf:registered-system asdf-system))
+             (process-name (cond (name)
+                                 (system (asdf:system-long-name system))
+                                 (t "CL-Forth")))
+             (local-io (make-two-way-stream local-input local-output)))
+        (process-run-function process-name
+                              #'(lambda ()
+                                  (unwind-protect
+                                       (let ((*standard-input* remote-input)
+                                             (*standard-output* remote-output))
+                                         (run :asdf-system asdf-system :template template
+                                              :interpret interpret :transcript-file transcript-file))
+                                    (close remote-input)
+                                    (close remote-output)
+                                    (close local-io))))
         local-io))))
