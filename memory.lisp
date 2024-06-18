@@ -31,9 +31,7 @@
 (declaim (inline address-address))
 (defun address-address (address)
   (declare (fixnum address) (optimize (speed 3) (safety 0)))
-  ;; For some reason, CCL generates a type check for this LDB but not the one in ADDRESS-PREFIX!?
-  #+CCL (logand address (dpb -1 +address-address-byte+ 0))
-  #-CCL (ldb +address-address-byte+ address))
+  (ldb +address-address-byte+ address))
 
 (declaim (inline address-space))
 (defun address-space (address all-spaces)
