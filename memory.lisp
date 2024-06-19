@@ -18,11 +18,20 @@
 
 (declaim (inline make-address))
 (defun make-address (prefix address)
-  (dpb prefix +address-prefix-byte+ address))
+  (declare (type (integer 0 #xFF) prefix) (fixnum address)
+           (optimize (speed 3) (safety 0)))
+  #+CCL (logior (ash prefix (byte-position +address-prefix-byte+)) (logand address (dpb -1 +address-address-byte+ 0)))
+  #-CCL (dpb prefix +address-prefix-byte+ address))
 
 (declaim (inline address-prefix))
 (defun address-prefix (address)
+  (declare (fixnum address) (optimize (speed 3) (safety 0)))
   (ldb +address-prefix-byte+ address))
+
+(declaim (inline address-address))
+(defun address-address (address)
+  (declare (fixnum address) (optimize (speed 3) (safety 0)))
+  (ldb +address-address-byte+ address))
 
 (declaim (inline address-space))
 (defun address-space (address all-spaces)
@@ -30,10 +39,6 @@
     (if (< -1 prefix (length all-spaces))
         (aref all-spaces prefix)
         (forth-exception :invalid-memory))))
-
-(declaim (inline address-address))
-(defun address-address (address)
-  (ldb +address-address-byte+ address))
 
 ;;;
 
