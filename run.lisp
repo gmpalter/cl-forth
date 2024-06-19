@@ -30,23 +30,23 @@
           (runner)))))
 
 (defun run-forth-process (template &key (asdf-system '#:cl-forth) name interpret transcript-file)
-  (multiple-value-bind (remote-input local-output)
-      (make-piped-streams :name "stdin")
-    (multiple-value-bind (local-input remote-output)
-        (make-piped-streams :name "stdout")
-      (let* ((system (asdf:registered-system asdf-system))
-             (process-name (cond (name)
-                                 (system (asdf:system-long-name system))
-                                 (t "CL-Forth")))
-             (local-io (make-two-way-stream local-input local-output)))
-        (process-run-function process-name
-                              #'(lambda ()
-                                  (unwind-protect
-                                       (let ((*standard-input* remote-input)
-                                             (*standard-output* remote-output))
-                                         (run :asdf-system asdf-system :template template
-                                              :interpret interpret :transcript-file transcript-file))
-                                    (close remote-input)
-                                    (close remote-output)
-                                    (close local-io))))
-        local-io))))
+  (let* ((system (asdf:registered-system asdf-system))
+         (process-name (cond (name)
+                             (system (asdf:system-long-name system))
+                             (t "CL-Forth"))))
+    (multiple-value-bind (remote-input local-output)
+        (make-piped-streams :name (format nil "~A stdin" process-name))
+      (multiple-value-bind (local-input remote-output)
+          (make-piped-streams :name (format nil "~A stdout" process-name))
+        (let ((local-io (make-two-way-stream local-input local-output)))
+          (process-run-function process-name
+                                #'(lambda ()
+                                    (unwind-protect
+                                         (let ((*standard-input* remote-input)
+                                               (*standard-output* remote-output))
+                                           (run :asdf-system asdf-system :template template
+                                                :interpret interpret :transcript-file transcript-file))
+                                      (close remote-input)
+                                      (close remote-output)
+                                      (close local-io))))
+          local-io)))))
