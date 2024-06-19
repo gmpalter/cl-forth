@@ -185,7 +185,7 @@
 (defmethod deallocate-memory ((memory memory) n-bytes)
   (with-slots (data-space) memory
     (space-deallocate data-space n-bytes)))
- 
+
 (defmethod align-memory ((memory memory) &optional (boundary +cell-size+))
   (with-slots (data-space) memory
     (space-align data-space boundary)))
@@ -221,7 +221,7 @@
            (low (cell-unsigned-at space (+ address +cell-size+)))
            (high (cell-unsigned-at space address)))
       (double-cell-signed low high))))
-      
+
 (defmethod (setf memory-double-cell) (value (memory memory) address)
   (with-slots (all-spaces) memory
     (let* ((space (address-space address all-spaces))
@@ -231,7 +231,7 @@
         (setf (cell-unsigned-at space (+ address +cell-size+)) low)
         (setf (cell-unsigned-at space address) high))
       value)))
-  
+
 (defmethod memory-double-cell-unsigned ((memory memory) address)
   (with-slots (all-spaces) memory
     (let* ((space (address-space address all-spaces))
@@ -239,7 +239,7 @@
            (low (cell-unsigned-at space (+ address +cell-size+)))
            (high (cell-unsigned-at space address)))
       (double-cell-unsigned low high))))
-      
+
 (defmethod (setf memory-double-cell-unsigned) (value (memory memory) address)
   (with-slots (all-spaces) memory
     (let* ((space (address-space address all-spaces))
@@ -297,12 +297,12 @@
 (defun (setf memory-char) (value memory address)
   (setf (memory-byte memory address) value))
 
-;;; 
+;;;
 
 (declaim (inline memory-single-float))
 (defun memory-single-float (memory address)
   (encode-single-float (memory-quad-byte memory address)))
-    
+
 (declaim (inline (setf memory-single-float)))
 (defun (setf memory-single-float) (value memory address)
   (setf (memory-quad-byte memory address) (decode-single-float value))
