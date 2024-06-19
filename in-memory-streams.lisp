@@ -17,9 +17,10 @@
   (%make-in-memory-buffer :buffer (make-array size :element-type 'character :initial-element #\Null) :size size))
 
 (defun %print-in-memory-buffer (imb stream depth)
-  (declare (ignore depth))
-  (print-unreadable-object (imb stream :type t :identity t)
-    (format stream "size=~D, put=~D, take=~D~@[, closed~]" (imb-size imb) (imb-put imb) (imb-take imb) (imb-closed? imb))))
+  (if (zerop depth)
+      (print-unreadable-object (imb stream :type t :identity t)
+        (format stream "size=~D, put=~D, take=~D~@[, closed~]" (imb-size imb) (imb-put imb) (imb-take imb) (imb-closed? imb)))
+      (format stream "size=~D, put=~D, take=~D~@[, closed~]" (imb-size imb) (imb-put imb) (imb-take imb) (imb-closed? imb))))
 
 (declaim (inline imb-free))
 (defun imb-free (imb)
