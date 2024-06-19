@@ -8,9 +8,9 @@
                              (:constructor %make-in-memory-buffer)
                              (:print-function %print-in-memory-buffer))
   buffer
-  size
-  (put 0)
-  (take 0)
+  (size 0 :type fixnum)
+  (put 0 :type fixnum)
+  (take 0 :type fixnum)
   (closed? nil))
 
 (defun make-in-memory-buffer (size)
@@ -21,19 +21,26 @@
   (print-unreadable-object (imb stream :type t :identity t)
     (format stream "size=~D, put=~D, take=~D~@[, closed~]" (imb-size imb) (imb-put imb) (imb-take imb) (imb-closed? imb))))
 
-(declaim (inline imb-empty?))
-(defun imb-empty? (imb)
+(declaim (inline imb-free))
+(defun imb-free (imb)
   (declare (type in-memory-buffer imb)
            (optimize (speed 3) (safety 0)))
   (let ((put (imb-put imb))
         (take (imb-take imb))
         (size (imb-size imb)))
-    (declare (fixnum put take size))
-    (cond ((= put take))
+    (cond ((= put take)
+           size)
           ((> take put)
-           (= size (the fixnum (- (the fixnum (- take put)) 1))))
+           (the fixnum (- (the fixnum (- take put)) 1)))
           (t
-           (= size (the fixnum (- (the fixnum (- (the fixnum (- take put)) 1)) (the fixnum (- size)))))))))
+           (the fixnum (- (the fixnum (- (the fixnum (- take put)) 1)) (the fixnum (- size))))))))
+
+(declaim (inline imb-empty?))
+(defun imb-empty? (imb)
+  (declare (type in-memory-buffer imb)
+           (optimize (speed 3) (safety 0)))
+  (let ((size (imb-size imb)))
+    (= size (the fixnum (imb-free imb)))))
 
 (declaim (inline imb-full?))
 (defun imb-full? (imb)
@@ -66,6 +73,31 @@
     (loop while (= put (the fixnum (imb-take imb))))
     (setf (imb-put imb) put)
     char))
+
+(declaim (inline imb-put-string))
+(defun imb-put-string (imb string start end)
+  (declare (type in-memory-buffer imb)
+           (fixnum start end)
+           (optimize (speed 3) (safety 0)))
+  (loop with start fixnum = start
+        with length fixnum = (the fixnum (- end start))
+        with put fixnum = (imb-put imb)
+        with size fixnum = (imb-size imb)
+        while (plusp length)
+        for chunk fixnum = (min (the fixnum (min length (the fixnum (imb-free imb)))) (the fixnum (- size put)))
+        when (imb-full? imb)
+          do (ccl:process-wait "Buffer Put String" #'(lambda (imb) (not (imb-empty? imb))) imb)
+        do (replace (imb-buffer imb) string :start1 put :end1 (the fixnum (+ put chunk))
+                                              :start2 start :end2 (the fixnum (+ start chunk)))
+             (setf put (the fixnum (+ put  chunk)))
+             (when (>= put size)
+               (setf put 0))
+             ;;---*** TODO: Should we do something else here?
+             (loop while (= put (the fixnum (imb-take imb))))
+             (setf (imb-put imb) put
+                   start (the fixnum (+ start chunk))
+                   length (the fixnum (- length chunk))))
+  string)
 
 (declaim (inline imb-take-char))
 (defun imb-take-char (imb &optional (wait? t))
@@ -161,6 +193,18 @@
           (setf column 0)
           (incf column))
       char)))
+
+(defmethod ccl:stream-write-string ((st in-memory-character-output-stream) string &optional start end)
+  (let ((start (or start 0))
+        (end (or end (length string))))
+    (with-imcs-buffer (st)
+      (with-slots (column) st
+        (imb-put-string buffer string start end)
+        (let ((last-newline (position #\Newline string :start start :end end :from-end t)))
+          (if last-newline
+              (setf column (- end last-newline))
+              (incf column (- end start))))))
+    string))
 
 (defmethod ccl:stream-force-output ((st in-memory-character-output-stream))
   nil)
