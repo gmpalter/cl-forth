@@ -190,7 +190,7 @@
   "( nt - c-addr u )"
   "NAME>STRING returns the name of the word NT in the character string C-ADDR U"
   (let* ((word (lookup-nt word-lists (stack-pop data-stack)))
-         (name>string-space (name>string-space memory))
+         (name>string-space (memory-name>string-space memory))
          (address (transient-space-base-address memory name>string-space)))
     (ensure-transient-space-holds memory name>string-space (length (word-name word)))
     (multiple-value-bind (forth-memory offset)

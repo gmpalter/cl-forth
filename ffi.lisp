@@ -15,15 +15,6 @@
 (defmethod save-space-state ((sp foreign-space))
   nil)
 
-;;;---*** TODO: Is there anything to save?
-(defmethod space-save-to-template ((sp foreign-space))
-  nil)
-
-;;;---*** TODO: Is there anything to load?
-(defmethod space-load-from-template ((sp foreign-space) template)
-  (declare (ignore template))
-  nil)
-
 (defmethod space-allocate ((sp foreign-space) n-bytes)
   (declare (ignore n-bytes))
   (forth-exception :invalid-memory))

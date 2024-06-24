@@ -953,7 +953,7 @@
   (let* ((char (stack-pop data-stack))
          (text (or (word files (native-char char)) ""))
          (length (length text))
-         (word-space (word-space memory))
+         (word-space (memory-word-space memory))
          (address (transient-space-base-address memory word-space)))
     ;; Length of a counted string is always a single byte regardless of character size
     (ensure-transient-space-holds memory word-space (1+ (* length +char-size+)))

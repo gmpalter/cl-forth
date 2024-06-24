@@ -19,14 +19,6 @@
 (defmethod save-space-state ((sp source-data-space))
   nil)
 
-(defmethod space-save-to-template ((sp source-data-space))
-  ;; Source buffer is created on-demand by use of SOURCE
-  nil)
-
-(defmethod space-load-from-template ((sp source-data-space) template)
-  (declare (ignore template))
-  nil)
-
 (defmethod space-allocate ((sp source-data-space) n-bytes)
   (declare (ignore n-bytes))
   (forth-exception :write-to-read-only-memory))

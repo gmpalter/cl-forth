@@ -33,364 +33,6 @@
   (declare (fixnum address) (optimize (speed 3) (safety 0)))
   (ldb +address-address-byte+ address))
 
-(declaim (inline address-space))
-(defun address-space (address all-spaces)
-  (let ((prefix (address-prefix address)))
-    (if (< -1 prefix (length all-spaces))
-        (aref all-spaces prefix)
-        (forth-exception :invalid-memory))))
-
-;;;
-
-(defconstant +data-space-size+ (expt 2 24))
-(defconstant +pad-space-size+ 1024)
-(defconstant +transient-space-size+ 1024)
-(defconstant +pictured-buffer-size+ 256)
-(defconstant +name>string-space-size+ 256)
-;; Forth 2012 states that there must be at least two transient buffers available for S" and S\"
-(defconstant +number-of-string-spaces+ 16)
-
-(defclass memory ()
-  ((all-spaces :initform (make-array 10 :fill-pointer 0 :adjustable t :initial-element nil))
-   (data-space :initform (make-instance 'data-space :size +data-space-size+))
-   (pad :initform (make-instance 'data-space :size +pad-space-size+))
-   (word-space :reader word-space :initform (make-instance 'transient-data-space :size +transient-space-size+))
-   (pictured-buffer :reader memory-pictured-buffer
-                    :initform (make-instance 'pictured-buffer :size +pictured-buffer-size+))
-   (name>string-space :reader name>string-space
-                      :initform (make-instance 'transient-data-space :size +name>string-space-size+))
-   (string-spaces :initform (make-array 0 :fill-pointer 0 :adjustable t))
-   (current-string-space-index :initform 0)
-   ;; ALLOCATE/FREE/RESIZE operate on chunks of "native" memory from this "space"
-   (native-memory :initform (make-instance 'native-memory)))
-  )
-
-(defun make-memory ()
-  (make-instance 'memory))
-
-(defmethod initialize-instance :after ((memory memory) &key &allow-other-keys)
-  (with-slots (all-spaces data-space pad word-space pictured-buffer name>string-space string-spaces native-memory) memory
-    (flet ((setup (space)
-             (setf (space-prefix space) (vector-push-extend space all-spaces))))
-      (setup (make-instance 'null-space))      ; NULL-SPACE gets PREFIX=#x00
-      (setup data-space)
-      (setup pad)
-      (setup word-space)
-      (setup pictured-buffer)
-      (setup name>string-space)
-      (dotimes (i +number-of-string-spaces+)
-        (let ((space (make-instance 'transient-data-space :size +transient-space-size+)))
-          (vector-push-extend space string-spaces)
-          (setup space)))
-      (setup native-memory))))
-
-(defmethod print-object ((memory memory) stream)
-  (with-slots (all-spaces) memory
-    (print-unreadable-object (memory stream :type t :identity t)
-      (format stream "~D space~:P" (length all-spaces)))))
-
-(defmethod add-space ((memory memory) space)
-  (with-slots (all-spaces) memory
-    (setf (space-prefix space) (vector-push-extend space all-spaces))))
-
-(defmethod add-state-space ((memory memory) parent)
-  (with-slots (all-spaces) memory
-    (let ((space (make-instance 'state-space :parent parent)))
-      (setf (space-prefix space) (vector-push-extend space all-spaces)))))
-
-(defmethod reset-memory ((memory memory))
-  (with-slots (all-spaces) memory
-    (dotimes (i (length all-spaces))
-      (space-reset (aref all-spaces i)))))
-
-(defmethod save-memory-state ((memory memory))
-  (with-slots (all-spaces) memory
-    (dotimes (i (length all-spaces))
-      (save-space-state (aref all-spaces i)))))
-
-(defmethod reset-pictured-buffer ((memory memory))
-  (with-slots (pictured-buffer) memory
-    (space-reset pictured-buffer)))
-
-(defmethod data-space-base-address ((memory memory))
-  (with-slots (data-space) memory
-    (make-address (space-prefix data-space) 0)))
-
-(defmethod data-space-high-water-mark ((memory memory))
-  (with-slots (data-space) memory
-    (make-address (space-prefix data-space) (space-high-water-mark data-space))))
-
-(defmethod data-space-unused ((memory memory))
-  (with-slots (data-space) memory
-    (space-unused data-space)))
-
-(defmethod pad-base-address ((memory memory))
-  (with-slots (pad) memory
-    (make-address (space-prefix pad) 0)))
-
-(defmethod transient-space-base-address ((memory memory) space)
-  (make-address (space-prefix space) 0))
-
-(defmethod ensure-transient-space-holds ((memory memory) space n-bytes)
-  (space-reset space)
-  (space-unseal space)
-  (space-allocate space n-bytes))
-
-(defmethod seal-transient-space ((memory memory) space)
-  (space-seal space))
-
-(defmethod seal-transient-space ((memory memory) (address integer))
-  (with-slots (all-spaces) memory
-    (space-seal (address-space address all-spaces))))
-
-(defmethod reserve-string-space ((memory memory))
-  (with-slots (string-spaces current-string-space-index) memory
-    (prog1
-        (aref string-spaces current-string-space-index)
-      (incf current-string-space-index)
-      (when (= current-string-space-index +number-of-string-spaces+)
-        (setf current-string-space-index 0)))))
-
-(defmethod state-slot-address ((memory memory) slot)
-  (declare #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-  (with-slots (all-spaces) memory
-    (or (loop for space across all-spaces
-                thereis (and (typep space 'state-space) (state-slot-address space slot)))
-        (forth-exception :unknown-slot))))
-
-;;;
-
-(defmethod save-to-template ((memory memory))
-  (with-slots (all-spaces) memory
-    (let* ((n-spaces (length all-spaces))
-           (template (make-array (length all-spaces) :initial-element nil)))
-      (dotimes (i n-spaces)
-        (setf (aref template i) (space-save-to-template (aref all-spaces i))))
-      template)))
-
-(defmethod load-from-template ((memory memory) template fs)
-  (declare (ignore fs))
-  (with-slots (all-spaces) memory
-    (let ((n-spaces (length all-spaces)))
-      (assert (= n-spaces (length template)) () "Memory template mismatch")
-      (dotimes (i n-spaces)
-        (space-load-from-template (aref all-spaces i) (aref template i))))))
-
-;;;
-
-(defmethod allocate-memory ((memory memory) n-bytes)
-  (with-slots (data-space) memory
-    (space-allocate data-space n-bytes)))
-
-(defmethod deallocate-memory ((memory memory) n-bytes)
-  (with-slots (data-space) memory
-    (space-deallocate data-space n-bytes)))
-
-(defmethod align-memory ((memory memory) &optional (boundary +cell-size+))
-  (with-slots (data-space) memory
-    (space-align data-space boundary)))
-
-(defmethod memory-cell ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (cell-at space address))))
-
-(defmethod (setf memory-cell) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (setf (cell-at space address) value))))
-
-(defmethod memory-cell-unsigned ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (cell-unsigned-at space address))))
-
-(defmethod (setf memory-cell-unsigned) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (setf (cell-unsigned-at space address) value))))
-
-(defmethod memory-double-cell ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address))
-           (low (cell-unsigned-at space (+ address +cell-size+)))
-           (high (cell-unsigned-at space address)))
-      (double-cell-signed low high))))
-
-(defmethod (setf memory-double-cell) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (multiple-value-bind (low high)
-          (double-components value)
-        (setf (cell-unsigned-at space (+ address +cell-size+)) low)
-        (setf (cell-unsigned-at space address) high))
-      value)))
-
-(defmethod memory-double-cell-unsigned ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address))
-           (low (cell-unsigned-at space (+ address +cell-size+)))
-           (high (cell-unsigned-at space address)))
-      (double-cell-unsigned low high))))
-
-(defmethod (setf memory-double-cell-unsigned) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (multiple-value-bind (low high)
-          (double-components value)
-        (setf (cell-unsigned-at space (+ address +cell-size+)) low)
-        (setf (cell-unsigned-at space address) high))
-      value)))
-
-(defmethod memory-quad-byte ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (quad-byte-at space address))))
-
-(defmethod (setf memory-quad-byte) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (setf (quad-byte-at space address) value))))
-
-(defmethod memory-double-byte ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (double-byte-at space address))))
-
-(defmethod (setf memory-double-byte) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (setf (double-byte-at space address) value))))
-
-(defmethod memory-byte ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (byte-at space address))))
-
-(defmethod (setf memory-byte) (value (memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (setf (byte-at space address) value))))
-
-;;; In 2016, the Forth standardization committee adopted a proposal that characters occupy
-;;; one address unit (i.e., byte) in memory
-
-(declaim (inline memory-char))
-(defun memory-char (memory address)
-  (memory-byte memory address))
-
-(declaim (inline (setf memory-char)))
-(defun (setf memory-char) (value memory address)
-  (setf (memory-byte memory address) value))
-
-;;;
-
-(declaim (inline memory-single-float))
-(defun memory-single-float (memory address)
-  (encode-single-float (memory-quad-byte memory address)))
-
-(declaim (inline (setf memory-single-float)))
-(defun (setf memory-single-float) (value memory address)
-  (setf (memory-quad-byte memory address) (decode-single-float value))
-  value)
-
-(declaim (inline memory-double-float))
-(defun memory-double-float (memory address)
-  (encode-double-float (memory-cell-unsigned memory address)))
-
-(declaim (inline (setf memory-double-float)))
-(defun (setf memory-double-float) (value memory address)
-  (setf (memory-cell-unsigned memory address) (decode-double-float value))
-  value)
-
-;;; CL-Forth uses double precision floating point as its internal representation of float values
-
-(declaim (inline memory-native-float))
-(defun memory-native-float (memory address)
-  (memory-double-float memory address))
-
-(declaim (inline (setf memory-native-float)))
-(defun (setf memory-native-float) (value memory address)
-  (setf (memory-double-float memory address) value))
-
-;;;
-
-(defmethod memory-fill ((memory memory) address count byte)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (space-fill space address count byte))))
-
-(defmethod memory-copy ((memory memory) source destination count)
-  (with-slots (all-spaces) memory
-    (let* ((source-space (address-space source all-spaces))
-           (source-address (address-address source))
-           (destination-space (address-space destination all-spaces))
-           (destination-address (address-address destination)))
-      (space-copy source-space source-address destination-space destination-address count))))
-
-;;;
-
-(defmethod memory-decode-address ((memory memory) address &optional size-hint)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (space-decode-address space address size-hint))))
-
-(defmethod native-address ((memory memory) foreign-pointer)
-  (with-slots (all-spaces) memory
-    (let ((foreign-address (pointer-address foreign-pointer)))
-      (or (loop for space across all-spaces
-                  thereis (space-native-address space foreign-address))
-          (forth-exception :invalid-memory)))))
-
-(defmethod foreign-pointer ((memory memory) native-address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space native-address all-spaces))
-           (address (address-address native-address)))
-      (address-pointer (space-foreign-address space address)))))
-
-(defmethod address-is-foreign? ((memory memory) address)
-  (with-slots (all-spaces) memory
-    (let* ((space (address-space address all-spaces))
-           (address (address-address address)))
-      (space-address-is-foreign? space address))))
-
-;;;
-
-(defconstant +native-memory-operation-success+ 0)
-(defconstant +native-memory-operation-failure+ -2)
-
-(defmethod allocate-native-memory ((memory memory) n-bytes)
-  (with-slots (native-memory) memory
-    (space-allocate-native-memory native-memory n-bytes)))
-
-(defmethod free-native-memory ((memory memory) address)
-  (with-slots (native-memory) memory
-    (if (= (space-prefix native-memory) (address-prefix address))
-        (space-free-native-memory native-memory (address-address address))
-        +native-memory-operation-failure+)))
-
-(defmethod resize-native-memory ((memory memory) address n-bytes)
-  (with-slots (native-memory) memory
-    (if (= (space-prefix native-memory) (address-prefix address))
-        (space-resize-native-memory native-memory (address-address address) n-bytes)
-        (values address +native-memory-operation-failure+))))
-
 
 ;;;
 
@@ -413,7 +55,7 @@
   (:method ((sp mspace)) nil))
 
 (defgeneric space-save-to-template (mspace)
-  (:method ((sp mspace)) nil))
+  (:method ((sp mspace)) :none))
 (defgeneric space-load-from-template (mspace template)
   (:method ((sp mspace) template)
     (declare (ignore template))
@@ -424,6 +66,11 @@
 (defgeneric space-unused (mspace)
   (:method ((sp mspace)) 0))
 (defgeneric space-align (mspace &optional boundary))
+
+(defgeneric space-state-slot-address (mspace slot)
+  (:method (sp slot)
+    (declare (ignore sp slot))
+    nil))
 
 (defgeneric cell-at (mspace address))
 (defgeneric (setf cell-at) (value mspace address))
@@ -474,6 +121,9 @@
           (forth-exception :invalid-memory))
         (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                               :start2 source-address :end2 (+ source-address count))))))
+
+(defconstant +native-memory-operation-success+ 0)
+(defconstant +native-memory-operation-failure+ -2)
 
 (defgeneric space-allocate-native-memory (mspace n-bytes)
   (:method ((sp mspace) n-bytes)
@@ -852,7 +502,7 @@
   (declare (ignore boundary))
   nil)
 
-(defmethod state-slot-address ((sp state-space) slot)
+(defmethod space-state-slot-address ((sp state-space) slot)
   (with-slots (prefix slots) sp
     (let ((index (position slot slots)))
       (when index
@@ -938,13 +588,6 @@
   nil)
 
 (defmethod save-space-state ((sp null-space))
-  nil)
-
-(defmethod space-save-to-template ((sp null-space))
-  nil)
-
-(defmethod space-load-from-template ((sp null-space) template)
-  (declare (ignore template))
   nil)
 
 (defmethod space-allocate ((sp null-space) n-bytes)
@@ -1338,3 +981,352 @@
                   (t
                    (forth-exception :invalid-memory))))
           (forth-exception :invalid-memory)))))
+
+
+;;;
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defconstant +number-of-spaces+ 256))
+
+(defconstant +data-space-size+ (expt 2 24))
+(defconstant +pad-space-size+ 1024)
+(defconstant +transient-space-size+ 1024)
+(defconstant +pictured-buffer-size+ 256)
+
+(defconstant +name>string-space-size+ 256)
+;; Forth 2012 states that there must be at least two transient buffers available for S" and S\"
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defconstant +number-of-string-spaces+ 16))
+
+(deftype all-spaces-array () `(simple-array (or mspace null) (,+number-of-spaces+)))
+(deftype string-spaces-array () `(simple-array (or mspace null) (,+number-of-string-spaces+)))
+
+(defstruct (memory (:constructor %make-memory)
+                   (:print-function %print-memory))
+  (all-spaces (make-array 256 :initial-element nil) :type all-spaces-array)
+  (data-space (make-instance 'data-space :size +data-space-size+) :type mspace)
+  (pad (make-instance 'data-space :size +pad-space-size+) :type mspace)
+  (word-space (make-instance 'transient-data-space :size +transient-space-size+) :type mspace)
+  (pictured-buffer (make-instance 'pictured-buffer :size +pictured-buffer-size+) :type mspace)
+  (name>string-space (make-instance 'transient-data-space :size +name>string-space-size+) :type mspace)
+  (native-memory (make-instance 'native-memory) :type mspace)
+  (string-spaces (make-array +number-of-string-spaces+ :initial-element nil) :type string-spaces-array)
+  (current-string-space-index 0 :type fixnum))
+
+(defun make-memory ()
+  (let ((memory (%make-memory)))
+    (setf (aref (memory-all-spaces memory) 0) (make-instance 'null-space :prefix 0))
+    (add-space memory (memory-data-space memory))
+    (add-space memory (memory-pad memory))
+    (add-space memory (memory-word-space memory))
+    (add-space memory (memory-pictured-buffer memory))
+    (add-space memory (memory-name>string-space memory))
+    (add-space memory (memory-native-memory memory))
+    (dotimes (i +number-of-string-spaces+)
+      (let ((space (make-instance 'transient-data-space :size +transient-space-size+)))
+        (setf (aref (memory-string-spaces memory) i) space)
+        (add-space memory space)))
+    memory))
+
+(defun %print-memory (memory stream depth)
+  (declare (ignore depth))
+  (print-unreadable-object (memory stream :type t :identity t)
+    (format stream "~D space~:P" (count nil (memory-all-spaces memory) :test-not 'eq))))
+
+(defun add-space (memory space)
+  (let ((prefix (position nil (memory-all-spaces memory))))
+    (if prefix
+        (setf (aref (memory-all-spaces memory) prefix) space
+              (space-prefix space) prefix)
+        (forth-exception :data-space-overflow))))
+
+(defun add-state-space (memory parent)
+  (let ((space (make-instance 'state-space :parent parent)))
+    (add-space memory space)))
+
+(declaim (inline address-space))
+(defun address-space (memory address)
+  (declare (type memory memory) (fixnum address)
+           (optimize (speed 3) (safety 0)))
+  (let ((prefix (address-prefix address)))
+    (or (aref (memory-all-spaces memory) prefix)
+        (forth-exception :invalid-memory))))
+
+(defmacro define-memory-fun (name arglist &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name (,@arglist)
+       (declare (type memory memory) (optimize (speed 3) (safety 0)))
+       ,@body)))
+
+(defmacro do-all-spaces (memory space &body body)
+  `(dotimes (i +number-of-spaces+)
+     (let ((,space (aref (memory-all-spaces ,memory) i)))
+      (when ,space
+        ,@body))))
+  
+(define-memory-fun reset-memory (memory)
+  (do-all-spaces memory space
+    (space-reset space)))
+
+(define-memory-fun save-memory-state (memory)
+  (do-all-spaces memory space
+    (save-space-state space)))
+
+(define-memory-fun reset-pictured-buffer (memory)
+  (space-reset (memory-pictured-buffer memory)))
+
+(define-memory-fun data-space-base-address (memory)
+  (make-address (space-prefix (memory-data-space memory)) 0))
+
+(define-memory-fun data-space-high-water-mark (memory)
+  (let ((data-space (memory-data-space memory)))
+    (make-address (space-prefix data-space) (space-high-water-mark data-space))))
+
+(define-memory-fun data-space-unused (memory)
+  (space-unused (memory-data-space memory)))
+
+(define-memory-fun pad-base-address (memory)
+  (make-address (space-prefix (memory-pad memory)) 0))
+
+(define-memory-fun transient-space-base-address (memory space)
+  (declare (ignore memory))
+  (make-address (space-prefix space) 0))
+
+(define-memory-fun ensure-transient-space-holds (memory space n-bytes)
+  (declare (ignore memory))
+  (space-reset space)
+  (space-unseal space)
+  (space-allocate space n-bytes))
+
+(define-memory-fun seal-transient-space (memory space-or-address)
+  (etypecase space-or-address
+    (mspace 
+     (space-seal space-or-address))
+    (integer
+     (space-seal (address-space memory space-or-address)))))
+
+(define-memory-fun reserve-string-space (memory)
+  (prog1
+      (aref (memory-string-spaces memory) (memory-current-string-space-index memory))
+    (setf (memory-current-string-space-index memory) (the fixnum (1+ (memory-current-string-space-index memory))))
+    (when (= (memory-current-string-space-index memory) +number-of-string-spaces+)
+      (setf (memory-current-string-space-index memory) 0))))
+
+(define-memory-fun state-slot-address (memory slot)
+  (do-all-spaces memory space
+    (let ((address (space-state-slot-address space slot)))
+      (when address
+        (return-from state-slot-address address))))
+  (forth-exception :unknown-slot))
+
+;;;
+
+(defmethod save-to-template ((memory memory))
+  (let ((template (make-array +number-of-spaces+ :initial-element nil)))
+    (dotimes (i +number-of-spaces+)
+      (let ((space (aref (memory-all-spaces memory) i)))
+        (when space
+          (setf (aref template i) (space-save-to-template space)))))
+    template))
+
+(defmethod load-from-template (memory template fs)
+  (declare (ignore fs))
+  (dotimes (i +number-of-spaces+)
+    (let ((space (aref (memory-all-spaces memory) i))
+          (space-template (aref template i)))
+      (if (and space space-template)
+          (space-load-from-template space space-template)
+          (assert (and (null space) (null space-template)) () "Memory template mismatch")))))
+
+;;;
+
+(define-memory-fun  allocate-memory (memory n-bytes)
+  (space-allocate (memory-data-space memory) n-bytes))
+
+(define-memory-fun deallocate-memory ( memory n-bytes)
+  (space-deallocate (memory-data-space memory) n-bytes))
+ 
+(define-memory-fun align-memory (memory &optional (boundary +cell-size+))
+  (space-align (memory-data-space memory) boundary))
+
+;;;
+
+(define-memory-fun memory-cell (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (cell-at space address)))
+
+(define-memory-fun (setf memory-cell) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (setf (cell-at space address) value)))
+
+(define-memory-fun memory-cell-unsigned (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (cell-unsigned-at space address)))
+
+(define-memory-fun (setf memory-cell-unsigned) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (setf (cell-unsigned-at space address) value)))
+
+(define-memory-fun memory-double-cell (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address))
+         (low (cell-unsigned-at space (+ address +cell-size+)))
+         (high (cell-unsigned-at space address)))
+    (double-cell-signed low high)))
+      
+(define-memory-fun (setf memory-double-cell) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (multiple-value-bind (low high)
+        (double-components value)
+      (setf (cell-unsigned-at space (+ address +cell-size+)) low)
+      (setf (cell-unsigned-at space address) high))
+    value))
+  
+(define-memory-fun memory-double-cell-unsigned (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address))
+         (low (cell-unsigned-at space (+ address +cell-size+)))
+         (high (cell-unsigned-at space address)))
+    (double-cell-unsigned low high)))
+      
+(define-memory-fun (setf memory-double-cell-unsigned) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (multiple-value-bind (low high)
+        (double-components value)
+      (setf (cell-unsigned-at space (+ address +cell-size+)) low)
+      (setf (cell-unsigned-at space address) high))
+    value))
+
+(define-memory-fun memory-quad-byte (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (quad-byte-at space address)))
+
+(define-memory-fun (setf memory-quad-byte) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (setf (quad-byte-at space address) value)))
+
+(define-memory-fun memory-double-byte (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (double-byte-at space address)))
+
+(define-memory-fun (setf memory-double-byte) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (setf (double-byte-at space address) value)))
+
+(define-memory-fun  memory-byte (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (byte-at space address)))
+
+(define-memory-fun (setf memory-byte) (value memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (setf (byte-at space address) value)))
+
+;;; In 2016, the Forth standardization committee adopted a proposal that characters occupy
+;;; one address unit (i.e., byte) in memory
+
+(declaim (inline memory-char))
+(defun memory-char (memory address)
+  (memory-byte memory address))
+
+(declaim (inline (setf memory-char)))
+(defun (setf memory-char) (value memory address)
+  (setf (memory-byte memory address) value))
+
+;;; 
+
+(declaim (inline memory-single-float))
+(defun memory-single-float (memory address)
+  (encode-single-float (memory-quad-byte memory address)))
+    
+(declaim (inline (setf memory-single-float)))
+(defun (setf memory-single-float) (value memory address)
+  (setf (memory-quad-byte memory address) (decode-single-float value))
+  value)
+
+(declaim (inline memory-double-float))
+(defun memory-double-float (memory address)
+  (encode-double-float (memory-cell-unsigned memory address)))
+
+(declaim (inline (setf memory-double-float)))
+(defun (setf memory-double-float) (value memory address)
+  (setf (memory-cell-unsigned memory address) (decode-double-float value))
+  value)
+
+;;; CL-Forth uses double precision floating point as its internal representation of float values
+
+(declaim (inline memory-native-float))
+(defun memory-native-float (memory address)
+  (memory-double-float memory address))
+
+(declaim (inline (setf memory-native-float)))
+(defun (setf memory-native-float) (value memory address)
+  (setf (memory-double-float memory address) value))
+
+;;;
+
+(define-memory-fun memory-fill (memory address count byte)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (space-fill space address count byte)))
+
+(define-memory-fun memory-copy (memory source destination count)
+  (let* ((source-space (address-space memory source))
+         (source-address (address-address source))
+         (destination-space (address-space memory destination))
+         (destination-address (address-address destination)))
+    (space-copy source-space source-address destination-space destination-address count)))
+
+;;;
+
+(define-memory-fun memory-decode-address (memory address &optional size-hint)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (space-decode-address space address size-hint)))
+
+(define-memory-fun native-address (memory foreign-pointer)
+  (let ((foreign-address (pointer-address foreign-pointer)))
+    (do-all-spaces memory space
+      (let ((address (space-native-address space foreign-address)))
+        (when address
+          (return-from native-address address)))))
+  (forth-exception :invalid-memory))
+
+(define-memory-fun foreign-pointer (memory native-address)
+  (let* ((space (address-space memory native-address))
+         (address (address-address native-address)))
+    (address-pointer (space-foreign-address space address))))
+
+(define-memory-fun address-is-foreign? (memory address)
+  (let* ((space (address-space memory address))
+         (address (address-address address)))
+    (space-address-is-foreign? space address)))
+
+;;;
+
+(define-memory-fun allocate-native-memory (memory n-bytes)
+  (space-allocate-native-memory (memory-native-memory memory) n-bytes))
+
+(define-memory-fun free-native-memory (memory address)
+  (let ((native-memory (memory-native-memory memory)))
+    (if (= (space-prefix native-memory) (address-prefix address))
+        (space-free-native-memory native-memory (address-address address))
+        +native-memory-operation-failure+)))
+
+(define-memory-fun resize-native-memory (memory address n-bytes)
+  (let ((native-memory (memory-native-memory memory)))
+    (if (= (space-prefix native-memory) (address-prefix address))
+        (space-resize-native-memory native-memory (address-address address) n-bytes)
+        (values address +native-memory-operation-failure+))))
