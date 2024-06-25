@@ -229,7 +229,7 @@
       (let ((new-word (make-word new-name (word-code old-word)
                                  :immediate? (word-immediate? old-word)
                                  :compile-only? (word-compile-only? old-word)
-                                 :creating-word? (word-creating-word? old-word)
+                                 :created-word? (word-created-word? old-word)
                                  :parameters (copy-list (word-parameters old-word)))))
         (setf (word-inlineable? new-word) (word-inlineable? old-word)
               (word-inline-forms new-word) (word-inline-forms old-word)

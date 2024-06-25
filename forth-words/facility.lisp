@@ -70,11 +70,19 @@
 (define-word end-structure (:word "END-STRUCTURE")
   "( struct-sys +n – )"
   "Terminate definition of a structure started by BEGIN-STRUCTURE"
-  (let ((size (stack-pop data-stack))
-        (struct (stack-pop data-stack)))
+  (let* ((size (stack-pop data-stack))
+         (struct (stack-pop data-stack))
+         (struct-word (fs-word struct)))
     (setf (fs-size struct) size)
-    (setf (word-smudge? (fs-word struct)) nil)
-    (map nil #'(lambda (field) (setf (word-smudge? field) nil)) (fs-fields struct))))
+    (setf (word-inline-forms struct-word) `((stack-push data-stack ,size))
+          (word-inlineable? struct-word) t
+          (word-smudge? (fs-word struct)) nil)
+    (map nil #'(lambda (field)
+                 (setf (word-inline-forms field) `((stack-push data-stack (+ (stack-pop data-stack)
+                                                                             ,(first (word-parameters field)))))
+                       (word-inlineable? field) t
+                       (word-smudge? field) nil))
+         (fs-fields struct))))
 
 (define-word field (:word "FIELD:")
   "FIELD: <name>" "( n1 – n2 )"

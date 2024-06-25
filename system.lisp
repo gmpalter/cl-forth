@@ -212,7 +212,10 @@
                           (cond ((word-immediate? value)
                                  (forth-call fs value *interpreter-psuedo-pc*))
                                 ((word-inlineable? value)
-                                 (apply #'add-forms-to-definition fs (reverse (word-inline-forms value))))
+                                 (if (word-created-word? value)
+                                     ;; See REWRITE-TAGS, below, for an explanation
+                                     (apply #'add-forms-to-definition fs (reverse (rewrite-tags (word-inline-forms value))))
+                                     (apply #'add-forms-to-definition fs (reverse (word-inline-forms value)))))
                                 (t
                                  (add-forms-to-definition fs `(forth-call fs ,value ,(next-psuedo-pc definition))))))
                          (:single
@@ -404,9 +407,33 @@
 (define-forth-method execute-does> (fs does>-word)
   (unless definition
     (forth-exception :invalid-does>))
-  (unless (word-creating-word? (definition-word definition))
-    (forth-exception :invalid-does>))
-  (setf (word-does> (definition-word definition)) does>-word))
+  (let ((word (definition-word definition)))
+    (unless (word-created-word? word)
+      (forth-exception :invalid-does>))
+    ;; There is no way to declare a DOES> word inlineable. So, if the word being defined might be inlineable (i.e., has
+    ;; inline forms), add the DOES> word's inline forms to the word being defined.
+    (when (word-inline-forms word)
+      (if (word-inline-forms does>-word)
+          (apply #'add-forms-to-definition fs (reverse (word-inline-forms does>-word)))
+          (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,@(word-parameters word)))))
+    (setf (word-does> word) does>-word)))
+
+;;; If a word was created by a definition that modifies said word using DOES>, the word's inline forms will include
+;;; the DOES> word's inline forms. If said word is used multiple times in another definition, its forms will appear
+;;; multiple times in the calling definition. If the DOES> word uses any flow control constructs (e.g., IF/THEN/ELSE),
+;;; the DOES> word's forms will include tags. In this case, we must rewrite the tags to avoid ending up with
+;;; duplicate tags in the calling definition.
+(defun rewrite-tags (forms)
+  (let ((tags (loop for form in forms
+                    when (atom form)
+                      collect form)))
+    (if tags
+        (let ((substitutions (loop for tag in tags
+                                   for tag-name = (symbol-name tag)
+                                   collect `(,tag
+                                             . ,(gensym (subseq tag-name 0 (position-if #'digit-char-p tag-name)))))))
+          (sublis substitutions forms))
+        forms)))
 
 (defun execute-compile-token (fs &rest parameters)
   (with-forth-system (fs)

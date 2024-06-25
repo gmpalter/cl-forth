@@ -73,7 +73,7 @@
     (let ((xt (gethash token token-to-xt-map)))
       (when (null xt)
         (forth-exception :no-execution-token "~14,'0X is not an execution token" token))
-      (when (null (word-creating-word? (xt-word xt)))
+      (when (null (word-created-word? (xt-word xt)))
         (forth-exception :invalid->body))
       (xt->body xt))))
 

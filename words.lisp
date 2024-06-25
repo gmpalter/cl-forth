@@ -334,7 +334,7 @@
    (immediate? :accessor word-immediate? :initarg :immediate? :initform nil)
    (compile-only? :accessor word-compile-only? :initarg :compile-only? :initform nil)
    (inlineable? :accessor word-inlineable? :initarg :inlineable? :initform nil)
-   (creating-word? :accessor word-creating-word? :initarg :creating-word? :initform nil)
+   (created-word? :accessor word-created-word? :initarg :created-word? :initform nil)
    (deferring-word? :accessor word-deferring-word? :initarg :deferring-word? :initform nil)
    (code :accessor word-code :initarg :code :initform nil)
    (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
@@ -382,13 +382,13 @@
        ,description
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
-(defun make-word (name code &key smudge? immediate? compile-only? creating-word? deferring-word? parameters)
+(defun make-word (name code &key smudge? immediate? compile-only? created-word? deferring-word? parameters)
   (make-instance 'word :name name
                        :code code
                        :smudge? smudge?
                        :immediate? immediate?
                        :compile-only? compile-only?
-                       :creating-word? creating-word?
+                       :created-word? created-word?
                        :deferring-word? deferring-word?
                        :parameters (copy-list parameters)))
 

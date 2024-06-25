@@ -40,7 +40,9 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+      (setf (word-inline-forms word) `((stack-push data-stack ,address))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word subtract-double-single (:word "M-")

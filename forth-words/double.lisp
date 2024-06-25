@@ -10,6 +10,8 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-double-cell :parameters (list value))))
+      (setf (word-inline-forms word) `((stack-push-double data-stack ,value))
+            (word-inlineable? word) t)
       (add-and-register-word fs word))))
 
 (define-word double-literal (:word "2LITERAL" :immediate? t :compile-only? t)
@@ -27,7 +29,9 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+      (setf (word-inline-forms word) `((stack-push data-stack ,address))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word add-double (:word "D+")
@@ -142,7 +146,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
-           (word (make-word name #'push-value :parameters (list address :2value) :creating-word? t)))
+           (word (make-word name #'push-value :parameters (list address :2value) :created-word? t)))
       (setf (memory-double-cell memory address) value)
       (add-and-register-word fs word address))))
 

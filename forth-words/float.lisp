@@ -183,6 +183,8 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let ((word (make-word name #'push-parameter-as-float :parameters (list value))))
+      (setf (word-inline-forms word) `((stack-push float-stack ,value))
+            (word-inlineable? word) t)
       (add-and-register-word fs word (data-space-high-water-mark memory)))))
 
 (define-word float-stack-depth (:word "FDEPTH")
@@ -272,7 +274,9 @@
       (forth-exception :zero-length-name))
     (align-memory memory +native-float-cell-size+)
     (let* ((address (allocate-memory memory +native-float-cell-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :creating-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+      (setf (word-inline-forms word) `((stack-push data-stack ,address))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word float-representation (:word "REPRESENT")
@@ -611,7 +615,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory +native-float-cell-size+)
     (let* ((address (allocate-memory memory +native-float-cell-size+))
-           (word (make-word name #'push-value :parameters (list address :fvalue) :creating-word? t)))
+           (word (make-word name #'push-value :parameters (list address :fvalue) :created-word? t)))
       (setf (memory-native-float memory address) value)
       (add-and-register-word fs word address))))
 
