@@ -64,6 +64,12 @@
   (force-output st))
 
 #+CCL
+;; Used by WRITE-SEQUENCE
+(defmethod ccl:stream-write-vector :after ((st unbuffered-fd-character-output-stream) vector start end)
+  (declare (ignore vector start end))
+  (force-output st))
+
+#+CCL
 (defun make-piped-streams (&key name (element-type 'character) (external-format :default))
   (declare (ignore name))
   (let* ((char-p (or (eq element-type 'character) (subtypep element-type 'character)))
