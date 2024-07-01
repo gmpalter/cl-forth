@@ -5,10 +5,17 @@ Common Lisp implementation of the Forth 2012 Standard, CL-Forth
 
 ## License
 
-_TO BE DETERMINED_
+CL-Forth is made available under the terms of the [MIT License](LICENSE).
 
 
 ## Usage
+
+To fetch a copy of CL-Forth and the [Forth 2012 Test Suite](https://github.com/gerryjackson/forth2012-test-suite.git) configured
+to only run tests for those word sets implemented by CL-Forth.
+
+``` bash
+git clone https://github.com/gmpalter/cl-forth.git --recurse-submodules
+```
 
 CL-Forth is defined as an ASDF system. To load CL-Forth into Lisp
 
@@ -29,10 +36,14 @@ To start the CL-Forth interpreter loop
 ```
 
 
-## Implementation
+## Supported Platforms
 
-_TO BE SUPPLIED_
+CL-Forth was initially implemented using CCL and is fully supported by CCL v1.12.2-82 or later.
 
+CL-Forth has been updated to work with SBCL. However, at present, the [External Library Interface](#external-library-interface)
+is not implemented. Additionally, the word `RESIZE-FILE` will always return an error indication.
+
+CL-FOrth compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
 
 
 ## Missing Words
@@ -56,6 +67,11 @@ The following words that are part of the optional Facility and Facility extensio
 | `K-RIGHT` | `K-SHIFT-MASK` | `K-UP` |
 
   
+## External Library Interface
+
+__TO BE SUPPLIED__
+
+
 ## Additional Words
 
 These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd Edition](https://www.forth.com/forth-books/).
@@ -86,9 +102,15 @@ These additional words are defined.
 | `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
 | `RELOAD` | Reload a predefined definition |
 | `REMOVE` | Erase a single word |
+| `SHOW-BACKTRACES` | Controls whether exceptions display the return and data stacks |
 | `SHOW-CODE` | Controls whether completing a definition shows the generated code |
 
   
+## Implementation
+
+_TO BE SUPPLIED_
+
+
 ## Native Code Support
 
 CL-Forth implements `CODE` and `;CODE` to allow the definition of words written in Lisp rather than Forth. The terminator for
@@ -119,12 +141,4 @@ CODE UPCASE
           (stack-push data-stack count)))))
 ;ENDCODE
 ```
-
-## Supported Platforms
-
-CL-Forth was initially implemented using CCL.
-
-It has been updated to work with SBCL. However, at present, the word `RESIZE-FILE` will always return an error indication.
-
-It compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
 
