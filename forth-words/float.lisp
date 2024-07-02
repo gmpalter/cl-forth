@@ -161,7 +161,7 @@
 
 (define-word float-align (:word "FALIGN")
   "If the data-space pointer is not float aligned, reserve enough data space to make it so"
-  (align-memory +native-float-cell-size+))
+  (align-memory memory +native-float-cell-size+))
 
 (define-word float-aligned (:word "FALIGNED")
   "( addr – f-addr )"
@@ -331,7 +331,7 @@
 
 (define-word dfloat-align (:word "DFALIGN")
   "If the data-space pointer is not double-float aligned, reserve enough data space to make it so"
-  (align-memory +double-float-cell-size+))
+  (align-memory memory +double-float-cell-size+))
 
 (define-word dfloat-aligned (:word "DFALIGNED")
   "( addr – sf-addr )"
@@ -685,7 +685,7 @@
 
 (define-word sfloat-align (:word "SFALIGN")
   "If the data-space pointer is not single-float aligned, reserve enough data space to make it so"
-  (align-memory +single-float-cell-size+))
+  (align-memory memory +single-float-cell-size+))
 
 (define-word sfloat-aligned (:word "SFALIGNED")
   "( addr – sf-addr )"
