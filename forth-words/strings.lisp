@@ -1,3 +1,13 @@
+;;; -*- Syntax: Common-Lisp; Base: 10 -*-
+;;;
+;;; Copyright (c) 2024 Gary Palter
+;;;
+;;; Licensed under the MIT License;
+;;; you may not use this file except in compliance with the License.
+;;; You may obtain a copy of the License at
+;;;
+;;;   https://github.com/gmpalter/cl-forth/tree/main?tab=MIT-1-ov-file#readme
+
 (in-package #:forth)
 
 ;;; String words as defined in Section 17 of the Forth 2012 specification
