@@ -103,11 +103,10 @@ These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd
 
 These words are defined by [SwiftForth](https://www.forth.com/swiftforth/).
 
-| | | | | |
-| --- | --- | --- | --- | --- |
-| `-?` | `EMPTY` | `GILD` | `OFF` | `ON` |
-| `OPTIONAL` | `SILENT` | `VERBOSE` | `WARNING` | `\\` |
-| `{` |
+| | | | | | |
+| --- | --- | --- | --- | --- | --- |
+| `-?` | `EMPTY` | `GILD` | `OFF` | `ON` | `OPTIONAL` |
+| `SILENT` | `VERBOSE` | `WARNING` | `\\` | `{` |
 
 
 ## Implementation
