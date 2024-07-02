@@ -5,7 +5,7 @@
   :description "Forth interpreter"
   :version (:read-file-line "version.text")
   :serial t
-  :depends-on ((:feature :ccl #:cffi))
+  :depends-on (#:cffi)
   :components ((:file "packages")
                (:file "in-memory-streams" :if-feature :ccl)
                (:file "compatibility")
@@ -17,8 +17,7 @@
                (:file "words")
                (:file "files")
                (:file "execution-tokens")
-               (:file "ffi" :if-feature :ccl)
-               (:file "dummy-ffi" :if-feature (:not :ccl))
+               (:file "ffi")
                (:file "system")
                (:file "templates")
                (:file "helpers")
@@ -38,7 +37,7 @@
                                (:file "tools")
                                (:file "search")
                                (:file "strings")
-                               (:file "ffi" :if-feature :ccl)
+                               (:file "ffi")
                                ;; Useful words not defined in Forth 2012
                                (:file "extensions"))))
   :in-order-to ((test-op (test-op #:cl-forth/test))))

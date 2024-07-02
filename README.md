@@ -40,10 +40,9 @@ To start the CL-Forth interpreter loop
 
 CL-Forth was initially implemented using CCL and is fully supported by CCL v1.12.2-82 or later.
 
-CL-Forth has been updated to work with SBCL. However, at present, the [External Library Interface](#external-library-interface)
-is not implemented. Additionally, the word `RESIZE-FILE` will always return an error indication.
+CL-Forth has been updated to work with SBCL. However, at present, the word `RESIZE-FILE` will always return an error indication.
 
-CL-FOrth compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
+CL-Forth compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
 
 
 ## Missing Words
@@ -67,12 +66,32 @@ The following words that are part of the optional Facility and Facility extensio
 | `K-RIGHT` | `K-SHIFT-MASK` | `K-UP` |
 
   
-## External Library Interface
+## Foreign Function Interface
 
-__TO BE SUPPLIED__
+CL-Forth includes a foreign function interface (FFI) loosely based on the External Library Interface in
+[SwiftForth](https://www.forth.com/swiftforth/).
+
+_TO BE CONTINUED_
 
 
 ## Additional Words
+
+CL-Forth includes a number of words defined by other implementation that are not part of the Forth 2012 Standard.
+
+These words are specific to CL-Forth.
+
+| | |
+| --- | --- |
+| `.SF` | Display the contents of the floating-point stack |
+| `.SR` | Display the contents of the return stack |
+|  `ALL-WORDS` | Display all words in all word lists in the search order |
+| `BREAK` | Enter a Lisp break loop |
+| `INLINEABLE` | Mark that the most recent definition's code may be inlined |
+| `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
+| `RELOAD` | Reload a predefined definition |
+| `REMOVE` | Erase a single word |
+| `SHOW-BACKTRACES` | Controls whether exceptions display the return and data stacks |
+| `SHOW-CODE` | Controls whether completing a definition shows the generated code |
 
 These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd Edition](https://www.forth.com/forth-books/).
 
@@ -90,22 +109,7 @@ These words are defined by [SwiftForth](https://www.forth.com/swiftforth/).
 | `OPTIONAL` | `SILENT` | `VERBOSE` | `WARNING` | `\\` |
 | `{` |
 
-These additional words are defined.
 
-| | |
-| --- | --- |
-| `.SF` | Display the contents of the floating-point stack |
-| `.SR` | Display the contents of the return stack |
-|  `ALL-WORDS` | Display all words in all word lists in the search order |
-| `BREAK` | Enter a Lisp break loop |
-| `INLINEABLE` | Mark that the most recent definition's code may be inlined |
-| `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
-| `RELOAD` | Reload a predefined definition |
-| `REMOVE` | Erase a single word |
-| `SHOW-BACKTRACES` | Controls whether exceptions display the return and data stacks |
-| `SHOW-CODE` | Controls whether completing a definition shows the generated code |
-
-  
 ## Implementation
 
 _TO BE SUPPLIED_
