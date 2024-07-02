@@ -222,7 +222,7 @@
 
 #-CFFI
 (defun null-pointer-p (pointer)
-  nil)
+  (zerop pointer))
 
 #-CFFI
 (defun null-pointer ()
@@ -235,4 +235,5 @@
 
 #-CCL
 (defun %address-of (object)
-  (error "NYI: ~S" 'address-of))
+  (cerror "Continue anyway" "NYI: ~S" '%address-of)
+  object)
