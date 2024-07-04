@@ -52,6 +52,14 @@
                                (:file "extensions"))))
   :in-order-to ((test-op (test-op #:cl-forth/test))))
 
+#+SBCL
+;;; Suppress compiler notes until I have time to figure out how to resolve them
+(defmethod perform :around ((o compile-op) (c cl-source-file))
+  (handler-bind ((sb-ext:compiler-note #'(lambda (c)
+                                           (declare (ignore c))
+                                           (invoke-restart 'muffle-warning))))
+    (call-next-method)))
+
 #+CCL
 (defsystem #:cl-forth/application
   :long-name "CL-Forth App"

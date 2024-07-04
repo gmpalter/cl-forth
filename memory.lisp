@@ -23,8 +23,8 @@
 
 (defconstant +address-prefix-size+ 8)
 (defconstant +address-address-size+ (- (integer-length most-positive-fixnum) +address-prefix-size+))
-(defconstant +address-prefix-byte+ (byte +address-prefix-size+ +address-address-size+))
-(defconstant +address-address-byte+ (byte +address-address-size+ 0))
+(define-constant +address-prefix-byte+ (byte +address-prefix-size+ +address-address-size+))
+(define-constant +address-address-byte+ (byte +address-address-size+ 0))
 
 (declaim (inline make-address))
 (defun make-address (prefix address)
@@ -466,6 +466,7 @@
       (incf used))))
 
 (defmethod add-string-to-pictured-buffer ((pb pictured-buffer) memory address count)
+  #+SBCL (declare (notinline memory-decode-address))
   (with-slots (data size used) pb
     (when (> (+ used count) size)
       (forth-exception :pictured-output-overflow))
@@ -698,8 +699,8 @@
 
 (defconstant +address-chunk-size+ 16)
 (defconstant +address-subaddress-size+ (- +address-address-size+ +address-chunk-size+))
-(defconstant +address-chunk-byte+ (byte +address-chunk-size+ +address-subaddress-size+))
-(defconstant +address-subaddress-byte+ (byte +address-subaddress-size+ 0))
+(define-constant +address-chunk-byte+ (byte +address-chunk-size+ +address-subaddress-size+))
+(define-constant +address-subaddress-byte+ (byte +address-subaddress-size+ 0))
 
 (declaim (inline make-chunked-address))
 (defun make-chunked-address (prefix chunk address)

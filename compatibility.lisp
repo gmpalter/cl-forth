@@ -12,6 +12,24 @@
 
 ;;; CCL, SBCL, and LispWorks have some minor differences which are resolved here
 
+;;; SBCL's DEFCONSTANT will complain when the constant is a bytespec (i.e., (BYTE ...)) as it represents bytespecs
+;;; as a CONS which are not EQL when the load-time value tries to replace the compile-time value. (SBCL is strictly
+;;; adhering to the ANSI CL specification in this case.)
+
+#+SBCL
+(defmacro define-constant (name value &optional docstring)
+  (let ((value-var (gensym)))
+    `(defconstant ,name
+       (let ((,value-var ,value))
+         (if (and (boundp ',name) (equal (symbol-value ',name) ,value-var))
+             (symbol-value ',name)
+             ,value-var))
+       ,@(when docstring (list docstring)))))
+
+#-SBCL
+(defmacro define-constant (name value &optional docstring)
+  `(defconstant ,name ,value ,@(when docstring (list docstring))))
+
 ;;; NAMED-LAMBDA
 
 #+CCL
@@ -243,7 +261,12 @@
   ;; CCL's %ADDRESS-OF doesn't strip the tag from the address
   (logand (ccl:%address-of object) (lognot 7)))
 
-#-CCL
+#+SBCL
+(defun %address-of (object)
+  ;; The OBJECT should be a (SIMPLE-ARRAY (UNSIGNED-BYTE 8) (*)) as that's how CL-Forth represents memory
+  (sb-sys:sap-int (sb-sys:vector-sap object)))
+
+#+LispWorks
 (defun %address-of (object)
   (cerror "Continue anyway" "NYI: ~S" '%address-of)
   object)
