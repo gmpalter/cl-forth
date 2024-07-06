@@ -185,7 +185,7 @@
               name-or-keywords
             (values name priority))
           (values name-or-keywords mp:*default-process-priority*))
-    (apply #'mp:process-run-function name (:priority priority) function args)))
+    (apply #'mp:process-run-function name `(:priority ,priority) function args)))
 
 
 ;;; PREFIXED-STREAM, TIMESTAMPED-STREAM, ADD/REMOVE-AUTO-FLUSH-STREAM
