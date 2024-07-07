@@ -29,7 +29,8 @@
                 #:make-application-error-handler
                 #:*terminal-input*
                 #:input-stream-shared-resource
-                #:shared-resource-primary-owner)
+                #:shared-resource-primary-owner
+                #:*terminal-output*)
   (:export #:forth-application))
 
 (in-package #:forth-application)
@@ -92,6 +93,7 @@
                 (push (cdr arg) interpret))
               (when (eq (car arg) ':transcript)
                 (setf transcript-file (cdr arg))))
+            (add-auto-flush-stream *terminal-output*)
             (let ((clean-exit? (forth:run :asdf-system asdf-system :template template
                                           :interpret interpret :transcript-file transcript-file)))
               (if clean-exit?
