@@ -482,7 +482,7 @@
                            (restore-buffer f saved-buffer-address saved-buffer-count)
                            (setf >in saved->in)
                            t)
-                       (file-error () nil))))))
+                       ((or file-error stream-error) () nil))))))
         (when for-throw?
           (let ((target-depth (aref state-vector (1- (length state-vector)))))
             (loop while (> (stack-depth source-stack) target-depth)
@@ -500,7 +500,7 @@
 (defconstant +binary-mode+ #x100)
 
 (defconstant +file-operation-success+ 0)
-;; Unfortunately, CCL doesn't include the actual OS status code in its FILE-ERROR condition
+;; Unfortunately, both FILE-ERROR and STREAM-ERROR don't include the OS error code in CCL, SBCL, or LispWorks
 (defconstant +file-operation-failure+ -1)
 
 (defun interpret-file-access-method (fam)
@@ -549,14 +549,14 @@
       (progn
         (delete-file pathname)
         +file-operation-success+)
-    (file-error () +file-operation-failure+)))
+    ((or file-error stream-error) () +file-operation-failure+)))
 
 (defmethod forth-rename-file ((f files) old-pathname new-pathname)
   (handler-case
       (progn
         (rename-file old-pathname new-pathname)
         +file-operation-success+)
-    (file-error () +file-operation-failure+)))
+    ((or file-error stream-error) () +file-operation-failure+)))
   
 (defmethod forth-file-status ((f files) pathname)
   (handler-case
@@ -564,7 +564,7 @@
         (if probe
             (values +true+ +file-operation-success+)
             (values +false+ +file-operation-failure+)))
-    (file-error () (values +false+ +file-operation-failure+))))
+    ((or file-error stream-error) () (values +false+ +file-operation-failure+))))
 
 (defmethod forth-close-file ((f files) fileid)
   (with-slots (source-id-map) f
@@ -574,14 +574,14 @@
           (progn
             (close stream)
             +file-operation-success+)
-        (file-error () +file-operation-failure+)))))
+        ((or file-error stream-error) () +file-operation-failure+)))))
 
 (defmethod forth-file-position ((f files) fileid)
   (with-slots (source-id-map) f
     (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (values (file-position stream) +file-operation-success+)
-        (file-error () (values 0 +file-operation-failure+))))))
+        ((or file-error stream-error) () (values 0 +file-operation-failure+))))))
 
 (defmethod forth-file-reposition ((f files) fileid position)
   (with-slots (source-id-map) f
@@ -589,14 +589,14 @@
       (handler-case
           (let ((success (file-position stream position)))
             (if success +file-operation-success+ +file-operation-failure+))
-        (file-error () +file-operation-failure+)))))
+        ((or file-error stream-error) () +file-operation-failure+)))))
 
 (defmethod forth-file-size ((f files) fileid)
   (with-slots (source-id-map) f
     (let ((stream (or (file-file-stream fileid source-id-map) (forth-exception :file-i/o-exception "Invalid FILEID"))))
       (handler-case
           (values (file-length stream) +file-operation-success+)
-        (file-error () (values 0 +file-operation-failure+))))))
+        ((or file-error stream-error) () (values 0 +file-operation-failure+))))))
 
 (defmethod forth-read-file ((f files) fileid buffer offset count)
   (with-slots (source-id-map) f
@@ -607,7 +607,7 @@
                   (let* ((end (+ offset count))
                          (position (read-sequence buffer stream :start offset :end end)))
                     (values (- position offset) +file-operation-success+))
-                (file-error () (values 0 +file-operation-failure+))))
+                ((or file-error stream-error) () (values 0 +file-operation-failure+))))
              (t
               (let ((data (make-array count :element-type 'character :initial-element #\Null :fill-pointer count))
                     (updated-offset offset)
@@ -630,7 +630,7 @@
                       (let* ((end (+ updated-offset updated-count))
                              (position (read-sequence data stream :start updated-offset :end end)))
                         (setf read-count (- position offset)))
-                    (file-error ()
+                    ((or file-error stream-error) ()
                       (return-from forth-read-file (values 0 +file-operation-failure+)))))
                 ;; Convert the buffer to a Forth string
                 (setf (fill-pointer data) read-count)
@@ -647,7 +647,7 @@
       (let ((line (or (file-buffer file)
                       (handler-case
                           (read-line stream nil :eof)
-                        (file-error () (values "" nil +file-operation-failure+))))))
+                        ((or file-error stream-error) () (values "" nil +file-operation-failure+))))))
         (if (eq line :eof)
             (values "" t +file-operation-success+)
             (let ((line-size (length line)))
@@ -666,14 +666,14 @@
                   (let ((end (+ offset count)))
                     (write-sequence buffer stream :start offset :end end)
                     +file-operation-success+)
-                (file-error () +file-operation-failure+)))
+                ((or file-error stream-error) () +file-operation-failure+)))
              (t
               (let ((data (forth-string-to-native buffer offset count)))
                 (handler-case
                     (progn
                       (write-sequence data stream)
                       +file-operation-success+)
-                  (file-error () +file-operation-failure+))))))))
+                  ((or file-error stream-error) () +file-operation-failure+))))))))
 
 (defmethod forth-write-line ((f files) fileid line)
   (with-slots (source-id-map) f
@@ -682,7 +682,7 @@
           (progn
             (write-line line stream)
             +file-operation-success+)
-        (file-error () +file-operation-failure+)))))
+        ((or file-error stream-error) () +file-operation-failure+)))))
 
 (defmethod forth-flush-file ((f files) fileid)
   (with-slots (source-id-map) f
@@ -691,7 +691,7 @@
           (progn
             (force-output stream)
             +file-operation-success+)
-        (file-error () +file-operation-failure+)))))
+        ((or file-error stream-error) () +file-operation-failure+)))))
 
 (defmethod forth-file-resize ((f files) fileid size)
   (with-slots (source-id-map) f
@@ -700,4 +700,4 @@
           (progn
             (set-stream-length stream size)
             +file-operation-success+)
-        (file-error () +file-operation-failure+)))))
+        ((or file-error stream-error) () +file-operation-failure+)))))
