@@ -132,24 +132,6 @@
         (replace destination-data source-data :start1 destination-address :end1 (+ destination-address count)
                                               :start2 source-address :end2 (+ source-address count))))))
 
-(defconstant +native-memory-operation-success+ 0)
-(defconstant +native-memory-operation-failure+ -2)
-
-(defgeneric space-allocate-native-memory (mspace n-bytes)
-  (:method ((sp mspace) n-bytes)
-    (declare (ignore n-bytes))
-    +native-memory-operation-failure+))
-
-(defgeneric space-free-native-memory (mspace address)
-  (:method ((sp mspace) address)
-    (declare (ignore address))
-    +native-memory-operation-failure+))
-
-(defgeneric space-resize-native-memory (mspace address n-bytes)
-  (:method ((sp mspace) address n-bytes)
-    (declare (ignore n-bytes))
-    (values address +native-memory-operation-failure+)))
-
 
 ;;;
 
@@ -690,312 +672,6 @@
 
 ;;;
 
-(defstruct chunk
-  (in-use? nil)
-  (number 0)
-  (size 0)
-  (data nil)
-  (data-foreign-address nil))
-
-(defconstant +address-chunk-size+ 16)
-(defconstant +address-subaddress-size+ (- +address-address-size+ +address-chunk-size+))
-(define-constant +address-chunk-byte+ (byte +address-chunk-size+ +address-subaddress-size+))
-(define-constant +address-subaddress-byte+ (byte +address-subaddress-size+ 0))
-
-(declaim (inline make-chunked-address))
-(defun make-chunked-address (prefix chunk address)
-  (dpb prefix +address-prefix-byte+ (dpb chunk +address-chunk-byte+ address)))
-
-(declaim (inline address-chunk))
-(defun address-chunk (address)
-  (ldb +address-chunk-byte+  address))
-
-(declaim (inline address-subaddress))
-(defun address-subaddress (address)
-  (ldb +address-subaddress-byte+ address))
-
-(defconstant +maximum-native-chunks+ (expt 2 +address-chunk-size+))
-;; Arbitrarily restrict a single ALLOCATE to 16MiB
-(defconstant +maximum-native-chunk-size+ (expt 2 24))
-
-(defclass native-memory (mspace)
-  ((chunks :initform (make-array 128 :fill-pointer 0 :adjustable t))
-   (saved-chunks :initform nil))
-  )
-
-(defmethod print-object ((sp native-memory) stream)
-  (with-slots (prefix chunks) sp
-    (print-unreadable-object (sp stream :type t :identity t)
-      (format stream "prefix=~2,'0X, chunks=~D" prefix (fill-pointer chunks)))))
-
-(defmethod space-reset ((sp native-memory))
-  (with-slots (chunks saved-chunks) sp
-    (if saved-chunks
-        (let ((n-chunks (length saved-chunks)))
-          (setf chunks (make-array n-chunks :fill-pointer n-chunks :adjustable t))
-          (dotimes (i n-chunks)
-            (setf (aref chunks i) (copy-chunk (aref saved-chunks i)))
-            (let ((chunk (aref chunks i)))
-              (when (chunk-in-use? chunk)
-                (setf (chunk-data chunk) (copy-seq (chunk-data chunk)))))))
-        (setf chunks (make-array 128 :fill-pointer 0 :adjustable t))))
-  nil)
-
-(defmethod save-space-state ((sp native-memory))
-  (with-slots (chunks saved-chunks) sp
-    (let ((n-chunks (length chunks)))
-      (setf saved-chunks (make-array n-chunks :initial-element nil))
-      (dotimes (i n-chunks)
-        (setf (aref saved-chunks i) (copy-chunk (aref chunks i)))
-        (let ((chunk (aref saved-chunks i)))
-          (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq (chunk-data chunk))))))))
-  nil)
-
-(defmethod space-save-to-template ((sp native-memory))
-  (with-slots (chunks) sp
-    (let* ((n-chunks (length chunks))
-           (template (make-array n-chunks :initial-element nil)))
-      (dotimes (i n-chunks)
-        (setf (aref template i) (copy-chunk (aref chunks i)))
-        (let ((chunk (aref template i)))
-          (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq (chunk-data chunk))))))
-      template)))
-
-(defmethod space-load-from-template ((sp native-memory) template)
-  (with-slots (chunks) sp
-    (let ((n-chunks (length template)))
-      (setf chunks (make-array n-chunks :fill-pointer n-chunks :adjustable t))
-      (dotimes (i n-chunks)
-        (setf (aref chunks i) (copy-chunk (aref template i)))
-        (let ((chunk (aref chunks i)))
-          (when (chunk-in-use? chunk)
-            (setf (chunk-data chunk) (copy-seq (chunk-data chunk)))))))))
-
-(defmethod space-allocate ((sp native-memory) n-bytes)
-  (declare (ignore n-bytes))
-  (forth-exception :invalid-memory))
-
-(defmethod space-deallocate ((sp native-memory) n-bytes)
-  (declare (ignore n-bytes))
-  (forth-exception :invalid-memory))
-
-(defmethod space-unused ((sp native-memory))
-  0)
-
-(defmethod space-align ((sp native-memory) &optional (boundary +cell-size+))
-  (declare (ignore boundary))
-  nil)
-
-(defmethod space-allocate-native-memory ((sp native-memory) n-bytes)
-  (with-slots (prefix chunks) sp
-    (let ((chunk nil)
-          (n-bytes (if (zerop (mod n-bytes +cell-size+))
-                       n-bytes
-                       (+ n-bytes (- +cell-size+ (mod n-bytes +cell-size+))))))
-      (cond ((zerop n-bytes)
-             (values 0 +native-memory-operation-failure+))
-            ((> n-bytes +maximum-native-chunk-size+)
-             (values 0 +native-memory-operation-failure+))
-            ((setf chunk (find-if-not #'chunk-in-use? chunks))
-             (setf (chunk-in-use? chunk) t
-                   (chunk-size chunk) n-bytes
-                   (chunk-data chunk) (make-array n-bytes :element-type '(unsigned-byte 8) :initial-element 0))
-             (values (make-chunked-address prefix (chunk-number chunk) 0) +native-memory-operation-success+))
-            ((< (fill-pointer chunks) +maximum-native-chunks+)
-             (let* ((chunk (make-chunk :in-use? t :size n-bytes))
-                    (chunk-number (vector-push-extend chunk chunks)))
-               (setf (chunk-number chunk) chunk-number
-                     (chunk-data chunk) (make-array n-bytes :element-type '(unsigned-byte 8) :initial-element 0))
-               (values (make-chunked-address prefix chunk-number 0) +native-memory-operation-success+)))
-            (t
-             +native-memory-operation-failure+)))))
-
-(defmethod space-free-native-memory ((sp native-memory) address)
-  (with-slots (chunks) sp
-    (let ((chunk-number (address-chunk address))
-          (subaddress (address-subaddress address)))
-      (cond ((not (zerop subaddress))
-             +native-memory-operation-failure+)
-            ((>= chunk-number (fill-pointer chunks))
-             +native-memory-operation-failure+)
-            (t
-             (let ((chunk (aref chunks chunk-number)))
-               (cond ((chunk-in-use? chunk)
-                      (setf (chunk-in-use? chunk) nil
-                            (chunk-data chunk) nil)
-                      +native-memory-operation-success+)
-                     (t
-                      ;; Double free
-                      +native-memory-operation-failure+))))))))
-
-(defmethod space-resize-native-memory ((sp native-memory) address n-bytes)
-  (with-slots (prefix chunks) sp
-    (let ((full-address (make-address prefix address))
-          (chunk-number (address-chunk address))
-          (subaddress (address-subaddress address))
-          (n-bytes (if (zerop (mod n-bytes +cell-size+))
-                       n-bytes
-                       (+ n-bytes (- +cell-size+ (mod n-bytes +cell-size+))))))
-      (cond ((not (zerop subaddress))
-             (values full-address +native-memory-operation-failure+))
-            ((>= chunk-number (fill-pointer chunks))
-             (values full-address +native-memory-operation-failure+))
-            ((zerop n-bytes)
-             (values full-address +native-memory-operation-failure+))
-            ((> n-bytes +maximum-native-chunk-size+)
-             (values full-address +native-memory-operation-failure+))
-            (t
-             (let ((chunk (aref chunks chunk-number)))
-               (cond ((chunk-in-use? chunk)
-                      (setf (chunk-data chunk) (adjust-array (chunk-data chunk) n-bytes :initial-element 0))
-                      (values full-address +native-memory-operation-success+))
-                     (t
-                      (values full-address +native-memory-operation-failure+)))))))))
-
-(declaim (inline native-memory-chunk))
-(defun native-memory-chunk (sp address)
-  (let ((chunk-number (address-chunk address))
-        (subaddress (address-subaddress address)))
-    (with-slots (chunks) sp
-      (if (< chunk-number (fill-pointer chunks))
-          (let ((chunk (aref chunks chunk-number)))
-            (if (chunk-in-use? chunk)
-                (values (chunk-data chunk) subaddress (chunk-size chunk))
-                (forth-exception :invalid-memory)))
-          (forth-exception :invalid-memory)))))
-
-(defmethod cell-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (cell-signed (aref data (ash subaddress +byte-to-cell-shift+))))))
-
-(defmethod (setf cell-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-cell-shift+)) (cell-unsigned value)))))
-
-(defmethod cell-unsigned-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (aref data (ash subaddress +byte-to-cell-shift+)))))
-
-(defmethod (setf cell-unsigned-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 64)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-cell-shift+)) value))))
-
-(defmethod quad-byte-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (quad-byte-signed (aref data (ash subaddress +byte-to-quad-byte-shift+))))))
-
-(defmethod (setf quad-byte-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 32)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-quad-byte-shift+)) (quad-byte-unsigned value)))))
-
-(defmethod double-byte-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 16)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (double-byte-signed (aref data (ash subaddress +byte-to-double-byte-shift+))))))
-
-(defmethod (setf double-byte-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (locally (declare (optimize (speed 3) (safety 0))
-                      (type (simple-array (unsigned-byte 16)) data)
-                      #+SBCL (sb-ext:muffle-conditions sb-ext:compiler-note))
-      (setf (aref data (ash subaddress +byte-to-double-byte-shift+)) (double-byte-unsigned value)))))
-
-(defmethod byte-at ((sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (aref data subaddress)))
-
-(defmethod (setf byte-at) (value (sp native-memory) address)
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (unless (< subaddress size)
-      (forth-exception :invalid-memory))
-    (setf (aref data subaddress) (ldb (byte 8 0) value))))
-
-(defmethod space-decode-address ((sp native-memory) address &optional size-hint)
-  (declare (ignore size-hint))
-  (multiple-value-bind (data subaddress size)
-      (native-memory-chunk sp address)
-    (values data subaddress size)))
-
-(defmethod space-native-address ((sp native-memory) foreign-address)
-  (with-slots (prefix chunks) sp
-    (loop for chunk across chunks
-          when (and (chunk-in-use? chunk)
-                    (chunk-data-foreign-address chunk)
-                    (<= (chunk-data-foreign-address chunk) foreign-address (+ (chunk-data-foreign-address chunk)
-                                                                              (chunk-size chunk)
-                                                                              -1)))
-            return (make-chunked-address prefix (chunk-number chunk) (- foreign-address (chunk-data-foreign-address chunk))))))
-
-(defmethod space-foreign-address ((sp native-memory) native-address)
-  (let ((chunk-number (address-chunk native-address))
-        (subaddress (address-subaddress native-address)))
-    (with-slots (chunks) sp
-      (if (< chunk-number (fill-pointer chunks))
-          (let ((chunk (aref chunks chunk-number)))
-            (cond ((chunk-in-use? chunk)
-                   ;; For now, don't cache the foreign address as the data may move after a GC
-                   ;;---*** TODO: Can we pin the data? If the foreign code remembers an address, it might
-                   ;;             read and misinterpret whatever replaced the data or, worse, overwrite it.
-                   (when t ;;(null (chunk-data-foreign-address chunk))
-                     (setf (chunk-data-foreign-address chunk) (%address-of (chunk-data chunk))))
-                   (+ (chunk-data-foreign-address chunk) subaddress))
-                  (t
-                   (forth-exception :invalid-memory))))
-          (forth-exception :invalid-memory)))))
-
-
-;;;
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defconstant +number-of-spaces+ 256))
 
@@ -1020,7 +696,6 @@
   (word-space (make-instance 'transient-data-space :size +transient-space-size+) :type mspace)
   (pictured-buffer (make-instance 'pictured-buffer :size +pictured-buffer-size+) :type mspace)
   (name>string-space (make-instance 'transient-data-space :size +name>string-space-size+) :type mspace)
-  (native-memory (make-instance 'native-memory) :type mspace)
   (string-spaces (make-array +number-of-string-spaces+ :initial-element nil) :type string-spaces-array)
   (current-string-space-index 0 :type fixnum))
 
@@ -1032,7 +707,6 @@
     (add-space memory (memory-word-space memory))
     (add-space memory (memory-pictured-buffer memory))
     (add-space memory (memory-name>string-space memory))
-    (add-space memory (memory-native-memory memory))
     (dotimes (i +number-of-string-spaces+)
       (let ((space (make-instance 'transient-data-space :size +transient-space-size+)))
         (setf (aref (memory-string-spaces memory) i) space)
@@ -1327,17 +1001,22 @@
 
 ;;;
 
+(defconstant +native-memory-operation-success+ 0)
+(defconstant +native-memory-operation-failure+ -2)
+
 (define-memory-fun allocate-native-memory (memory n-bytes)
-  (space-allocate-native-memory (memory-native-memory memory) n-bytes))
+  (multiple-value-bind (pointer ior)
+      (allocate-foreign-memory n-bytes)
+    (values (native-address memory pointer) ior)))
 
 (define-memory-fun free-native-memory (memory address)
-  (let ((native-memory (memory-native-memory memory)))
-    (if (= (space-prefix native-memory) (address-prefix address))
-        (space-free-native-memory native-memory (address-address address))
-        +native-memory-operation-failure+)))
+  (if (address-is-foreign? memory address)
+      (free-foreign-memory (foreign-pointer memory address))
+      +native-memory-operation-failure+))
 
 (define-memory-fun resize-native-memory (memory address n-bytes)
-  (let ((native-memory (memory-native-memory memory)))
-    (if (= (space-prefix native-memory) (address-prefix address))
-        (space-resize-native-memory native-memory (address-address address) n-bytes)
-        (values address +native-memory-operation-failure+))))
+  (if (address-is-foreign? memory address)
+      (multiple-value-bind (pointer ior)
+          (resize-foreign-memory (foreign-pointer memory address) n-bytes)
+        (values (native-address memory pointer) ior))
+      (values address +native-memory-operation-failure+)))

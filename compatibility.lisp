@@ -224,37 +224,17 @@
 
 (declaim (inline address-pointer pointer-address null-pointer-p null-pointer %address-of))
 
-#+CFFI
 (defun address-pointer (address)
   (cffi:make-pointer address))
 
-#+CFFI
 (defun pointer-address (pointer)
   (cffi:pointer-address pointer))
 
-#+CFFI
 (defun null-pointer-p (pointer)
   (cffi:null-pointer-p pointer))
 
-#+CFFI
 (defun null-pointer ()
   (cffi:null-pointer))
-
-#-CFFI
-(defun address-pointer (address)
-  address)
-
-#-CFFI
-(defun pointer-address (pointer)
-  pointer)
-
-#-CFFI
-(defun null-pointer-p (pointer)
-  (zerop pointer))
-
-#-CFFI
-(defun null-pointer ()
-  0)
 
 #+CCL
 (defun %address-of (object)

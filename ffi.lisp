@@ -301,3 +301,19 @@
                          (restore-stack float-stack)))
                    ,fs ,xt))))))
   
+;;; Support for the Memory-Allocation word set
+
+(defun allocate-foreign-memory (count)
+  (let ((pointer (cffi:foreign-funcall "malloc" :size count :pointer)))
+    (values pointer
+            (if (cffi:null-pointer-p pointer) +native-memory-operation-failure+ +native-memory-operation-success+))))
+
+(defun free-foreign-memory (pointer)
+  (cffi:foreign-funcall "free" :pointer pointer :void)
+  +native-memory-operation-success+)
+
+(defun resize-foreign-memory (pointer1 count)
+  (let ((pointer2 (cffi:foreign-funcall "realloc" :pointer pointer1 :size count :pointer)))
+    (if (cffi:null-pointer-p pointer2)
+        (values pointer1 +native-memory-operation-failure+)
+        (values pointer2 +native-memory-operation-success+))))
