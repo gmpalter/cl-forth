@@ -200,7 +200,7 @@
       (cffi:load-foreign-library-error (e)
         (forth-exception :cant-load-foreign-library "~A" e)))))
 
-(defmethod build-ffi-call ((ffi ffi) name library parameters return-value)
+(defmethod build-ffi-call ((ffi ffi) name library parameters return-value optional?)
   (with-slots (ffi-calls) ffi
     (setf (gethash name ffi-calls) (make-ffi-call :name name :library library))
     (let* ((lambda-name (intern (string-upcase name) '#:forth-ffi-symbols))
@@ -224,6 +224,11 @@
                                           `((>single-float (stack-pop float-stack))))
                                          (:double
                                           `((>double-float (stack-pop float-stack))))))))
+           (optional-form
+             (when optional?
+               `((when (null (cffi:foreign-symbol-pointer ,name :library ',(library-ffi-library library)))
+                   (forth-exception :undefined-foreign-function "~A is not defined in ~A"
+                                    ,name ',(library-name library))))))
            (call-form
              `((,result-symbol (cffi:foreign-funcall (,name :library ,(library-ffi-library library))
                                                      ,@(loop for parameter in parameters
@@ -246,6 +251,7 @@
            (thunk `(named-lambda ,lambda-name (fs &rest parameters)
                      (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
                      (with-forth-system (fs)
+                       ,@optional-form
                        (let* (,@(reverse parameter-forms)
                               ,@call-form)
                          (declare (ignorable ,result-symbol))

@@ -109,7 +109,7 @@
                            name (library-name (ffi-current-library ffi)))))
       (multiple-value-bind (parameters return-value)
           (parse-parameters-and-return fs "FUNCTION:")
-        (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value))
+        (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?))
                (word (make-word (or forth-name name) code)))
           (add-and-register-word fs word))))))
 
@@ -139,27 +139,56 @@
   "The name of the Forth word is NAME unless GLOBAL: is preceeded by AS <forth-name>"
   (ffi-define-global fs))
 
+(defun ffi-do-rename (fs &key optional?)
+  (with-forth-system (fs)
+    (let* ((forth-name (word files #\Space))
+           (definition (word files #\Space)))
+      (when (null forth-name)
+        (forth-exception :zero-length-name))
+      (cond ((string-equal definition "FUNCTION:")
+             (ffi-define-function fs :forth-name forth-name :optional? optional?))
+            ((string-equal definition "GLOBAL:")
+             (ffi-define-global fs :forth-name forth-name :optional? optional?))
+            ((string-equal definition "[OPTIONAL]")
+             (when optional?
+               (forth-exception :duplicate-optional-clauses))
+             (ffi-do-optional fs :forth-name forth-name))
+            ((string-equal definition "AS")
+             (forth-exception :duplicate-as-clauses))
+            ((null definition)
+             (forth-exception :missing-foreign-definition))
+            (t
+             (forth-exception :missing-foreign-definition "AS must be followed by [OPTIONAL], FUNCTION: or GLOBAL:, not ~A"
+                              definition))))))
+
 (define-word ffi-rename (:word "AS")
   "AS <name> <definition>"
   "Provide a different Forth name for a FUNCTION: or GLOBAL: definition"
-  (let* ((forth-name (word files #\Space))
-         (definition (word files #\Space)))
-    (when (null forth-name)
-      (forth-exception :zero-length-name))
-    (cond ((string-equal definition "FUNCTION:")
-           (ffi-define-function fs :forth-name forth-name))
-          ((string-equal definition "GLOBAL:")
-           (ffi-define-global fs :forth-name forth-name))
-          ((null definition)
-           (forth-exception :missing-foreign-definition))
-          (t
-           (forth-exception :missing-foreign-definition "AS must be followed by FUNCTION: or GLOBAL:, not ~A" definition)))))
+  (ffi-do-rename fs))
 
-#+TODO
-(define-word ffi-optinal (:word "[OPTIONAL]")
+(defun ffi-do-optional (fs &key forth-name)
+  (with-forth-system (fs)
+    (let* ((definition (word files #\Space)))
+      (cond ((string-equal definition "FUNCTION:")
+             (ffi-define-function fs :forth-name forth-name :optional? t))
+            ((string-equal definition "GLOBAL:")
+             (ffi-define-global fs :forth-name forth-name :optional? t))
+            ((string-equal definition "AS")
+             (when forth-name
+               (forth-exception :duplicate-as-clauses))
+             (ffi-do-rename fs :optional? t))
+            ((string-equal definition "[OPTIONAL]")
+             (forth-exception :duplicate-optional-clauses))
+            ((null definition)
+             (forth-exception :missing-foreign-definition))
+            (t
+             (forth-exception :missing-foreign-definition "[OPTIONAL] must be followed by AS, FUNCTION,: or GLOBAL:, not ~A"
+                              definition))))))
+
+(define-word ffi-optional (:word "[OPTIONAL]")
   "[OPTIONAL] <definition>"
-  ""
-  )
+  "Mark the next definition, either a FUNCTION: or GLOBAL:, as optional"
+  (ffi-do-optional fs))
 
 (define-word show-libraries (:word ".LIBS")
   "Displays a list of all available libraries opened by LIBRARY or XLIBRARY"

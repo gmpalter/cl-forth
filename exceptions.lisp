@@ -138,6 +138,8 @@
   (:missing-foreign-definitions -306 "AS not followed by FUNCTION: or GLOBAL:")
   (:no-platform-library -307 "No library for this platform found")
   (:null-pointer-reference -308 "Attempt to reference through a null pointer")
+  (:duplicate-as-clauses -309 "AS appears more than once in a definition")
+  (:duplicate-optional-clauses -310 "[OPTIONAL] appears more than once in a definition")
   )
 
 (define-condition forth-exception (error)
