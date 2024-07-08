@@ -19,6 +19,8 @@ CL-Forth is made available under the terms of the [MIT License](LICENSE).
 
 ## Usage
 
+CL-Forth is defined using ASDF and is dependent on the [CFFI](https://github.com/cffi/cffi) library.
+
 To fetch a copy of CL-Forth and the [Forth 2012 Test Suite](https://github.com/gerryjackson/forth2012-test-suite.git) configured
 to only run tests for those word sets implemented by CL-Forth.
 
@@ -26,7 +28,7 @@ to only run tests for those word sets implemented by CL-Forth.
 git clone https://github.com/gmpalter/cl-forth.git --recurse-submodules
 ```
 
-CL-Forth is dependent on the [CFFI](https://github.com/cffi/cffi) library. To load CL-Forth into Lisp
+To load CL-Forth into Lisp
 
 ``` lisp
 (require '#:asdf)
