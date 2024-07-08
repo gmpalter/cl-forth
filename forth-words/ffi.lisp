@@ -210,12 +210,19 @@
            (write-line "No imported functions"))
           (t
            (setf imports (sort imports #'(lambda (f1 f2)
-                                           (< (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name f1)))
-                                              (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name f2)))))))
+                                           (let ((p1 (cffi:foreign-symbol-pointer (ffi-call-name f1)))
+                                                 (p2 (cffi:foreign-symbol-pointer (ffi-call-name f2))))
+                                             (cond ((and p1 p2)
+                                                    (< (pointer-address p1) (pointer-address p2)))
+                                                   ((and (null p1) (null p2))
+                                                    (string-lessp (ffi-call-name f1) (ffi-call-name f2)))
+                                                   ((null p1) nil)
+                                                   (t t))))))
            (write-line "Imported functions:")
            (dolist (import imports)
              (format t "~&  ~16,'0X ~A ~A~%"
-                     (pointer-address (cffi:foreign-symbol-pointer (ffi-call-name import)))
+                     (let ((pointer (cffi:foreign-symbol-pointer (ffi-call-name import))))
+                       (if pointer (pointer-address pointer) "<Undefined>     "))
                      (library-name (ffi-call-library import))
                      (ffi-call-name import)))))))
 
