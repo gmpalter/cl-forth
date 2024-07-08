@@ -73,8 +73,8 @@ bye
 
 The `cl-forth` command recognizes these command line arguments
 
-| <div style="width:290px"></div> | |
-| --- | --- |
+| | |
+| ----- | --- |
 | `--interpret EXPR`, `-i EXPR` | Evaluate `EXPR` before entering the Forth interpreter loop. `EXPR` may need to be quoted to avoid interpretation by the shell.  This argument may be used multiple times. |
 | `--transcript PATH` | Record a timestamped transcript of this session in the file `PATH` |
 | `--help`, `-h` | Display the available command line arguments and exit |
