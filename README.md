@@ -1,6 +1,6 @@
 # CL-Forth
 
-Common Lisp implementation of the Forth 2012 Standard, CL-Forth
+Common Lisp implementation of the [Forth 2012 Standard](https://forth-standard.org), CL-Forth
 
 ## Supported Platforms
 
