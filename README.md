@@ -2,6 +2,15 @@
 
 Common Lisp implementation of the Forth 2012 Standard, CL-Forth
 
+## Supported Platforms
+
+CL-Forth is fully supported by CCL v1.12.2-82 or later.
+
+CL-Forth also supports SBCL 2.0 or later. However, at present, the word `RESIZE-FILE` will always return an error indication,
+resulting in 7 failures in the File-Access word set tests.
+
+CL-Forth compiles with LispWorks but crashes running the Forth test suite.
+
 
 ## License
 
@@ -17,9 +26,11 @@ to only run tests for those word sets implemented by CL-Forth.
 git clone https://github.com/gmpalter/cl-forth.git --recurse-submodules
 ```
 
-CL-Forth is defined as an ASDF system. To load CL-Forth into Lisp
+CL-Forth is dependent on the [CFFI](https://github.com/cffi/cffi) library. To load CL-Forth into Lisp
 
 ``` lisp
+(require '#:asdf)
+(load "cl-forth.asd")
 (asdf:load-system '#:cl-forth)
 ```
 
@@ -35,15 +46,39 @@ To start the CL-Forth interpreter loop
 (forth:run)
 ```
 
+### Standalone CL-Forth in CCL
 
-## Supported Platforms
+You can build a standalone CL-Forth application when using CCL.
 
-CL-Forth was initially implemented using CCL and is fully supported by CCL v1.12.2-82 or later.
+Launch CCL and evaluate the forms
 
-CL-Forth has been updated to work with SBCL. However, at present, the word `RESIZE-FILE` will always return an error indication.
+``` lisp
+(require '#:asdf)
+(load "cl-forth.asd")
+(asdf:load-system '#:cl-forth/application)
+(save-application "cl-forth" :prepend-kernel t :application-class 'forth-app:forth-application)
+```
 
-CL-Forth compiles with LispWorks but does not work. (I.e., it crashes running the Forth test suite.)
+This will create an executable named `cl-forth`. When you run `cl-forth`, it will startup directly into the Forth interpreter
+loop.
 
+``` forth
+./cl-forth
+CL-Forth 1.2
+Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-82-g0fb21fc7) DarwinX8664
+1 1 + .
+2 OK.
+bye
+```
+
+The `cl-forth` command recognizes these command line arguments
+
+| | |
+| --- | --- |
+| `--interpret EXPR`, `-i EXPR` | Evaluate `EXPR` before entering the Forth interpreter loop. `EXPR` may need to be quoted to avoid interpretation by the shell.  This argument may be used multiple times. |
+| `--transcript PATH` | Record a timestamped transcript of this session in the file `PATH` |
+| `--help`, `-h` | Display the available command line arguments and exit |
+| `--version`, `-V` | Display the version of CL-Forth and exit |
 
 ## Missing Words
 
@@ -73,6 +108,28 @@ CL-Forth includes a foreign function interface (FFI) loosely based on the Extern
 
 _TO BE CONTINUED_
 
+<!--
+LIBRARY
+XLIBRARY
+FUNCTION:
+GLOBAL:
+CALLBACK:
+AS
+[OPTIONAL]
+.LIBS
+.IMPORTS
+
+;;; The available prefixes and the CFFI equivalent data type are
+;;;   *   :POINTER -- An address of data either in one of Forth's data spaces or the external data space
+;;;   $   :INT32   -- 32-bit signed integer value taken/pushed from/to the data stack
+;;;   $u  :UINT32  -- 32-bit unsigned integer value taken/pushed from/to the data stack
+;;;   $$  :INT64   -- 64-bit signed integer value taken/pushed from/to the data stack
+;;;   $$u :UINT64  -- 64-bit unsigned integer value taken/pushed from/to the data stack
+;;;   %   :SINGLE  -- Single precision floating point value taken/pushed from/to the floating-point stack
+;;;   %%  :DOUBLE  -- Double precision floating point value taken/pushed from/to the floating-point stack
+;;;
+
+-->
 
 ## Additional Words
 
