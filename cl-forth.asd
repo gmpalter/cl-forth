@@ -6,7 +6,7 @@
 ;;; you may not use this file except in compliance with the License.
 ;;; You may obtain a copy of the License at
 ;;;
-;;;   https://github.com/gmpalter/cl-forth/tree/main?tab=MIT-1-ov-file#readme
+;;;   https://opensource.org/license/mit
 
 (in-package #:asdf/user)
 
