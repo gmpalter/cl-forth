@@ -148,7 +148,6 @@ These words are specific to CL-Forth.
 | `BREAK` | Enter a Lisp break loop |
 | `INLINEABLE` | Mark that the most recent definition's code may be inlined |
 | `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
-| `RELOAD` | Reload a predefined definition |
 | `REMOVE` | Erase a single word |
 | `SHOW-BACKTRACES` | Controls whether exceptions display the return and data stacks |
 | `SHOW-CODE` | Controls whether completing a definition shows the generated code |

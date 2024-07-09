@@ -223,27 +223,6 @@
   (dolist (dictionary (word-lists-search-order word-lists))
     (show-words dictionary)))
 
-(define-word reload (:word "RELOAD")
-  "RELOAD <name>"
-  "Updates the definition of a predefined word"
-  (let ((name (word files #\Space)))
-    (when (null name)
-      (forth-exception :zero-length-name))
-    (let* ((entry (gethash name *predefined-words*))
-           (word-list (car entry))
-           (new-word (cdr entry)))
-      (when (null new-word)
-        (forth-exception :undefined-word "~A is not a predefined word" name))
-      (let ((old-word (lookup word-lists name)))
-        (if old-word
-            (setf (word-code old-word) (word-code new-word)
-                  (word-smudge? old-word) (word-smudge? new-word)
-                  (word-immediate? old-word) (word-immediate? new-word)
-                  (word-compile-only? old-word) (word-compile-only? new-word)
-                  (word-inlineable? old-word) (word-inlineable? new-word)
-                  (word-inline-forms old-word) (word-inline-forms new-word))
-            (add-word (word-list word-lists word-list) new-word :override t))))))
-
 (define-word remove (:word "REMOVE")
   "REMOVE <name>"
   "Remove the current definition of NAME"
