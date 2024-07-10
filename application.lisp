@@ -30,7 +30,8 @@
                 #:*terminal-input*
                 #:input-stream-shared-resource
                 #:shared-resource-primary-owner
-                #:*terminal-output*)
+                #:*terminal-output*
+                #:*initial-process*)
   (:export #:forth-application))
 
 (in-package #:forth-application)
@@ -96,11 +97,19 @@
             (add-auto-flush-stream *terminal-output*)
             (let ((clean-exit? (forth:run :asdf-system asdf-system :template template
                                           :interpret interpret :transcript-file transcript-file)))
+              ;;---*** TODO: Figure out why calling QUIT sometimes causes kernel crashes
+              #+TODO
               (if clean-exit?
                   (quit)
-                  (quit -1)))))))
+                  (quit -1))
+              ;;---*** TODO: Remove this once we resolve the QUIT problem
+              (#__exit (if clean-exit? 0 -1)))))))
   ;; Ensure that CCL's housekeeping functions run periodcally as intended
   (%set-toplevel (lambda ()
                    (with-standard-initial-bindings
                      (housekeeping-loop))))
   (toplevel))
+
+
+
+
