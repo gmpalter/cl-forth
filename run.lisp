@@ -12,10 +12,18 @@
 
 (defun announce-forth (fs asdf-system)
   (let* ((system (asdf:registered-system asdf-system))
-         (system-name (if system (asdf:system-long-name system) "CL-Forth"))
-         (system-version (if system (asdf:component-version system) "(unknown version)")))
-    (format t "~&~A ~A~%Running under ~A ~A~%~@[~A~%~]" system-name system-version
-            (lisp-implementation-type) (lisp-implementation-version) (forth-system-announce-addendum fs))))
+         (cl-forth (asdf:registered-system '#:cl-forth))
+         (cl-forth-name (asdf:system-long-name cl-forth))
+         (cl-forth-version (asdf:component-version cl-forth)))
+    (multiple-value-bind (system-name system-version cl-forth-note)
+        (if system
+            (if (asdf:system-long-name system)
+                (values (asdf:system-long-name system) (asdf:component-version system)
+                        (and (not (eq system cl-forth)) (format nil "~A ~A" cl-forth-name cl-forth-version)))
+                (values cl-forth-name cl-forth-version nil))
+            (values cl-forth-name cl-forth-version  nil))
+      (format t "~&~A ~A~@[ (built on ~A)~]~%Running under ~A ~A~%~@[~A~%~]" system-name system-version cl-forth-note
+              (lisp-implementation-type) (lisp-implementation-version) (forth-system-announce-addendum fs)))))
 
 (defun run (&key (asdf-system '#:cl-forth) template interpret transcript-file)
   (let ((fs (make-instance 'forth-system :template template)))
