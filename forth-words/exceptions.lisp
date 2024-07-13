@@ -13,7 +13,7 @@
 ;;; Exception words as defined in Section 9 of the Forth 2012 specification
 
 (define-word catch (:word "CATCH")
-  "( i*x xt – j*x 0 | i*x n)"
+  "( i*x xt -- j*x 0 | i*x n)"
   "Push an exception frame on the exception stack and then execute the execution token XT (as with EXECUTE) in such a way"
   "that control can be transferred to a point just after CATCH if THROW is executed during the execution of XT."
   "If the execution of XT completes normally (i.e., the exception frame pushed by this CATCH is not popped by an execution"
@@ -32,7 +32,7 @@
         (stack-push data-stack (forth-exception-code fe))))))
 
 (define-word throw (:word "THROW")
-  "( k*x n – k*x | i*x n)"
+  "( k*x n -- k*x | i*x n)"
   "If any bits of N are non-zero, pop the topmost exception frame from the exception stack, along with everything on the"
   "return stack above that frame. Then restore the input source specification in use before the corresponding CATCH and"
   "adjust the depths of all stacks defined by this standard so that they are the same as the depths saved in the exception"
@@ -53,14 +53,14 @@
 ;;; Exception extension words as defined in Section 9 of the Forth 2012 specification
 
 (define-word abort (:word "ABORT")
-  "(S: i*x - ) (R: j*x - )"
+  "(S: i*x -- ) (R: j*x -- )"
   "Perform the function of -1 THROW"
   (forth-exception :abort))
 
 ;;; Marked as IMMEDIATE so we can grab the message at compile-time and generate the correct code sequence
 (define-word abort-with-message (:word "ABORT\"" :immediate? t :compile-only? t)
   "ABORT\" <message>\""
-  "(S: i*x x1 - | i*x ) (R: j*x - | j*x )"
+  "(S: i*x x1 -- | i*x ) (R: j*x -- | j*x )"
   "Remove X1 from the stack. If any bit of X1 is not zero, perform the function of -2 THROW,"
   "displaying MESSAGE if there is no exception frame on the exception stack"
   (let ((message (parse files #\")))

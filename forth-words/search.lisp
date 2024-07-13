@@ -17,7 +17,7 @@
   (definitions word-lists))
 
 (define-word find (:word "FIND")
-  "( c-addr - c-addr 0 | xt 1 | xt -1)"
+  "( c-addr -- c-addr 0 | xt 1 | xt -1)"
   "Find the definition named in the counted string at C-ADDR. If the definition is not found after searching all"
   "the word lists in the search order, return C-ADDR and zero."
   "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
@@ -33,18 +33,18 @@
              (stack-push data-stack 0))))))
 
 (define-word forth-wordlist (:word "FORTH-WORDLIST")
-  "( – wid)"
+  "( -- wid)"
   "Return WID, the identifier of the word list that includes all standard words provided by the implementation."
   "This word list is initially the compilation word list and is part of the initial search order"
   (stack-push data-stack (dictionary-wid (word-lists-forth-word-list word-lists))))
 
 (define-word get-current (:word "GET-CURRENT")
-  "( – wid)"
+  "( -- wid)"
   "Return WID, the identifier of the compilation word list"
   (stack-push data-stack (dictionary-wid (word-lists-compilation-word-list word-lists))))
 
 (define-word get-order (:word "GET-ORDER")
-  "( – widn ... wid1 n )"
+  "( -- widn ... wid1 n )"
   "Returns the number of word lists N in the search order and the word list identifiers WIDn . . . WID1 identifying these"
   "word lists. WID1 identifies the word list that is searched first, and WIDn the word list that is searched last"
   (let ((wids nil))
@@ -55,7 +55,7 @@
     (stack-push data-stack (length wids))))
   
 (define-word search-wordlist (:word "SEARCH-WORDLIST")
-  "( c-addr u wid – 0 | xt 1 | xt -1 )"
+  "( c-addr u wid -- 0 | xt 1 | xt -1 )"
   "Find the definition identified by the string C-ADDR U in the word list identified by WID."
   "If the definition is not found, return zero. If the definition is found, return its execution token XT"
   "and one (1) if the definition is immediate, minus-one (-1) otherwise"
@@ -75,13 +75,13 @@
                (stack-push data-stack 0)))))))
 
 (define-word set-current (:word "SET-CURRENT")
-  "( wid – )"
+  "( wid -- )"
   "Set the compilation word list to the word list identified by WID"
   (let ((wl (lookup-wid word-lists (stack-pop data-stack))))
     (setf (word-lists-compilation-word-list word-lists) wl)))
 
 (define-word set-order (:word "SET-ORDER")
-  "( widn ... wid1 n – )"
+  "( widn ... wid1 n -- )"
   "Set the search order to the word lists identified by WIDn . . . WID1."
   "Subsequently, word list WID1 will be searched first, and word list WIDn searched last."
   "If N is zero, empty the search order. If N is minus one, set the search order to the"
@@ -100,7 +100,7 @@
            (forth-exception :invalid-numeric-argument)))))
 
 (define-word new-wordlist (:word "WORDLIST")
-  "( – wid )"
+  "( -- wid )"
   "Create a new empty word list, returning its word list identifier WID"
   (let ((wl (word-list word-lists nil :if-not-found :create)))
     (stack-push data-stack (dictionary-wid wl))))

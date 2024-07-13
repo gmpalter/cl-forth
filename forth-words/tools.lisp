@@ -13,17 +13,17 @@
 ;;; Programming-Tools words as defined in Section 15 of the Forth 2012 specification
 
 (define-word dump-stack (:word ".S")
-  "( - )"
+  "( -- )"
   "Copy and display the values currently on the data stack. The format of the display is implementation-dependent"
   (show-stack data-stack base))
 
 (define-word print-tos (:word "?")
-  "( a-addr - )"
+  "( a-addr -- )"
   "Display the value stored at A-ADDR"
   (format t "~VR " base (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
 (define-word dump-memory (:word "DUMP" :inlineable? nil)
-  "( a-addr u - )"
+  "( a-addr u -- )"
   "Display the contents of U consecutive addresses starting at ADDR. The format of the display is implementation dependent"
   (let* ((count (stack-pop data-stack))
          (address (stack-pop data-stack))
@@ -87,16 +87,16 @@
     (finish-compilation fs)))
 
 (define-word native-code-does> (:word ";CODE" :immediate? t :compile-only? t)
-  "Compilation:  (C: colon-sys – )"
+  "Compilation:  (C: colon-sys -- )"
   "Append the run-time semantics below to the current definition. End the current definition, allow it to be found in the"
   "dictionary, and enter interpretation state, consuming COLON-SYS. Subsequent characters in the parse area typically represent"
   "source code in a programming language, usually some form of assembly language. Those characters are processed in an"
   "implementation-defined manner, generating the corresponding machine code. The process continues, refilling the input buffer"
   "as needed, until an implementation-defined ending sequence is processed."
-  "Run-time: ( - ) (R: nest-sys - )"
+  "Run-time: ( -- ) (R: nest-sys -- )"
   "Replace the execution semantics of the most recent definition with the NAME execution semantics given below. Return control"
   "to the calling definition specified by NEST-SYS"
-  "NAME Execution: ( i*x – j*x )"
+  "NAME Execution: ( i*x -- j*x )"
   "Execute the machine code sequence that was generated following ;CODE."
   (compile-does> fs)
   (assemble-native-code fs))
@@ -125,7 +125,7 @@
   "programming language, usually some form of assembly language. Those characters are processed in an implementation-defined"
   "manner, generating the corresponding machine code. The process continues, refilling the input buffer as needed, until an"
   "implementation-defined ending sequence is processed."
-  "NAME Execution: ( i*x – j*x )"
+  "NAME Execution: ( i*x -- j*x )"
   "Execute the machine code sequence that was generated following CODE."
   (let ((name (word files #\Space)))
     (when (null name)
@@ -134,13 +134,13 @@
     (assemble-native-code fs)))
 
 (define-word cs-pick (:word "CS-PICK")
-  "(S: u - ) (C: xu ... x0 - xu ... x0 xu ) "
+  "(S: u -- ) (C: xu ... x0 -- xu ... x0 xu ) "
   "Place a copy of the uth control-stack entry on the top of the control stack. The zeroth item is on top of the"
   "control stack; i.e., 0 CS-PICK is equivalent to DUP and 1 CS-PICK is equivalent to OVER."
   (stack-pick control-flow-stack (cell-unsigned (stack-pop data-stack))))
 
 (define-word cs-roll (:word "CS-ROLL")
-  "(S: u - ) (C: x(u-1) xu x(u+1) ... x0 - x(u-1) x(u+1) ... x0 xu )"
+  "(S: u -- ) (C: x(u-1) xu x(u+1) ... x0 -- x(u-1) x(u+1) ... x0 xu )"
   "Move the Uth control-stack entry to the top of the stack, pushing down all the control-stack entries in between."
   "The zeroth item is on top of the stack; i.e., 0 CS-ROLL does nothing, 1 CS-ROLL is equivalent to SWAP, and"
   "2 CS-ROLL is equivalent to ROT"
@@ -167,7 +167,7 @@
 ;;;  A Forth program will crash if it doesn't maintain proper return stack discipline. But, that's true
 ;;;  anyway as the return "address" pushed/popped by a call is actually a CONS.
 (define-word save-values (:word "N>R")
-  "( i*n +n – ) (R: – j*x +n )"
+  "( i*n +n -- ) (R: -- j*x +n )"
   "Remove N+1 items from the data stack and store them for later retrieval by NR>."
   "The return stack may be used to store the data"
   (let ((n (stack-pop data-stack)))
@@ -179,8 +179,8 @@
       (stack-push return-stack vector))))
 
 (define-word nt-to-compile-xt (:word "NAME>COMPILE")
-  "( nt – x xt )"
-  "X XT represents the compilation semantics of the word NT. The returned XT has the stack effect ( i*x x – j*x )."
+  "( nt -- x xt )"
+  "X XT represents the compilation semantics of the word NT. The returned XT has the stack effect ( i*x x -- j*x )."
   "Executing XT consumes X and performs the compilation semantics of the word represented by NT"
   (let ((word (lookup-nt word-lists (stack-pop data-stack))))
     (multiple-value-bind (data xt)
@@ -189,7 +189,7 @@
       (stack-push data-stack xt))))
 
 (define-word nt-to-interpret-xt (:word "NAME>INTERPRET")
-  "( nt – xt | 0 )"
+  "( nt -- xt | 0 )"
   "XT represents the interpretation semantics of the word NT. If NT has no interpretation semantics, NAME>INTERPRET returns 0"
   (let ((word (lookup-nt word-lists (stack-pop data-stack))))
     (if (word-compile-only? word)
@@ -197,7 +197,7 @@
         (stack-push data-stack (xt-token (word-execution-token word))))))
 
 (define-word nt-to-string (:word "NAME>STRING")
-  "( nt - c-addr u )"
+  "( nt -- c-addr u )"
   "NAME>STRING returns the name of the word NT in the character string C-ADDR U"
   (let* ((word (lookup-nt word-lists (stack-pop data-stack)))
          (name>string-space (memory-name>string-space memory))
@@ -211,7 +211,7 @@
     (seal-transient-space memory name>string-space)))
 
 (define-word retrieve-values (:word "NR>")
-  "( – i*x +n) (R: j*x +n – )"
+  "( -- i*x +n) (R: j*x +n -- )"
   "Retrieve the items previously stored by an invocation of N>R. N is the number of items placed on the data stack."
   (let ((vector (stack-pop return-stack)))
     (unless (vectorp vector)
@@ -247,10 +247,10 @@
         (add-and-register-word fs new-word)))))
 
 (define-word traverse-wordlist (:word "TRAVERSE-WORDLIST")
-  "( i*x xt wid – j*x )"
+  "( i*x xt wid -- j*x )"
   "Remove WID and XT from the stack. Execute XT once for every word in the wordlist WID, passing the name token NT of the word"
   "to XT, until the wordlist is exhausted or until XT returns false."
-  "The invoked XT has the stack effect ( k*x nt – l*x flag )."
+  "The invoked XT has the stack effect ( k*x nt -- l*x flag )."
   "If FLAG is true, TRAVERSE-WORDLIST will continue with the next name, otherwise it will return. TRAVERSE-WORDLIST does not"
   "put any items other than NT on the stack when calling XT, so that XT can access and modify the rest of the stack."
   "TRAVERSE-WORDLIST may visit words in any order, with one exception: words with the same name are called in the order"
@@ -266,7 +266,7 @@
       (traverse-wordlist word-lists wl #'do-nt))))
 
 (define-word defined (:word "[DEFINED]" :immediate? t)
-  "[DEFINED] <name>" "( - flag )"
+  "[DEFINED] <name>" "( -- flag )"
   "Skip leading space delimiters. Parse NAME delimited by a space. Return a true flag if name is the name of a word"
   "that can be found (according to the rules in the system’s FIND); otherwise return a false flag"
   (let ((name (word files #\Space)))
@@ -299,7 +299,7 @@
                  (decf nesting)))))))
 
 (define-word interpreted-if (:word "[IF]" :immediate? t)
-  "( flag - )"
+  "( flag -- )"
   "If FLAG is true, do nothing. Otherwise, skipping leading spaces, parse and discard space-delimited words"
   "from the parse area, including nested occurrences of [IF]... [THEN] and [IF] ... [ELSE] ... [THEN], until either the"
   "word [ELSE] or the word [THEN] has been parsed and discarded. If the parse area becomes exhausted, it is refilled"
@@ -327,7 +327,7 @@
   nil)
 
 (define-word undefined (:word "[UNDEFINED]" :immediate? t)
-  "[UNDEFINED] <name>" "( - flag )"
+  "[UNDEFINED] <name>" "( -- flag )"
   "Skip leading space delimiters. Parse NAME delimited by a space. Return a false flag if NAME is the name of a word"
   "that can be found (according to the rules in the system’s FIND); otherwise return a true flag"
   (let ((name (word files #\Space)))

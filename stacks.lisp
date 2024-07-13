@@ -94,42 +94,42 @@
     (setf (stack-depth st) (the fixnum (-  (stack-depth st) 2)))))
 
 (define-stack-fun stack-drop (st &optional (n 1))
-  "( x(n) ... x(1) - )"
+  "( x(n) ... x(1) -- )"
   (declare (fixnum n))
   (stack-underflow-check st n)
   (setf (stack-depth st) (the fixnum (-  (stack-depth st) n))))
 
 (define-stack-fun stack-dup (st)
-  "( x - x x )"
+  "( x -- x x )"
   (stack-underflow-check st)
   (stack-push st (stack-cell st 0)))
 
 (define-stack-fun stack-?dup (st)
-  "( x - 0 | x x )"
+  "( x -- 0 | x x )"
   (stack-underflow-check st)
   (unless (zerop (stack-cell st 0))
     (stack-push st (stack-cell st 0))))
 
 (define-stack-fun stack-nip (st)
-  "( x1 x2 - x2 )"
+  "( x1 x2 -- x2 )"
   (stack-underflow-check st 2)
   (prog1
       (setf (stack-cell st 1) (stack-cell st 0))
     (setf (stack-depth st) (the fixnum (1- (stack-depth st))))))
 
 (define-stack-fun stack-over (st)
-  "( x1 x2 - x1 x2 x1 )"
+  "( x1 x2 -- x1 x2 x1 )"
   (stack-underflow-check st 2)
   (stack-push st (stack-cell st 1)))
 
 (define-stack-fun stack-pick (st n)
-  "( +n - x )"
+  "( +n -- x )"
   (declare (fixnum n))
   (stack-underflow-check st n)
   (stack-push st (stack-cell st n)))
 
 (define-stack-fun stack-roll (st n)
-  "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 xn )"
+  "( x(n-1) xn x(n+1) ... x0 -- x(n-1) x(n+1) ... x0 xn )"
   (declare (fixnum n))
   (stack-underflow-check st n)
   (let ((cell (stack-cell st n)))
@@ -138,31 +138,31 @@
     (setf (stack-cell st 0) cell)))
 
 (define-stack-fun stack-rot (st)
-  "( x1 x2 x3 - x2 x3 x1 )"
+  "( x1 x2 x3 -- x2 x3 x1 )"
   (stack-underflow-check st 3)
   (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 0) (stack-cell st 2))
   nil)
   
 (define-stack-fun stack-swap (st)
-  "( x1 x2 - x2 x1 )"
+  "( x1 x2 -- x2 x1 )"
   (stack-underflow-check st 2)
   (shiftf (stack-cell st 1) (stack-cell st 0) (stack-cell st 1))
   nil)
 
 (define-stack-fun stack-tuck (st)
-  "( x1 x2 - x2 x1 x2 )"
+  "( x1 x2 -- x2 x1 x2 )"
   (stack-underflow-check st 2)
   (stack-push st (stack-cell st 0))
   (shiftf (stack-cell st 2) (stack-cell st 1) (stack-cell st 2))
   nil)
 
 (define-stack-fun stack-2drop (st)
-  "( x1 x2 - )"
+  "( x1 x2 -- )"
   (stack-underflow-check st 2)
   (setf (stack-depth st) (the fixnum (-  (stack-depth st) 2))))
 
 (define-stack-fun stack-2dup (st)
-  "( x1 x2 - x1 x2 x1 x2 )"
+  "( x1 x2 -- x1 x2 x1 x2 )"
   (stack-underflow-check st 2)
   (let ((x1 (stack-cell st 1))
         (x2 (stack-cell st 0)))
@@ -170,7 +170,7 @@
     (stack-push st x2)))
 
 (define-stack-fun stack-2over (st)
-  "( x1 x2 x3 x4 - x1 x2 x3 x4 x1 x2 )"
+  "( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )"
   (stack-underflow-check st 4)
   (let ((x1 (stack-cell st 3))
         (x2 (stack-cell st 2)))
@@ -178,14 +178,14 @@
     (stack-push st x2)))
 
 (define-stack-fun stack-2rot (st)
-  "( x1 x2 x3 x4 x5 x6 - x3 x4 x5 x6 x1 x2 )"
+  "( x1 x2 x3 x4 x5 x6 -- x3 x4 x5 x6 x1 x2 )"
   (stack-underflow-check st 6)
   (shiftf (stack-cell st 4) (stack-cell st 2) (stack-cell st 0) (stack-cell st 4))
   (shiftf (stack-cell st 5) (stack-cell st 3) (stack-cell st 1) (stack-cell st 5))
   nil)
 
 (define-stack-fun stack-2swap (st)
-  "( x1 x2 x3 x4 - x3 x4 x1 x2 )"
+  "( x1 x2 x3 x4 -- x3 x4 x1 x2 )"
   (stack-underflow-check st 4)
   (shiftf (stack-cell st 2) (stack-cell st 0) (stack-cell st 2))
   (shiftf (stack-cell st 1) (stack-cell st 3) (stack-cell st 1))
@@ -199,7 +199,7 @@
           return n))
 
 (define-stack-fun stack-snip (st n)
-  "( x(n-1) xn x(n+1) ... x0 - x(n-1) x(n+1) ... x0 )"
+  "( x(n-1) xn x(n+1) ... x0 -- x(n-1) x(n+1) ... x0 )"
   (declare (fixnum n))
   (stack-underflow-check st n)
   (prog1

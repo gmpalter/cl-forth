@@ -17,18 +17,18 @@
   (parse files #\) :multiline? t))
 
 (define-word binary-access-method (:word "BIN")
-  "( fam1 - fam2 )"
+  "( fam1 -- fam2 )"
   "Modify the implementation-defined file access method FAM1 to additionally select a “binary”, i.e., not line oriented,"
   "file access method, giving access method FAM2"
   (stack-push data-stack (logior +binary-mode+ (stack-pop data-stack))))
 
 (define-word close-file (:word "CLOSE-FILE")
-  "( fileid - ior )"
+  "( fileid -- ior )"
   "Close the file identified by FILEID. IOR is the implementation-defined I/O result code"
   (stack-push data-stack (forth-close-file files (stack-pop data-stack))))
 
 (define-word create-file (:word "CREATE-FILE")
-  "( c-addr u fam - fileid ior )"
+  "( c-addr u fam -- fileid ior )"
   "Create the file named in the character string specified by C-ADDR and U, and open it with file access method FAM."
   "The meaning of values of FAM is implementation defined. If a file with the same name already exists, recreate it"
   "as an empty file.  the file was successfully created and opened, IOR is zero, FILEID is its identifier, and the file"
@@ -47,7 +47,7 @@
         (stack-push data-stack ior)))))
 
 (define-word delete-file (:word "DELETE-FILE")
-  "(c-addr u – ior)"
+  "(c-addr u -- ior)"
   "Delete the file named in the character string specified by C-ADDR U. IOR is the implementation-defined I/O result code"
   (let ((length (cell-signed (stack-pop data-stack)))
         (address (stack-pop data-stack)))
@@ -58,7 +58,7 @@
       (stack-push data-stack (forth-delete-file files (forth-string-to-native forth-memory offset length))))))
 
 (define-word file-position (:word "FILE-POSITION")
-  "( fileid – ud ior )"
+  "( fileid -- ud ior )"
   "UD is the current file position for the file identified by FILEID. IOR is the implementation-defined I/O result code."
   "UD is undefined if IOR is non-zero"
   (let ((fileid (stack-pop data-stack)))
@@ -68,7 +68,7 @@
       (stack-push data-stack ior))))
 
 (define-word file-size (:word "FILE-SIZE")
-  "( fileid – ud ior )"
+  "( fileid -- ud ior )"
   "UD is the size, in characters, of the file identified by FILEID. IOR is the implementation-defined I/O result code"
   (let ((fileid (stack-pop data-stack)))
     (multiple-value-bind (size ior)
@@ -77,7 +77,7 @@
       (stack-push data-stack ior))))
 
 (define-word include-file (:word "INCLUDE-FILE")
-  "( i*x fileid - j*x )"
+  "( i*x fileid -- j*x )"
   "Remove FILEID from the stack. Save the current input source specification, including the current value of SOURCE-ID. Store"
   "FILEID in SOURCE-ID. Make the file specified by FILEID the input source. Other stack effects are due to the words included."
   "Repeat until end of file: read a line from the file, fill the input buffer from the contents of that line, set >IN to zero,"
@@ -86,7 +86,7 @@
   (source-push files :fileid (stack-pop data-stack)))
 
 (define-word included (:word "INCLUDED")
-  "( i*x c-addr u - j*x )"
+  "( i*x c-addr u -- j*x )"
   "Remove C-ADDR U from the stack. Save the current input source specification, including the current value of SOURCE-ID."
   "Open the file specified by C-ADDR U, store the resulting fileid in SOURCE-ID, and make it the input source. Other stack"
   "effects are due to the words included."
@@ -112,7 +112,7 @@
                  (forth-exception :file-not-found "~A not found" filename))))))))
 
 (define-word open-file (:word "OPEN-FILE")
-  "( c-addr u fam - fileid ior )"
+  "( c-addr u fam -- fileid ior )"
   "Open the file named in the character string specified by C-ADDR U, with file access method indicated by FAM."
   "The meaning of values of fam is implementation defined. If the file is successfully opened, IOR is zero, FILEID is"
   "its identifier, and the file has been positioned to the start of the file."
@@ -130,17 +130,17 @@
         (stack-push data-stack ior)))))
 
 (define-word read-only-file-access-method (:word "R/O")
-  "( - fam )"
+  "( -- fam )"
   "FAM is the implementation-defined value for selecting the 'read only' file access method"
   (stack-push data-stack +read-direction+))
 
 (define-word read-write-file-access-method (:word "R/W")
-  "( - fam )"
+  "( -- fam )"
   "FAM is the implementation-defined value for selecting the 'read/write' file access method"
   (stack-push data-stack (logior +read-direction+ +write-direction+)))
 
 (define-word read-file (:word "READ-FILE")
-  "( c-addr u1 fileid – u2 ior )"
+  "( c-addr u1 fileid -- u2 ior )"
   "Read U1 consecutive characters to C-ADDR from the current position of the file identified by FILEID."
   "If U1 characters are read without an exception, IOR is zero and U2 is equal to U1."
   "If the end of the file is reached before U1 characters are read, IOR is zero and U2 is the"
@@ -162,7 +162,7 @@
         (stack-push data-stack ior)))))
 
 (define-word read-line (:word "READ-LINE")
-  "( c-addr u1 fileid – u2 flag ior )"
+  "( c-addr u1 fileid -- u2 flag ior )"
   "Read the next line from the file specified by FILEID into memory at the address C-ADDR. At most U1 characters are read."
   "Up to two implementation-defined line-terminating charac ters may be read into memory at the end of the line, but are not"
   "included in the count U2. The line buffer provided by C-ADDR should be at least U1+2 characters long."
@@ -196,7 +196,7 @@
       (stack-push data-stack ior))))
 
 (define-word reposition-file (:word "REPOSITION-FILE")
-  "( ud fileid – ior )"
+  "( ud fileid -- ior )"
   "Reposition the file identified by FILEID to UD. IOR is the implementation-defined I/O result code"
   (let ((fileid (stack-pop data-stack))
         (position (stack-pop-double data-stack)))
@@ -205,7 +205,7 @@
     (stack-push data-stack (forth-file-reposition files fileid position))))
 
 (define-word resize-file (:word "RESIZE-FILE")
-  "(ud fileid – ior )"
+  "(ud fileid -- ior )"
   "Set the size of the file identified by FILEID to UD. IOR is the implementation-defined I/O result code"
   (let ((fileid (stack-pop data-stack))
         (size (stack-pop-double data-stack)))
@@ -214,7 +214,7 @@
     (stack-push data-stack (forth-file-resize files fileid size))))
 
 (define-word string (:word "S\"" :immediate? t :inlineable? nil)
-  "S\" <text>\"" "( - a-addr u )"
+  "S\" <text>\"" "( -- a-addr u )"
   "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
   "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
   (let* ((text (parse files #\"))
@@ -240,17 +240,17 @@
              `(stack-push data-stack ,text-size))))))))
 
 (define-word source-id (:word "SOURCE-ID")
-  "( - 0 | -1 | fileid )"
+  "( -- 0 | -1 | fileid )"
   "Return 0 if the input source is the console, -1 if it is a string (EVALUATE), or the FILEID if it is a file"
   (stack-push data-stack (source-id files)))
 
 (define-word write-only-file-access-method (:word "W/O")
-  "( - fam )"
+  "( -- fam )"
   "FAM is the implementation-defined value for selecting the 'write only' file access method"
   (stack-push data-stack +write-direction+))
 
 (define-word write-file (:word "WRITE-FILE")
-  "( c-addr u fileid – ior )"
+  "( c-addr u fileid -- ior )"
   "Write U characters from C-ADDR to the file identified by FILEID starting at its current position."
   "IOR is the implementation-defined I/O result code"
   (let ((fileid (stack-pop data-stack))
@@ -263,7 +263,7 @@
       (stack-push data-stack (forth-write-file files fileid region offset count)))))
 
 (define-word write-line (:word "WRITE-LINE")
-  "( c-addr u fileid – ior )"
+  "( c-addr u fileid -- ior )"
   "Write U characters from C-ADDR followed by the implementation-dependent line terminator to the file identified by FILEID"
   "starting at its current position. IOR is the implementation- defined I/O result code"
   (let ((fileid (stack-pop data-stack))
@@ -279,7 +279,7 @@
 ;;; File-Access extension words as defined in Section 11 of the Forth 2012 specification
 
 (define-word file-status (:word "FILE-STATUS")
-  "( c-addr u – x ior )"
+  "( c-addr u -- x ior )"
   "Return the status of the file identified by the character string C-ADDR U. If the file exists, IOR is zero;"
   "otherwise IOR is the implementation-defined I/O result code. X contains implementation-defined information about the file"
   (let ((length (cell-signed (stack-pop data-stack)))
@@ -294,7 +294,7 @@
         (stack-push data-stack ior)))))
 
 (define-word flush-file (:word "FLUSH-FILE")
-  "( fileid – ior )"
+  "( fileid -- ior )"
   "Attempt to force any buffered information written to the file referred to by FILEID to be written to mass storage,"
   "and the size information for the file to be recorded in the storage directory if changed. If the operation is successful,"
   "IOR is zero. Otherwise, it is an implementation-defined I/O result code"
@@ -337,7 +337,7 @@
                (try t ".f"))))))
   
 (define-word include (:word "INCLUDE")
-  "INCLUDE <filename>" "( i*x - j*x )"
+  "INCLUDE <filename>" "( i*x -- j*x )"
   "Skip leading white space and parse NAME delimited by a white space character. Push the address and length"
   "of the NAME on the stack and perform the function of INCLUDED"
   (let ((filename (word files #\Space)))
@@ -359,7 +359,7 @@
   (stack-push data-stack (if (refill files) +true+ +false+)))
 
 (define-word rename-file (:word "RENAME-FILE")
-  "( c-addr1 u1 c-addr2 u2 – ior )"
+  "( c-addr1 u1 c-addr2 u2 -- ior )"
   "Rename the file named by the character string C-ADDR1 U1 to the name in the character string C-ADDR2 U2."
   "IOR is the implementation-defined I/O result code"
   (let ((new-length (cell-signed (stack-pop data-stack)))
@@ -377,7 +377,7 @@
                                                   (forth-string-to-native new-region new-offset new-length)))))))
 
 (define-word require (:word "REQUIRE")
-  "REQUIRE <name>"   "(i*x – i*x )"
+  "REQUIRE <name>"   "(i*x -- i*x )"
   "Skip leading white space and parse NAME delimited by a white space character. Push the address and length of the NAME"
   "on the stack and perform the function of REQUIRED"
   (let ((filename (word files #\Space)))
@@ -389,7 +389,7 @@
           (forth-close-file files fileid)))))
 
 (define-word required (:word "REQUIRED")
-  "(i*x c-addr u – i*x )"
+  "(i*x c-addr u -- i*x )"
   "If the file specified by C-ADDR U has been INCLUDED or REQUIRED already, but not between the definition and execution"
   "of a marker (or equivalent usage of FORGET), discard C-ADDR U; otherwise, perform the function of INCLUDED"
   (let ((length (cell-signed (stack-pop data-stack)))
@@ -411,7 +411,7 @@
                  (forth-exception :file-not-found "~A not found" filename))))))))
 
 (define-word escaped-string (:word "S\\\"" :immediate? t :inlineable? nil)
-  "S\" <text>\"" "( - a-addr u )"
+  "S\" <text>\"" "( -- a-addr u )"
   "If interpreted, place TEXT in a temporary buffer and return the address and length of the text"
   "If compiled, compile TEXT into the definition. When executed, place the address and length of the text on the data stack"
   "Process escape sequences in the text according to Section 6.2.2266 of the Forth 2012 specification"

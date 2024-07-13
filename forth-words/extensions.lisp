@@ -24,15 +24,15 @@
       (native-into-forth-counted-string text forth-memory offset))))
 
 (define-word add-two (:word "2+")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   (stack-push data-stack (cell-signed (+ (cell-signed (stack-pop data-stack)) 2))))
 
 (define-word subtract-two (:word "2-")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   (stack-push data-stack (cell-signed (- (cell-signed (stack-pop data-stack)) 2))))
 
 (define-word incf-char (:word "C+!")
-  "( char a-addr - )"
+  "( char a-addr -- )"
   "Add CHAR to the contents of the character at A-ADDR and store the result back into A-ADDR"
   (let ((address (stack-pop data-stack))
         (char (extract-char (stack-pop data-stack))))
@@ -56,14 +56,14 @@
       (add-and-register-word fs word address))))
 
 (define-word subtract-double-single (:word "M-")
-  "( d1 n - d2 )"
+  "( d1 n -- d2 )"
   "Subtract the single N from the double D1, producing the double result D2"
   (let ((n (cell-signed (stack-pop data-stack)))
         (d1 (stack-pop-double data-stack)))
     (stack-push-double data-stack (- d1 n))))
 
 (define-word divide-double-single (:word "M/")
-  "( d n1 - n2 )"
+  "( d n1 -- n2 )"
   "Divide the double D by the single N1, producing the single quotient N2"
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
@@ -72,12 +72,12 @@
         (stack-push data-stack (cell-signed (truncate d n1))))))
 
 (define-word not (:word "NOT")
-  "( n - flag )"
+  "( n -- flag )"
   "Identical to 0=, used for program clarity to reverse the results of a previous test"
   (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word simple-parse-number (:word "NUMBER" :inlineable? nil)
-  "( c-addr u - n | d )"
+  "( c-addr u -- n | d )"
   "Attempt to convert the string at C-ADDR of length U into an integer. If the string contains punctuation, return the"
   "double integer D. If the string does not contain punctuation, return the single integer N. If the conversion fails, ABORT"
   (let ((length (cell-signed (stack-pop data-stack)))
@@ -97,7 +97,7 @@
            (forth-exception :parse-integer-failure)))))))
 
 (define-word maybe-parse-number (:word "NUMBER?" :inlineable? nil)
-  "( c-addr u - 0 | n 1 | d 2 )"
+  "( c-addr u -- 0 | n 1 | d 2 )"
   "Similar to NUMBER above but does not abort. If conversion fails, push 0 onto the top of the data stack."
   "If conversion suceeds, push the value and then push 1 if a single integer and 2 if a double integer."
   (let ((length (cell-signed (stack-pop data-stack)))
@@ -187,17 +187,17 @@
 ;;; 4.2.2 Detecting Name Conflicts
 
 (define-word redefinition-warnings (:word "WARNING")
-  "( - addr )"
+  "( -- addr )"
   "Return the address of the flag that controls compiler redefinition warnings"
   (stack-push data-stack (state-slot-address memory 'show-redefinition-warnings?)))
 
 (define-word set-flag (:word "ON")
-  "( addr - )"
+  "( addr -- )"
   "Set the flag at ADDR to true"
   (setf (memory-byte memory (stack-pop data-stack)) +true+))
 
 (define-word clear-flag (:word "OFF")
-  "( addr - )"
+  "( addr -- )"
   "Set the flag at ADDR to false"
   (setf (memory-byte memory (stack-pop data-stack)) +false+))
 
@@ -214,7 +214,7 @@
   (break "Debug Break"))
 
 (define-word show-definition-code (:word "SHOW-CODE")
-  "( - addr )"
+  "( -- addr )"
   "Return the address of the flag that controls whether to show the code generated when a definition is defined"
   (stack-push data-stack (state-slot-address memory 'show-definition-code?)))
 
@@ -275,6 +275,6 @@
   (show-stack return-stack base))
 
 (define-word show-definition-code (:word "SHOW-BACKTRACES")
-  "( - addr )"
+  "( -- addr )"
   "Return the address of the flag that controls whether to show a backtrace when an exception occurs"
   (stack-push data-stack (state-slot-address memory 'show-backtraces-on-error?)))

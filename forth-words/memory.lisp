@@ -13,7 +13,7 @@
 ;;; Memory-Allocation words as defined in Section 14 of the Forth 2012 specification
 
 (define-word allocate-memory (:word "ALLOCATE")
-  "( u – a-addr ior )"
+  "( u -- a-addr ior )"
   "allocate U address units of contiguous data space. The data-space pointer is unaffected by this operation."
   "The initial content of the allocated space is undefined."
   "If the allocation succeeds, A-ADDR is the aligned starting address of the allocated space and IOR is zero."
@@ -25,7 +25,7 @@
       (stack-push data-stack ior))))
 
 (define-word free-memory (:word "FREE")
-  "( a-addr – ior )"
+  "( a-addr -- ior )"
   "Return the contiguous region of data space indicated by A-ADDR to the system for later allocation. A-ADDR shall indicate"
   "a region of data space that was previously obtained by ALLOCATE or RESIZE. The data-space pointer is unaffected by this"
   "operation.  the operation succeeds, IOR is zero. If the operation fails, ior is the implementation-defined I/O result code"
@@ -33,7 +33,7 @@
     (stack-push data-stack (free-native-memory memory address))))
 
 (define-word resize-memory (:word "RESIZE")
-  "( a-addr1 u – a-addr2 ior )"
+  "( a-addr1 u -- a-addr2 ior )"
   "Change the allocation of the contiguous data space starting at the address A-ADDR1, previously allocated by ALLOCATE"
   "or RESIZE, to U address units. U may be either larger or smaller than the current size of the region. The data-space"
   "pointer is unaffected by this operation."

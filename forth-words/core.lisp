@@ -13,14 +13,14 @@
 ;;; Core words as defined in Section 6 of the Forth 2012 specification
 
 (define-word write-cell (:word "!")
-  "( x a-addr - )"
+  "( x a-addr -- )"
   "Store the cell X at the address A-ADDR"
   (let ((address (stack-pop data-stack))
         (data (stack-pop data-stack)))
     (setf (memory-cell memory address) data)))
 
 (define-word add-digit-to-picture-buffer (:word "#")
-  "( ud1 – ud2 )"
+  "( ud1 -- ud2 )"
   "Divide UD1 by the number in BASE giving the quotient UD2 and the remainder N. (N is the least significant digit of UD1.)"
   "Convert N to external form and add the resulting character to the beginning of the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
@@ -32,7 +32,7 @@
       (stack-push-double data-stack ud2))))
 
 (define-word finish-pictured (:word "#>")
-  "( xd - c-addr u)"
+  "( xd -- c-addr u)"
   "Drop XD. Make the pictured numeric output string available as a character string."
   "C-ADDR and U specify the resulting character string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
@@ -44,7 +44,7 @@
     (stack-push data-stack u)))
 
 (define-word add-digits-to-picture-buffer (:word "#S")
-  "( ud1 – ud2 )"
+  "( ud1 -- ud2 )"
   "Convert one digit of UD1 according to the rule for #. Continue conversion until the quotient is zero. UD2 is zero"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use #S outside <# ... #>"))
@@ -57,7 +57,7 @@
     (stack-push-double data-stack 0)))
 
 (define-word lookup-xt (:word "'")
-  "' <name>" "( - xt )"
+  "' <name>" "( -- xt )"
   "Lookup NAME and return its execution token or abort if not found"
   (let ((name (word files #\Space)))
     (when (null name)
@@ -70,20 +70,20 @@
 ;;; ( extended by the File-Access word set
 
 (define-word multiply (:word "*")
-  "( n1 n2 - n3 )"
+  "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (* n1 n2)))))
 
 (define-word multiply-divide (:word "*/")
-  "( n1 n2 n3 - n4 )"
+  "( n1 n2 n3 -- n4 )"
   (let ((n3 (cell-signed (stack-pop data-stack)))
         (n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (truncate (* n1 n2) n3)))))
 
 (define-word multiply-divide-mod (:word "*/MOD")
-  "( n1 n2 n3 - n4 n5 )"
+  "( n1 n2 n3 -- n4 n5 )"
   (let ((n3 (cell-signed (stack-pop data-stack)))
         (n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
@@ -95,20 +95,20 @@
           (stack-push data-stack (cell-signed quotient))))))
 
 (define-word add (:word "+")
-  "( n1 n2 - n3 )"
+  "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (+ n1 n2)))))
 
 (define-word incf-cell (:word "+!")
-  "( n a-addr - )"
+  "( n a-addr -- )"
   "Add N to the contents of the cell at A-ADDR and store the result back into A-ADDR"
   (let ((address (stack-pop data-stack))
         (n (stack-pop data-stack)))
     (setf (memory-cell memory address) (cell-signed (+ (memory-cell memory address) n)))))
 
 (define-word loop (:word "+LOOP" :immediate? t :compile-only? t)
-  "( n - )"
+  "( n -- )"
   "Like LOOP, but increment the index by the specified signed value n. After incrementing, if the index crossed the"
   "boundary between the loop limit minus one and the loop limit, the loop is terminated as with LOOP."
   (verify-control-structure fs :do 2)
@@ -146,20 +146,20 @@
     (resolve-branch fs done)))
 
 (define-word create-cell (:word ",")
-  "( x - )"
+  "( x -- )"
   "Allocate one cell in data space and store x in the cell"
   (let ((value (stack-pop data-stack))
         (address (allocate-memory memory +cell-size+)))
     (setf (memory-cell memory address) value)))
 
 (define-word subtract (:word "-")
-  "( n1 n2 - n3 )"
+  "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (stack-push data-stack (cell-signed (- n1 n2)))))
 
 (define-word print-tos (:word ".")
-  "( n - )"
+  "( n -- )"
   "Display the top cell of the data stack as a signed integer in the current base"
   (let ((value (cell-signed (stack-pop data-stack))))
     (format t "~VR " base value)))
@@ -176,7 +176,7 @@
          `(write-string ,text))))))
 
 (define-word divide (:word "/")
-  "( n1 n2 - n3 )"
+  "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
@@ -184,7 +184,7 @@
         (stack-push data-stack (cell-signed (truncate n1 n2))))))
 
 (define-word divide-mod (:word "/MOD")
-  "( n1 n2 - n3 n4 )"
+  "( n1 n2 -- n3 n4 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
@@ -195,60 +195,60 @@
           (stack-push data-stack (cell-signed quotient))))))
 
 (define-word minusp (:word "0<")
-  " ( n - flag )"
+  " ( n -- flag )"
   "Return true if N is less than zero"
   (stack-push data-stack (if (minusp (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word zerop (:word "0=")
-  " ( n - flag )"
+  " ( n -- flag )"
   "Return true if N is equal to zero"
   (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word add-one (:word "1+")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   (stack-push data-stack (cell-signed (1+ (cell-signed (stack-pop data-stack))))))
 
 (define-word subtract-one (:word "1-")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   (stack-push data-stack (cell-signed (1- (cell-signed (stack-pop data-stack))))))
 
 (define-word write-two-cells (:word "2!")
-  "( x1 x2 a-addr - )"
+  "( x1 x2 a-addr -- )"
   "Store the two cells X1 and X2 in the two cells beginning at the address A-ADDR"
   (let ((address (stack-pop data-stack))
         (data (stack-pop-double data-stack)))
     (setf (memory-double-cell memory address) data)))
 
 (define-word ash-left-1 (:word "2*")
-  "( x1 - x2 )"
+  "( x1 -- x2 )"
   (stack-push data-stack (ash (cell-signed (stack-pop data-stack)) 1)))
 
 (define-word ash-right-1 (:word "2/")
-  "( x1 - x2 )"
+  "( x1 -- x2 )"
   (stack-push data-stack (ash (cell-signed (stack-pop data-stack)) -1)))
 
 (define-word read-two-cells (:word "2@")
-  "( a-addr - x1 x2 )"
+  "( a-addr -- x1 x2 )"
   "Push the contents of the two cells starting at the address A-ADDR onto the data stack"
   (stack-push-double data-stack (memory-double-cell memory (stack-pop data-stack))))
 
 (define-word stack-2drop (:word "2DROP")
-  "( x1 x2 - )"
+  "( x1 x2 -- )"
   "Remove the top pair of cells from the data stack"
   (stack-2drop data-stack))
 
 (define-word stack-2dup (:word "2DUP")
-  "( x1 x2 - x1 x2 x1 x2 )"
+  "( x1 x2 -- x1 x2 x1 x2 )"
   "Duplicate the top cell pair on the data stack"
   (stack-2dup data-stack))
 
 (define-word stack-2over (:word "2OVER")
-  "( x1 x2 x3 x4 - x1 x2 x3 x4 x1 x2 )"
+  "( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )"
   "Copy cell pair X1 X2 to the top of the data stack"
   (stack-2over data-stack))
 
 (define-word stack-2swap (:word "2SWAP")
-  "( x1 x2 x3 x4 - x3 x4 x1 x2 )"
+  "( x1 x2 x3 x4 -- x3 x4 x1 x2 )"
   "Exchange the top two cell pairs on the data stack"
   (stack-2swap data-stack))
 
@@ -266,7 +266,7 @@
   (align-memory memory))
 
 (define-word less-than (:word "<")
-  " ( n1 n2 - flag )"
+  " ( n1 n2 -- flag )"
   "Return true if N1 is less than N2"
   ;; As the first value popped off the stack is N2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (> (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
@@ -276,25 +276,25 @@
   (start-pictured-buffer (memory-pictured-buffer memory)))
 
 (define-word equal (:word "=")
-  " ( n1 n2 - flag )"
+  " ( n1 n2 -- flag )"
   "Return true if N1 is equal to N2"
   (stack-push data-stack (if (= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word greater-than (:word ">")
-  " ( n1 n2 - flag )"
+  " ( n1 n2 -- flag )"
   "Return true if N1 is greater than N2"
   ;; As the first value popped off the stack is N2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (< (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word >body (:word ">BODY")
-  "( xt - a-addr )"
+  "( xt -- a-addr )"
   "Return A-ADDR which is the data-field address corresponding to XT"
   (stack-push data-stack (find-body execution-tokens (stack-pop data-stack))))
 
 (define-state-word >in :word ">IN")
 
 (define-word parse-number (:word ">NUMBER" :inlineable? nil)
-  "( ud1 c-addr u1 - ud2 c-addr u2 )"
+  "( ud1 c-addr u1 -- ud2 c-addr u2 )"
   "UD2 is the unsigned result of converting the characters within the string specified by C-ADDR1 U1 into digits,"
   "using the number in BASE, and adding each into UD1 after multiplying UD1 by the number in BASE. Conversion continues"
   "left-to-right until a character that is not convertible, including any '+' or '-', is encountered or the string is"
@@ -320,17 +320,17 @@
              (stack-push data-stack length))))
 
 (define-word move-to-return-stack (:word ">R")
-  "(S: x - ) (R: - x )"
+  "(S: x -- ) (R: -- x )"
   "Pop the top item off the data stack and push it onto the return stack"
   (stack-push return-stack (stack-pop data-stack)))
 
 (define-word stack-?dup (:word "?DUP")
-  "( x - 0 | x x )"
+  "( x -- 0 | x x )"
   "Conditionally duplicate the top of the data stack if it is non-zero"
   (stack-?dup data-stack))
 
 (define-word read-cell (:word "@")
-  "( a-addr - x )"
+  "( a-addr -- x )"
   "Push the contents of the cell at the address A-ADDR onto the data stack"
   (stack-push data-stack (cell-signed (memory-cell memory (stack-pop data-stack)))))
 
@@ -339,12 +339,12 @@
 ;;; ABORT" extended by the Exception word set
 
 (define-word abs (:word "ABS")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   "Push the absolute value of N1 onto the data stack"
   (stack-push data-stack (cell-signed (abs (stack-pop data-stack)))))
 
 (define-word accept (:word "ACCEPT")
-  "( c-addr +n1 – +n2 )"
+  "( c-addr +n1 -- +n2 )"
   "Receive a string of at most +N1 characters. Input terminates when an implementation-defined line terminator is received."
   "When input terminates, nothing is appended to the string. +N2 is the length of the string stored at C-ADDR"
   (let ((count (cell-signed (stack-pop data-stack)))
@@ -367,12 +367,12 @@
           (stack-push data-stack (length buffer)))))))
 
 (define-word align (:word "ALIGN")
-  "( - )"
+  "( -- )"
   "If the data space pointer is not aligned, reserve enough space to align it"
   (align-memory memory))
 
 (define-word aligned (:word "ALIGNED")
-  "( addr - a-addr) "
+  "( addr -- a-addr) "
   "Return A-ADDR, the first aligned address greater than or equal to ADDR"
   (let ((addr (stack-pop data-stack)))
     (stack-push data-stack
@@ -381,7 +381,7 @@
                     (+ addr (- +cell-size+ (mod addr +cell-size+)))))))
 
 (define-word allocate (:word "ALLOT")
-  "( n - )"
+  "( n -- )"
   "If N is greater than zero, reserve N address units of data space. If N is less than zero, release abs(N) address units"
   "of data space. If N is zero, leave the data-space pointer unchanged."
   (let ((count (cell-signed (stack-pop data-stack))))
@@ -393,7 +393,7 @@
            nil))))
 
 (define-word and (:word "AND")
-  "( x1 x2 - x3 )"
+  "( x1 x2 -- x3 )"
   "Return the bitwise logical and of X1 with X2"
   (stack-push data-stack (cell-unsigned (logand (stack-pop data-stack) (stack-pop data-stack)))))
 
@@ -406,41 +406,41 @@
     (resolve-branch fs branch)))
 
 (define-word blank (:word "BL")
-  "( - char )"
+  "( -- char )"
   "Push the character for a blank or space onto the data stack"
   (stack-push data-stack +forth-char-space+))
 
 (define-word write-char (:word "C!")
-  "( char a-addr - )"
+  "( char a-addr -- )"
   "Store the character CHAR at the address A-ADDR"
   (let ((address (stack-pop data-stack))
         (char (extract-char (stack-pop data-stack))))
     (setf (memory-char memory address) char)))
 
 (define-word create-char (:word "C,")
-  "( char - )"
+  "( char -- )"
   "Allocate space for one character in data space and store CHAR"
   (let ((value (stack-pop data-stack))
         (address (allocate-memory memory +char-size+)))
     (setf (memory-char memory address) (extract-char value))))
 
 (define-word read-char (:word "C@")
-  "( a-addr - char )"
+  "( a-addr -- char )"
   "Push the character at the address A-ADDR onto the data stack"
   (stack-push data-stack (memory-char memory (stack-pop data-stack))))
 
 (define-word cell-incf (:word "CELL+")
-  "( a-addr1 - a-addr2 )"
+  "( a-addr1 -- a-addr2 )"
   "Add the size of a cell in bytes to A-ADDR1, giving A-ADDR2"
   (stack-push data-stack (+ (stack-pop data-stack) +cell-size+)))
 
 (define-word cells-size (:word "CELLS")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   "Return the size in bytes of n1 cells"
   (stack-push data-stack (* (stack-pop data-stack) +cell-size+)))
 
 (define-word char (:word "CHAR")
-  "CHAR <c>" "( - char )"
+  "CHAR <c>" "( -- char )"
   "Parse the next word, usually a single character, and push the ASCII value of its first character onto the data stack"
   (let ((char (word files #\Space)))
     (when (null char)
@@ -448,17 +448,17 @@
     (stack-push data-stack (forth-char (aref char 0)))))
 
 (define-word char-incf (:word "CHAR+")
-  "( a-addr1 - a-addr2 )"
+  "( a-addr1 -- a-addr2 )"
   "Add the size of a character in bytes to A-ADDR1, giving A-ADDR2"
   (stack-push data-stack (+ (stack-pop data-stack) +char-size+)))
 
 (define-word chars-size (:word "CHARS")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   "Return the size in bytes of n1 characters"
   (stack-push data-stack (* (stack-pop data-stack) +char-size+)))
 
 (define-word constant (:word "CONSTANT")
-  "CONSTANT <name>" "( x - )"
+  "CONSTANT <name>" "( x -- )"
   "Create a dictionary entry for <name> which pushes signed integer X on the data stack"
   (let ((name (word files #\Space))
         (value (stack-pop data-stack)))
@@ -470,7 +470,7 @@
       (add-and-register-word fs word (data-space-high-water-mark memory)))))
 
 (define-word decode-counted-string (:word "COUNT")
-  "( a-addr1 - a-addr2 u )"
+  "( a-addr1 -- a-addr2 u )"
   "Return the size U of the counted string at A-ADDR1 and the address of its text"
   (let ((address (stack-pop data-stack)))
     ;; Length of a counted string is always a single byte regardless of character size
@@ -499,12 +499,12 @@
   (setf base 10.))
 
 (define-word stack-depth (:word "DEPTH")
-  "( - +n )"
+  "( -- +n )"
   "Pushes the current depth of the data stack onto the data stack"
   (stack-push data-stack (stack-depth data-stack)))
 
 (define-word do (:word "DO" :immediate? t :compile-only? t)
-  "( n1 n2 - )"
+  "( n1 n2 -- )"
   "Establish the loop parameters. This word expects the initial loop index N2 on top of the stack, with the limit value N1"
   "beneath it. These values are removed from the stack and stored on the return stack when DO is executed"
   (let ((again (make-branch-reference :do))
@@ -525,12 +525,12 @@
   (compile-does> fs))
 
 (define-word stack-drop (:word "DROP")
-  "( x - )"
+  "( x -- )"
   "Remove the top entry from the data stack"
   (stack-drop data-stack))
 
 (define-word stack-dup (:word "DUP")
-  "( x - x x )"
+  "( x -- x x )"
   "Duplicate the top of the data stack"
   (stack-dup data-stack))
 
@@ -546,14 +546,14 @@
     (resolve-branch fs branch)))
 
 (define-word write-char (:word "EMIT")
-  " ( char - )"
+  " ( char -- )"
   "Type the character CHAR on the terminal"
   (write-char (native-char (extract-char (stack-pop data-stack)))))
 
 ;;; ENVIRONMENT? is defined in forth-words/environment.lisp
 
 (define-word evaluate-string (:word "EVALUATE")
-  "( i*x c-addr u – j*x )"
+  "( i*x c-addr u -- j*x )"
   "Save the current input source specification. Store minus-one (-1) in SOURCE-ID. Make the string described by c-ADDR and U"
   "both the input source and input buffer, set >IN to zero, and interpret. When the parse area is empty, restore the prior"
   "input source specification. Other stack effects are due to the words EVALUATEd."
@@ -569,7 +569,7 @@
 
 ;;; Declared IMMEDIATE and not inlineable so we can generate the proper PC for the call
 (define-word execute (:word "EXECUTE" :immediate? t :inlineable? nil)
-  "( i*x xt - j*x )"
+  "( i*x xt -- j*x )"
   "Remove XT from the stack and perform the semantics identified by it. Other stack effects are due"
   "to the worde executed"
   (case (state fs)
@@ -587,7 +587,7 @@
   (execute-branch fs (definition-exit-branch definition)))
 
 (define-word fill-memory (:word "FILL")
-  "( c-addr u b - )"
+  "( c-addr u b -- )"
   "Set a region of memory, at address C-ADDR and of length U, to the byte B"
   (let ((byte (ldb (byte 8 0) (stack-pop data-stack)))
         (count (cell-signed (stack-pop data-stack)))
@@ -599,7 +599,7 @@
 ;;; FIND extended by the Search-Order word set
 
 (define-word floor-mod (:word "FM/MOD")
-  "( d n1 - n2 n3 )"
+  "( d n1 -- n2 n3 )"
   "Divide the double precision integer D by the integer N1 using floored division"
   "Push the remainder N2 and quotient N3 onto the data stack"
   (let ((n1 (cell-signed (stack-pop data-stack)))
@@ -612,19 +612,19 @@
           (stack-push data-stack (cell-signed quotient))))))
 
 (define-word here (:word "HERE")
-  "( - a-addr )"
+  "( -- a-addr )"
   "Push the address of the next available memory location in data space onto the stack"
   (stack-push data-stack (data-space-high-water-mark memory)))
 
 (define-word add-char-to-picture-buffer (:word "HOLD")
-  "( char - )"
+  "( char -- )"
   "Add char to the beginning of the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use HOLD outside <# ... #>"))
   (add-to-pictured-buffer (memory-pictured-buffer memory) (stack-pop data-stack)))
 
 (define-word index1 (:word "I" :immediate? t :compile-only? t)
-  "( - n )"
+  "( -- n )"
   "Push a copy of the current value of the index onto the data stack"
   (add-to-definition fs
     `(when (< (stack-depth loop-stack) 2)
@@ -632,7 +632,7 @@
     `(stack-push data-stack (stack-cell loop-stack 0))))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
-  "( flag - )"
+  "( flag -- )"
   "If FLAG is zero, branch to the code immediately following an ELSE if one is present; if ELSE is ommitted, branch"
   "to the point following THEN. If FLAG is true, continue execution with the code immediately following the IF and"
   "branch over any code following an ELSE to the point following THEN"
@@ -647,12 +647,12 @@
     (setf (word-immediate? (definition-word definition)) t)))
 
 (define-word invert (:word "INVERT")
-  "( x1 - x2 )"
+  "( x1 -- x2 )"
   "Invert all bits of X1, giving the logical inverse X2"
   (stack-push data-stack (cell-unsigned (lognot (stack-pop data-stack)))))
 
 (define-word index2 (:word "J" :immediate? t :compile-only? t)
-  "( - n )"
+  "( -- n )"
   "Push a copy of the next-outer loop index onto the data stack. When two DO ... LOOPs are nested, this obtains"
   "the value of the outer index from inside the inner loop."
   (add-to-definition fs
@@ -671,7 +671,7 @@
     (execute-branch fs done)))
 
 (define-word literal (:word "LITERAL" :immediate? t :compile-only? t)
-  "( x - )"
+  "( x -- )"
   "Compile X into the current definition. When executed, push X onto the data stack"
   (let ((value (stack-pop data-stack)))
     (add-to-definition fs
@@ -696,7 +696,7 @@
     (resolve-branch fs done)))
 
 (define-word ash-left (:word "LSHIFT")
-  "( x1 u - n2 )"
+  "( x1 u -- n2 )"
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
@@ -706,24 +706,24 @@
     (stack-push data-stack (cell-signed (ash (cell-unsigned x1) u)))))
 
 (define-word multiply-double (:word "M*")
-  "( n1 n2 - d )"
+  "( n1 n2 -- d )"
   "Multiply the signed integers N1 and N2 and push the resulting double precision integer D onto the data stack"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (stack-push-double data-stack (* n1 n2))))
 
 (define-word max (:word "MAX")
-  "( n1 n2 - n3)"
+  "( n1 n2 -- n3)"
   "Push the larger of N1 and N2 onto the data stack"
   (stack-push data-stack (max (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))
 
 (define-word min (:word "MIN")
-  "( n1 n2 - n3)"
+  "( n1 n2 -- n3)"
   "Push the smaller of N1 and N2 onto the data stack"
   (stack-push data-stack (min (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))
 
 (define-word mod (:word "MOD")
-  "( n1 n2 - n3 )"
+  "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
     (if (zerop n2)
@@ -733,7 +733,7 @@
         (stack-push data-stack (cell-signed (rem n1 n2))))))
 
 (define-word move-memory (:word "MOVE")
-  "( addr1 addr2 u - )"
+  "( addr1 addr2 u -- )"
   "Copy U bytes starting from a source starting at the address ADDR1 to the destination starting at address ADDR2"
   (let ((count (cell-signed (stack-pop data-stack)))
         (destination (stack-pop data-stack))
@@ -743,17 +743,17 @@
     (memory-copy memory source destination count)))
 
 (define-word negate (:word "NEGATE")
-  "( n1 - n2 )"
+  "( n1 -- n2 )"
   "Change the sign of the top of the data stack"
   (stack-push data-stack (- (cell-signed (stack-pop data-stack)))))
 
 (define-word or (:word "OR")
-  "( x1 x2 - x3 )"
+  "( x1 x2 -- x3 )"
   "Return the bitwise logical inclusive or of X1 with X2"
   (stack-push data-stack (cell-unsigned (logior (stack-pop data-stack) (stack-pop data-stack)))))
 
 (define-word stack-over (:word "OVER")
-  "( x1 x2 - x1 x2 x1 )"
+  "( x1 x2 -- x1 x2 x1 )"
   "Place a copy of X1 onto the top of the data stack"
   (stack-over data-stack))
 
@@ -769,18 +769,18 @@
       (postpone fs word))))
 
 (define-word reset-interpreter (:word "QUIT")
-  "(S: i*x - ) (R: j*x - )"
+  "(S: i*x -- ) (R: j*x -- )"
   "Empty the data and return stacks, reset the input source to the terminal, restart the interpreter loop."
   "Do not display a message."
   (forth-exception :quit))
 
 (define-word move-from-return-stack (:word "R>")
-  "(S: - x ) (R: x - )"
+  "(S: -- x ) (R: x -- )"
   "Pop the top item off the return stack and push it onto the data stack"
   (stack-push data-stack (stack-pop return-stack)))
 
 (define-word copy-from-return-stack (:word "R@")
-  "(S: - x ) (R: x - x )"
+  "(S: -- x ) (R: x -- x )"
   "Place a copy of the top item on the return stack onto the data stack"
   (stack-underflow-check return-stack)
   (stack-push data-stack (stack-cell return-stack 0)))
@@ -799,12 +799,12 @@
     (resolve-branch fs done)))
 
 (define-word stack-rot (:word "ROT")
-  "( x1 x2 x3 - x2 x3 x1 )"
+  "( x1 x2 x3 -- x2 x3 x1 )"
   "Rotate the top three items on the stack"
   (stack-rot data-stack))
 
 (define-word ash-right (:word "RSHIFT")
-  "( x1 u - n2 )"
+  "( x1 u -- n2 )"
   (let ((u (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
     (when (minusp u)
@@ -816,12 +816,12 @@
 ;;; S" extended by the File-Access word set
 
 (define-word single-to-double (:word "S>D")
-  "( n - d )"
+  "( n -- d )"
   "Convert the signed integer N to a signed double precision integer D"
   (stack-push-double data-stack (cell-signed (stack-pop data-stack))))
 
 (define-word add-sign-to-picture-buffer (:word "SIGN")
-  "( n - )"
+  "( n -- )"
   "If N is negative, add a minus sign to the beginning of the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use SIGN outside <# ... #>"))
@@ -829,7 +829,7 @@
     (add-to-pictured-buffer (memory-pictured-buffer memory) (forth-char #\-))))
 
 (define-word truncate-mod (:word "SM/REM")
-  "( d n1 - n2 n3 )"
+  "( d n1 -- n2 n3 )"
   "Divide the double precision integer D by the integer N1 using symmetric division"
   "Push the remainder N2 and quotient N3 onto the data stack"
   (let ((n1 (cell-signed (stack-pop data-stack)))
@@ -842,7 +842,7 @@
           (stack-push data-stack (cell-signed quotient))))))
 
 (define-word source (:word "SOURCE")
-  "( - c-addr u )"
+  "( -- c-addr u )"
   "Return the address C-ADDR and size U of the input buffer"
   (multiple-value-bind (address count)
       (access-source-buffer files)
@@ -856,7 +856,7 @@
 (defparameter +spaces+ "                                ")
 
 (define-word spaces (:word "SPACES")
-  "( u - )"
+  "( u -- )"
   "Write U spaces to the terminal"
   (let ((count (stack-pop data-stack)))
     (when (minusp count)
@@ -869,7 +869,7 @@
 ;;; STATE extended by the Programming-Tools word set
 
 (define-word stack-swap (:word "SWAP")
-  "( x1 x2 - x2 x1 )"
+  "( x1 x2 -- x2 x1 )"
   "Exchange the top two items on the data stack"
   (stack-swap data-stack))
 
@@ -880,7 +880,7 @@
     (resolve-branch fs branch)))
 
 (define-word write-string (:word "TYPE")
-  " ( a-addr u - )"
+  " ( a-addr u -- )"
   "Type the string at A-ADDR of length U on the terminal"
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
@@ -891,27 +891,27 @@
       (write-string (forth-string-to-native forth-memory offset count)))))
 
 (define-word print-tos-unsigned (:word "U.")
-  "( u - )"
+  "( u -- )"
   "Display the top cell of the data stack as an unsigned integer in the current base"
   (let ((value (cell-unsigned (stack-pop data-stack))))
     (format t "~VR " base value)))
 
 (define-word less-than-unsigned (:word "U<")
-  " ( u1 u2 - flag )"
+  " ( u1 u2 -- flag )"
   "Return true if U1 is less than U2"
   ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (> (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack)))
                              +true+ +false+)))
 
 (define-word unsigned-multiply-double (:word "UM*")
-  "( u1 u2 - ud )"
+  "( u1 u2 -- ud )"
   "Multiply the unsigned integers U1 and U2 and push the resulting unsigned double precision integer UD onto the data stack"
   (let ((u2 (cell-unsigned (stack-pop data-stack)))
         (u1 (cell-unsigned (stack-pop data-stack))))
     (stack-push-double data-stack (* u1 u2))))
 
 (define-word unsigned-floor-mod (:word "UM/MOD")
-  "( ud u1 - u2 u3 )"
+  "( ud u1 -- u2 u3 )"
   "Divide the unsigned double precision integer UD by the unsigned integer U1"
   "Push the unsigned remainder U2 and unsigned quotient U3 onto the data stack"
   (let ((u1 (cell-unsigned (stack-pop data-stack)))
@@ -952,7 +952,7 @@
       (add-and-register-word fs word address))))
 
 (define-word while (:word "WHILE" :immediate? t :compile-only? t)
-  "( x - )"
+  "( x -- )"
   "If X is zero, branch to the location immediately following the nearest REPEAT; otherwise, continue"
   "execution beyond the WHILE"
   (verify-control-structure fs :begin)
@@ -963,7 +963,7 @@
       (falsep (cell-unsigned (stack-pop data-stack))))))
 
 (define-word word (:word "WORD")
-  "WORD <text>" "( char - c-addr )"
+  "WORD <text>" "( char -- c-addr )"
   "Skip any leading occurences of the delimiter character CHAR. Parse TEXT delimited by CHAR."
   "Return C-ADDR, the address of a temporary location containing the parsed text as a counted string"
   (let* ((char (stack-pop data-stack))
@@ -980,7 +980,7 @@
     (seal-transient-space memory word-space)))
 
 (define-word xor (:word "XOR")
-  "( x1 x2 - x3 )"
+  "( x1 x2 -- x3 )"
   "Return the bitwise logical exclusive or of X1 with X2"
   (stack-push data-stack (cell-unsigned (logxor (stack-pop data-stack) (stack-pop data-stack)))))
 
@@ -990,7 +990,7 @@
   (setf (state fs) :interpreting))
 
 (define-word lookup-xt-compiled (:word "[']" :immediate? t :compile-only? t)
-  "' <name>" "( - xt )"
+  "' <name>" "( -- xt )"
   "Lookup NAME and fetch its execution token. Append code to the current definition to push the execution token onto the stack"
   (let ((name (word files #\Space)))
     (when (null name)
@@ -1002,7 +1002,7 @@
         `(stack-push data-stack ,(xt-token (word-execution-token word)))))))
 
 (define-word compile-char (:word "[CHAR]" :immediate? t :compile-only? t)
-  "[CHAR] <c>" "( - char )"
+  "[CHAR] <c>" "( -- char )"
   "When compiling a definition, parse the next word, usually a single character, and compile the ASCII value"
   "of its first character as a literal which will be pushed onto the data stack when the definition is executed"
   (let ((char (word files #\Space)))
@@ -1026,7 +1026,7 @@
     (write-string comment)))
 
 (define-word print-tos-in-field (:word ".R")
-  "( n1 +n2 - )"
+  "( n1 +n2 -- )"
   "Display N1 right aligned in a field N2 characters wide. If the number of characters required to display N1"
   "is greater than N2, all digits are displayed in a field as wide as necessary with no leading spaces"
   (let ((width (stack-pop data-stack))
@@ -1036,17 +1036,17 @@
     (format t "~V,VR" base width value)))
 
 (define-word not-zerop (:word "0<>")
-  " ( n - flag )"
+  " ( n -- flag )"
   "Return true if N is not equal to zero"
   (stack-push data-stack (if (zerop (cell-signed (stack-pop data-stack))) +false+ +true+)))
 
 (define-word plusp (:word "0>")
-  " ( n - flag )"
+  " ( n -- flag )"
   "Return true if N is greater than zero"
   (stack-push data-stack (if (plusp (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word move-two-to-return-stack (:word "2>R")
-  "(S: x1 x2 - ) (R: - x1 x2 )"
+  "(S: x1 x2 -- ) (R: -- x1 x2 )"
   "Pop the top two items off the data stack and push them onto the return stack"
   (let ((x2 (stack-pop data-stack))
         (x1 (stack-pop data-stack)))
@@ -1054,7 +1054,7 @@
     (stack-push return-stack x2)))
 
 (define-word move-two-from-return-stack (:word "2R>")
-  "(S: - x1 x2 ) (R: x1 x2 - )"
+  "(S: -- x1 x2 ) (R: x1 x2 -- )"
   "Pop the top two items off the return stack and push them onto the data stack"
   (let ((x2 (stack-pop return-stack))
         (x1 (stack-pop return-stack)))
@@ -1062,25 +1062,25 @@
     (stack-push data-stack x2)))
 
 (define-word copy-two-from-return-stack (:word "2R@")
-  "(S: - x1 x2 ) (R: x1 x2 - x1 x2 )"
+  "(S: -- x1 x2 ) (R: x1 x2 -- x1 x2 )"
   "Place a copy of the top two items on the return stack onto the data stack"
   (stack-underflow-check return-stack 2)
   (stack-push data-stack (stack-cell return-stack 1))
   (stack-push data-stack (stack-cell return-stack 0)))
 
 (define-word start-anonymous-definition (:word ":NONAME")
-  "( - xt )"
+  "( -- xt )"
   "Create an execution token XT, enter compilation state and start the current definition"
   "This definition can be executed later by using XT EXECUTE"
   (stack-push data-stack (begin-compilation fs)))
 
 (define-word not-equal (:word "<>")
-  " ( n1 n2 - flag )"
+  " ( n1 n2 -- flag )"
   "Return true if N1 is not equal to N2"
   (stack-push data-stack (if (/= (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))) +true+ +false+)))
 
 (define-word maybe-do (:word "?DO" :immediate? t :compile-only? t)
-  "( n1 n2 - )"
+  "( n1 n2 -- )"
   "Like DO, but check whether the limit value and initial loop index are equal. If they are, continue execution immediately"
   "following the next LOOP or +LOOP; otherwise, set up the loop values and continue execution immediately following ?DO"
   (let ((again (make-branch-reference :do))
@@ -1104,7 +1104,7 @@
     (resolve-branch fs again)))
 
 (define-word action-of (:word "ACTION-OF" :immediate? t)
-  "ACTION-OF <name>" "( - xt )"
+  "ACTION-OF <name>" "( -- xt )"
   "If interpreted, place the execution token (xt) that NAME is set to execute onto the stack"
   "If compiled, add code to the current definition to place the execution token that NAME is set to execute"
   "when this definition is executed onto the stack"
@@ -1135,7 +1135,7 @@
   (execute-branch fs (stack-pop control-flow-stack)))
 
 (define-word create-buffer (:word "BUFFER:")
-  "BUFFER: <name>" "( u - )"
+  "BUFFER: <name>" "( u -- )"
   "Reserve U bytes of memory at an aligned address and create a dictionary entry for <NAME>"
   "that returns the address of the first byte"
   (let ((name (word files #\Space)))
@@ -1150,7 +1150,7 @@
       (add-and-register-word fs word address))))
 
 (define-word counted-string (:word "C\"" :immediate? t :compile-only? t)
-  "C\" <text>\"" "( - a-addr )"
+  "C\" <text>\"" "( -- a-addr )"
   "Compile TEXT as a counted string into the current definition. When executed, place its address on the data stack"
   (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+))
@@ -1169,7 +1169,7 @@
     (stack-push control-flow-stack branch)))
 
 (define-word compile-comma (:word "COMPILE,")
-  "( xt – )"
+  "( xt -- )"
   "Append the execution semantics of the definition represented by XT to the execution semantics of the current definition"
   (let ((xt (stack-pop data-stack)))
     (compile-comma fs xt)))
@@ -1184,7 +1184,7 @@
       (add-and-register-word fs word))))
 
 (define-word defer! (:word "DEFER!")
-  "(xt2 xt1 - )"
+  "(xt2 xt1 -- )"
   "Set the word XT1 to execute XT2. XT1 must be the execution token of a word created by DEFER"
   (let* ((xt1 (stack-pop data-stack))
          (word (find-word execution-tokens xt1))
@@ -1195,7 +1195,7 @@
     (setf (first (word-parameters word)) xt2)))
 
 (define-word defer@ (:word "DEFER@")
-  "( xt1 – xt2 )"
+  "( xt1 -- xt2 )"
   "XT2 is the execution token XT1 is set to execute. XT1 must be the execution token of a word created by DEFER"
   (let* ((xt1 (stack-pop data-stack))
          (word (find-word execution-tokens xt1)))
@@ -1207,7 +1207,7 @@
       (stack-push data-stack xt))))
 
 (define-word endcase (:word "ENDCASE" :immediate? t :compile-only? t)
-  "( x - )"
+  "( x -- )"
   "Discard the top stack value X (presumably the case selector) and continue execution"
   (verify-control-structure fs :case)
   (let ((branch (stack-pop control-flow-stack)))
@@ -1224,7 +1224,7 @@
     (resolve-branch fs branch)))
 
 (define-word erase-memory (:word "ERASE")
-  "( c-addr u - )"
+  "( c-addr u -- )"
   "Set a region of memory, at address C-ADDR and of length U, to zero"
   (let ((count (cell-signed (stack-pop data-stack)))
         (address (stack-pop data-stack)))
@@ -1233,7 +1233,7 @@
     (memory-fill memory address count 0)))
 
 (define-word false (:word "FALSE")
-  "( - flag )"
+  "( -- flag )"
   "Return a FLAG that is false"
   (stack-push data-stack +false+))
 
@@ -1242,7 +1242,7 @@
   (setf base 16.))
 
 (define-word add-string-to-picture-buffer (:word "HOLDS")
-  "( c-addr u - )"
+  "( c-addr u -- )"
   "Adds the string represented by C-ADDR U to the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use HOLDS outside <# ... #>"))
@@ -1253,7 +1253,7 @@
     (add-string-to-pictured-buffer (memory-pictured-buffer memory) memory address count)))
 
 (define-word is (:word "IS" :immediate? t)
-  "IS <name>" "( xt - )"
+  "IS <name>" "( xt -- )"
   "If interpreting, set NAME to execute XT"
   "If compiling, add code to the current definition to set NAME to execute XT"
   (let ((name (word files #\Space)))
@@ -1290,12 +1290,12 @@
       (setf (word-parameters word) (list marker)))))
 
 (define-word stack-nip (:word "NIP")
-  "( x1 x2 - x2 )"
+  "( x1 x2 -- x2 )"
   "Drop the second item on the data stack, leaving the top unchanged"
   (stack-nip data-stack))
 
 (define-word of (:word "OF" :immediate? t :compile-only? t)
-  "( x1 x2 - | x1 )"
+  "( x1 x2 -- | x1 )"
   "If the test value X2 is not equal to the case selector X1, discard X2 and branch forward to the code"
   "immediately following the next ENDOF; otherwise, discard both values and continue execution beyond the OF "
   (verify-control-structure fs :case)
@@ -1308,12 +1308,12 @@
       `(stack-pop data-stack))))
 
 (define-word pad (:word "PAD")
-  "( - a-addr )"
+  "( -- a-addr )"
   "Return the address of a temporary storage area usually used for processing strings"
   (stack-push data-stack (pad-base-address memory)))
 
 (define-word parse (:word "PARSE")
-  "PARSE <text>" "( char - c-addr u )"
+  "PARSE <text>" "( char -- c-addr u )"
   "Parse TEXT to the first instance of CHAR."
   "C-ADDR is the address (within the input buffer) and U is the length of the parsed string"
   (multiple-value-bind (address length)
@@ -1322,7 +1322,7 @@
     (stack-push data-stack length)))
 
 (define-word parse-name (:word "PARSE-NAME")
-  "PARSE-NAME <name>" "( - c-addr u )"
+  "PARSE-NAME <name>" "( -- c-addr u )"
   "Skip leading space delimiters. Parse NAME delimited by a space"
   "C-ADDR is the address of the selected string within the input buffer and U is its length in characters"
   (multiple-value-bind (address length)
@@ -1331,7 +1331,7 @@
     (stack-push data-stack length)))
 
 (define-word stack-pick (:word "PICK")
-  "( +n - x )"
+  "( +n -- x )"
   "Place a copy of the Nth stack item onto the top of the data stack"
   (let ((n (stack-pop data-stack)))
     (when (minusp n)
@@ -1341,7 +1341,7 @@
 ;;; REFILL extended by File-Access word set
 
 (define-word restore-input (:word "RESTORE-INPUT")
-  "( x1 ... xn n - flag )"
+  "( x1 ... xn n -- flag )"
   "Attempt to restore the input source specification to the state described by X1 through XN."
   "FLAG is true if the input source specification cannot be so restored"
   (let* ((n (stack-pop data-stack))
@@ -1354,7 +1354,7 @@
         (stack-push data-stack +true+))))
 
 (define-word stack-roll (:word "ROLL")
-  "( x(u) x(u-1) . . . x(0) u – x(u-1) . . . x(0) x(u) )"
+  "( x(u) x(u-1) . . . x(0) u -- x(u-1) . . . x(0) x(u) )"
   "Remove U. Rotate U+1 items on the top of the stack"
   (let ((n (stack-pop data-stack)))
     (when (minusp n)
@@ -1364,7 +1364,7 @@
 ;;; S\" extended by File-Access word set
 
 (define-word save-input (:word "SAVE-INPUT")
-  "( - x1 ... xn n )"
+  "( -- x1 ... xn n )"
   "X1 through XN describe the current state of the input source specification for later use by RESTORE-INPUT"
   (let ((state-vector (save-input files)))
     (let ((n (length state-vector)))
@@ -1375,7 +1375,7 @@
 ;;; SOURCE-ID extended by the File-Access word set
 
 (define-word to (:word "TO" :immediate? t :inlineable? nil)
-  "TO <name>" "( x | x1 x2 - ) or (F: r - )"
+  "TO <name>" "( x | x1 x2 -- ) or (F: r -- )"
   "Store X in the data space associated with <name> which must have been created with VALUE or"
   "store X1 X2 in the data space associated with <name> which must have been created with 2VALUE or"
   "store R in the data space associated with <name> which must have been created with FVALUE"
@@ -1425,17 +1425,17 @@
                   `(setf (memory-native-float memory ,address) (stack-pop float-stack)))))))))))
 
 (define-word true (:word "TRUE")
-  "( - flag )"
+  "( -- flag )"
   "Return a FLAG that is true"
   (stack-push data-stack +true+))
 
 (define-word stack-tuck (:word "TUCK")
-  "( x1 x2 - x2 x1 x2 )"
+  "( x1 x2 -- x2 x1 x2 )"
   "Place a copy of the top item on the data stack below the second item on the stack"
   (stack-tuck data-stack))
 
 (define-word print-tos-unsigned-in-field (:word "U.R")
-  "( u +n - )"
+  "( u +n -- )"
   "Display U right aligned in a field N characters wide. If the number of characters required to display U"
   "is greater than N, all digits are displayed in a field as wide as necessary with no leading spaces"
   (let ((width (stack-pop data-stack))
@@ -1445,18 +1445,18 @@
     (format t "~V,VR" base width value)))
 
 (define-word greater-than-unsigned (:word "U>")
-  " ( u1 u2 - flag )"
+  " ( u1 u2 -- flag )"
   "Return true if U1 is greater than U2"
   ;; As the first value popped off the stack is U2, we'll reverse the sense of the test to get the proper answer
   (stack-push data-stack (if (< (cell-unsigned (stack-pop data-stack)) (cell-unsigned (stack-pop data-stack))) +true+ +false+)))
 
 (define-word unused (:word "UNUSED")
-  "( – u )"
+  "( -- u )"
   "U is the amount of space remaining in the region addressed by HERE, in address units"
   (stack-push data-stack (data-space-unused memory)))
 
 (define-word value (:word "VALUE")
-  "VALUE <name>" "( x - )"
+  "VALUE <name>" "( x -- )"
   "Allocate a cell in data space, initialize it to X, and create a dictionary entry for <name> which returns"
   "the contents of that cell in data space. To change the value, use TO"
   (let ((name (word files #\Space))
@@ -1470,7 +1470,7 @@
       (add-and-register-word fs word address))))
 
 (define-word within (:word "WITHIN")
-  "( x1 x2 x3 - flag )"
+  "( x1 x2 x3 -- flag )"
   "Returns true if X2 <= X1 < X3. X1, X2, and X3 should be either all signed or all unsigned"
   "Our implementation simulates a machine that ignores arithmeitc overflow. See the Forth 2012"
   "Standard, Section A.6.2.2440, for an explanation of how to handle this situation"

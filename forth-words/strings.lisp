@@ -13,7 +13,7 @@
 ;;; String words as defined in Section 17 of the Forth 2012 specification
 
 (define-word trailing-spaces (:word "-TRAILING")
-  "( c-addr u1 – c-addr u2 )"
+  "( c-addr u1 -- c-addr u2 )"
   "If U1 is greater than zero, U2 is equal to U1 less the number of spaces at the end of the character string"
   "specified by C-ADDR U1. If U1 is zero or the entire string consists of spaces, U2 is zero"
   (let* ((count (cell-signed (stack-pop data-stack)))
@@ -33,7 +33,7 @@
                                           0))))))))
 
 (define-word string-increment (:word "/STRING")
-  "( c-addr1 u1 n – c-addr2 u2 )"
+  "( c-addr1 u1 n -- c-addr2 u2 )"
   "Adjust the character string at C-ADDR1 by N characters. The resulting character string, specified by C-ADDR2 U2, begins"
   "at C-ADDR1 plus N characters and is U1 minus N characters long"
   (let ((n (cell-signed (stack-pop data-stack)))
@@ -49,7 +49,7 @@
            (stack-push data-stack (- count (* n +char-size+)))))))
 
 (define-word write-blanks (:word "BLANK")
-  "( c-addr u - )"
+  "( c-addr u -- )"
   "If U is greater than zero, store the character value for space in U consecutive character positions beginning at C-ADDR"
   (let ((count (cell-signed (stack-pop data-stack)))
         (address (stack-pop data-stack)))
@@ -61,7 +61,7 @@
            (memory-fill memory address count +forth-char-space+)))))
 
 (define-word cmove (:word "CMOVE")
-  "( c-addr1 c-addr2 u – )"
+  "( c-addr1 c-addr2 u -- )"
   "If U is greater than zero, copy U consecutive characters from the data space starting at C-ADDR1 to that starting"
   "at C-ADDR2, proceeding character-by-character from lower addresses to higher addresses"
   (let ((count (cell-signed (stack-pop data-stack)))
@@ -77,7 +77,7 @@
 
 
 (define-word cmove> (:word "CMOVE>")
-  "( c-addr1 c-addr2 u – )"
+  "( c-addr1 c-addr2 u -- )"
   "If U is greater than zero, copy U consecutive characters from the data space starting at C-ADDR1 to that starting"
   "at C-ADDR2, proceeding character-by-character from higher addresses to lower addresses"
   (let ((count (cell-signed (stack-pop data-stack)))
@@ -92,7 +92,7 @@
              (setf (memory-byte memory (+ address2 (- count i 1))) (memory-byte memory (+ address1 (- count i 1)))))))))
 
 (define-word compare (:word "COMPARE")
-  "( c-addr1 u1 c-addr2 u2 – n )"
+  "( c-addr1 u1 c-addr2 u2 -- n )"
   "Compare the string specified by C-ADDR1 U1 to the string specified by C-ADDR2 U2. The strings are compared, beginning"
   "at the given addresses, character by character, up to the length of the shorter string or until a difference is found."
   "If the two strings are identical, N is zero. If the two strings are identical up to the length of the shorter string,"
@@ -134,7 +134,7 @@
                        (stack-push data-stack 1))))))))))
 
 (define-word search (:word "SEARCH")
-  "( c-addr1 u1 c-addr2 u2 – c-addr3 u3 flag )"
+  "( c-addr1 u1 c-addr2 u2 -- c-addr3 u3 flag )"
   "Search the string specified by C-ADDR1 U1 for the string specified by C-ADDR2 U2."
   "If FLAG is true, a match was found at C-ADDR3 with U3 characters remaining."
   "If FLAG is false there was no match and C-ADDR3 is C-ADDR1 and U3 is U1"
@@ -163,7 +163,7 @@
                    (stack-push data-stack +true+)))))))))
 
 (define-word sliteral (:word "SLITERAL" :immediate? t :compile-only? t)
-  "Compilation: ( c-addr1 u - )" "Run-time: ( - c-addr2 u )"
+  "Compilation: ( c-addr1 u -- )" "Run-time: ( -- c-addr2 u )"
   "Return C-ADDR2 U describing a string consisting of the characters specified by C-ADDR1 U during compilation"
   (let* ((count (cell-signed (stack-pop data-stack)))
          (address (stack-pop data-stack)))
@@ -180,7 +180,7 @@
 ;;; String extension words as defined in Section 17 of the Forth 2012 specification
 
 (define-word replaces (:word "REPLACES")
-  "( c-addr1 u1 c-addr2 u2 – )"
+  "( c-addr1 u1 c-addr2 u2 -- )"
   "Set the string C-ADDR1 U1 as the text to substitute for the substitution named by C-ADDR2 U2."
   "If the substitution does not exist it is created"
   (let ((count2 (cell-signed (stack-pop data-stack)))
@@ -200,7 +200,7 @@
           (register-replacement replacements name substitution))))))
 
 (define-word substitute (:word "SUBSTITUTE")
-  "( c-addr1 u1 c-addr2 u2 – c-addr2 u3 n )"
+  "( c-addr1 u1 c-addr2 u2 -- c-addr2 u3 n )"
   "Perform substitution on the string C-ADDR1 U1 placing the result at string C-ADDR2 U3, where U3 is the length"
   "of the resulting string. An error occurs if the resulting string will not fit into C-ADDR2 U2 or if C-ADDR2 is"
   "the same as C-ADDR1. The return value N is positive or 0 on success and indicates the number of substitutions made."
@@ -237,7 +237,7 @@
                      (stack-push data-stack n-replacements))))))))))
                    
 (define-word unescape (:word "UNESCAPE")
-  "( c-addr1 u1 c-addr2 – c-addr2 u2 )"
+  "( c-addr1 u1 c-addr2 -- c-addr2 u2 )"
   "Replace each ‘%’ character in the input string C-ADDR1 U1 by two ‘%’ characters. The output is represented by C-ADDR2 U2"
   (let* ((address2 (stack-pop data-stack))
          (count (cell-signed (stack-pop data-stack)))

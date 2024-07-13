@@ -13,16 +13,16 @@
 ;;; Locals words as defined in Section 13 of the Forth 2012 specification
 
 (define-word define-local (:word "(LOCAL)" :immediate? t :compile-only? t)
-  "Execution: ( c-addr u - )"
+  "Execution: ( c-addr u -- )"
   "When executed during compilation, (LOCAL) passes a message to the system that has one of two meanings."
   "If U is non-zero, the message identifies a new local whose definition name is given by the string of characters"
   "identified by C-ADDR U. If U is zero, the message is \"last local\" and C-ADDR has no significance."
   "The result of executing (LOCAL) during compilation of a definition is to create a set of named local identifiers,"
   "each of which is a definition name, that only have execution semantics within the scope of that definition’s source."
-  "LOCAL Execution: ( - x )"
+  "LOCAL Execution: ( -- x )"
   "Push the local's value, X, on the data stack. Each local is initialized by popping a value off the data stack and"
   "may be changed by preceeding the local's name with TO"
-  "TO <local> Run-time: ( x - )"
+  "TO <local> Run-time: ( x -- )"
   "Assign the value X to the local identifier <LOCAL>"
   (add-to-definition fs
     `(let ((count (cell-signed (stack-pop data-stack)))
@@ -44,7 +44,7 @@
   "LOCAL| name1 ... nameN |"
   "Create up to eight local identifiers by repeatedly skipping leading spaces, parsing name, and executing (LOCAL)."
   "The list of locals to be defined is terminated by | . Append the run-time semantics given below to the current definition."
-  "Run-time: ( xn ... x2 x1 - )"
+  "Run-time: ( xn ... x2 x1 -- )"
   "Initialize up to eight local identifiers, each of which takes as its initial value from the top stack item, removing it"
   "from the stack. Identifier NAME1 is initialized with X1, identifier NAME2 with X2, etc. When invoked, each local will"
   "return its value. The value of a local may be changed using TO"
@@ -65,17 +65,17 @@
 (define-word declare-locals-new (:word "{:" :immediate? t :compile-only? t)
   "{: ccc :}"
   "Compilation: Parse ccc according to the following syntax:"
-  "    {: <arg>* [| ⟨val⟩*] [ –– ⟨out⟩*] :}"
+  "    {: <arg>* [| ⟨val⟩*] [ -- ⟨out⟩*] :}"
   "where ⟨ARG⟩, ⟨VAL⟩ and ⟨OUT⟩ are local names, and I is the number of ⟨arg⟩ names given."
   "Append the run-time semantics below."
-  "Run-time: ( x1 ... xn - )"
+  "Run-time: ( x1 ... xn -- )"
   "Create locals for ⟨ARG⟩s and ⟨VAL⟩s. ⟨OUT⟩s are ignored."
   "⟨ARG⟩ names are initialized from the data stack, with the top of the stack being assigned to the right most ⟨ARG⟩ name."
   "⟨VAL⟩ names are uninitialized."
   "⟨VAL⟩ and ⟨ARG⟩ names have the execution semantics given below."
-  "NAME Execution: ( - x )"
+  "NAME Execution: ( -- x )"
   "Place the value currently assinged to NAME on the stack."
-  "TO <name> Run-time: (x - )"
+  "TO <name> Run-time: (x -- )"
   "Set NAME to the value X"
   (let ((args? t)
         (args nil)

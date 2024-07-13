@@ -24,8 +24,8 @@
     `(setf (gethash ,name *environment-queries*) (make-query :name ,name :result ,thunk))))
 
 (define-word environment-query (:word "ENVIRONMENT?")
-  "( c-addr u – false | i*x true )"
-  "c-ADDR is the address of a character string and U is the string’s character count. U may have a value in the range"
+  "( c-addr u -- false | i*x true )"
+  "C-ADDR is the address of a character string and U is the string’s character count. U may have a value in the range"
   "from zero to an implementation-defined maximum which shall not be less than 31. The character string should contain"
   "a keyword from 3.2.6 Environmental queries or the optional word sets to be checked for correspondence with an attribute"
   "of the present environment. If the system treats the attribute as unknown, the returned FLAG is false;"

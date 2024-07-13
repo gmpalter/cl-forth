@@ -388,7 +388,7 @@
 (defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
   (let ((description (format nil "Place the address of ~A on the stack" forth-name)))
     `(define-word ,slot (:word-list ,word-list :word ,forth-name :immediate? ,immediate? :compile-only? ,compile-only?)
-       "( - a-addr )"
+       "( -- a-addr )"
        ,description
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
