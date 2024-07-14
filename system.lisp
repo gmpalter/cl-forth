@@ -465,22 +465,30 @@
         (values 0 cxt))))
 
 (define-forth-method show-definition (fs word)
-  (cond ((word-inline-forms word)
-         (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs &rest parameters)
-                         (declare (ignorable parameters))
-                         (with-forth-system (fs)
-                           (tagbody
-                              ,@(reverse (word-inline-forms word))
-                            :exit)))))
-           (format t "~&Source code for ~A:" (word-name word))
-           (let ((*package* (find-package '#:forth)))
-             (pprint thunk)
-             (terpri))))
-        ((word-code word)
-         (format t "~&Object code for ~A:~%" (word-name word))
-         (disassemble (word-code word)))
-        (t
-         (format t "~&No human-readable definition of ~A~%" (word-name word)))))
+  (flet ((show-documentation (add-newline?)
+           (when (word-documentation word)
+             (dolist (line (word-documentation word))
+               (format t "~&;;; ~A" line))
+             (when add-newline?
+               (terpri)))))
+    (cond ((word-inline-forms word)
+           (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs &rest parameters)
+                           (declare (ignorable parameters))
+                           (with-forth-system (fs)
+                             (tagbody
+                                ,@(reverse (word-inline-forms word))
+                              :exit)))))
+             (format t "~&Source code for ~A:" (word-name word))
+             (show-documentation nil)
+             (let ((*package* (find-package '#:forth)))
+               (pprint thunk)
+               (terpri))))
+          ((word-code word)
+           (format t "~&Object code for ~A:~%" (word-name word))
+           (show-documentation t)
+           (disassemble (word-code word)))
+          (t
+           (format t "~&No human-readable definition of ~A~%" (word-name word))))))
 
 ;;;
 

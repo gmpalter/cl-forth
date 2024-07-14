@@ -349,6 +349,7 @@
    (code :accessor word-code :initarg :code :initform nil)
    (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
    (parameters :accessor word-parameters :initarg :parameters :initform nil)
+   (documentation :accessor word-documentation :initarg :documentation :initform nil)
    (does> :accessor word-does> :initform nil)
    (parent :accessor word-parent :initform nil)
    (execution-token :accessor word-execution-token :initform nil)
@@ -366,9 +367,10 @@
                        &body body)
   (let* ((word (gensym))
          (key (format nil "~A.~A" word-list forth-name))
+         (documentation nil)
          (body (loop with forms = (copy-list body)
                      while (stringp (car forms))
-                     do (pop forms)
+                     do (push (pop forms) documentation)
                      finally (return forms)))
          (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs &rest parameters)
                    (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
@@ -382,7 +384,8 @@
                                    :inlineable? ,inlineable?
                                    :code ,thunk
                                    :inline-forms ',(when inlineable?
-                                                     (reverse body)))))
+                                                     (reverse body))
+                                   :documentation (reverse ',documentation))))
          (setf (gethash ,key *predefined-words*) (cons ,word-list ,word))))))
 
 (defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
