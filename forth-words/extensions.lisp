@@ -243,7 +243,7 @@
                   (word-compile-only? old-word) (word-compile-only? new-word)
                   (word-inlineable? old-word) (word-inlineable? new-word)
                   (word-inline-forms old-word) (word-inline-forms new-word)
-                  (word-documentation old-word) (word-documentation new-word)))
+                  (word-documentation old-word) (word-documentation new-word))
             (add-word (word-list word-lists word-list) new-word :override t))))))
 
 (define-word remove (:word "REMOVE")
