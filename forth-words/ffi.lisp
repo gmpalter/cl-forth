@@ -242,3 +242,115 @@
       (let* ((callback (build-ffi-callback ffi fs name xt parameters return-value))
              (word (make-word name #'push-parameter-as-callback-ptr :parameters (list callback))))
         (add-and-register-word fs word)))))
+
+
+;;; BEGIN-NAMED-STRUCTURE and additional field defining words
+
+(define-word begin-named-structure (:word "BEGIN-NAMED-STRUCTURE")
+  "BEGIN-NAMED-STRUCTURE <name>" "( -- struct-sys 0 )"
+  "Skip leading space delimiters. Parse NAME delimited by a space. Create a definition for NAME with the execution semantics"
+  "defined below. Return a STRUCT-SYS (zero or more implementation dependent items) that will be used by END-STRUCTURE and an"
+  "initial offset of 0."
+  "Fields added to this structure will have the structure's name prepended to the field name (e.g., \"STR.FIELD\")"
+  "NAME Execution: ( -- +n )"
+  "+N is the size in memory expressed in address units of the data structure"
+  (let ((name (word files #\Space))
+        (struct (make-forth-structure :named? t)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (make-word name #'push-structure-size-from-parameter :smudge? t :parameters (list struct))))
+      (setf (fs-word struct) word)
+      (add-and-register-word fs word)
+      (stack-push data-stack struct)
+      (stack-push data-stack 0))))
+
+(define-word define-word-field (:word "WFIELD:")
+  "WFIELD: <name> -- ( n1 – n2 )"
+  "Skip leading space delimiters. Parse NAME delimited by a space. OFFSET is the first 2-byte (word) aligned value"
+  "greater than or equal to N1. N2 = OFFSET + 1 word. Create a definition for STR.NAME with the execution semantics below"
+  "NAME Execution: ( addr1 – addr2 )"
+  "Add the offset calculated during the compile-time action to ADDR1 giving the address ADDR2"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (add-structure-field fs name 2)))
+
+(define-word define-long-field (:word "LFIELD:")
+  "LFIELD: <name> -- ( n1 – n2 )"
+  "Skip leading space delimiters. Parse NAME delimited by a space. OFFSET is the first 4-byte (longword) aligned value"
+  "greater than or equal to N1. N2 = OFFSET + 1 longword. Create a definition for NAME with the execution semantics below"
+  "NAME Execution: ( addr1 – addr2 )"
+  "Add the offset calculated during the compile-time action to ADDR1 giving the address ADDR2"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (add-structure-field fs name 4)))
+
+
+;;; Memory access for smaller than cell sized data
+;;; ---*** NOTE: Some of these words have been proposed as additions to Standard Forth but with slightly different
+;;;              semantics. We will reconcile those differences if and when they are accepted into the standard.
+
+(define-word fetch-word (:word "W@")
+  "( addr -- x )"
+  "Fetch 2 bytes (1 word) stored at ADDR. When the cell size is greater than 2 bytes, propogate the high-order"
+  "bit of the high-order byte into the unused high-order bits of the cell"
+  (stack-push data-stack (memory-double-byte memory (stack-pop data-stack))))
+
+(define-word fetch-unsigned-word (:word "UW@")
+  "( addr -- x )"
+  "Fetch 2 bytes (1 word) stored at ADDR. When the cell size is greater than 2 bytes, the unused high-order bits"
+  "are all zeroes"
+  (stack-push data-stack (double-byte-unsigned (memory-double-byte memory (stack-pop data-stack)))))
+
+(define-word store-word (:word "W!")
+  "( x addr -- )"
+  "Store the low-order 2 bytes (1 word) of X at ADDR"
+  (let ((address (stack-pop data-stack))
+        (data (stack-pop data-stack)))
+    (setf (memory-double-byte memory address) data)))
+
+(define-word allocate-word (:word "W,")
+  "( x -- )"
+  "Reserve space for 2 bytes (1 word) in data space and store the low-order 2 bytes of X in the space"
+  (let ((value (stack-pop data-stack))
+        (address (allocate-memory memory 2)))
+    (setf (memory-double-byte memory address) value)))
+
+(define-word fetch-long (:word "L@")
+  "( addr -- x )"
+  "Fetch 4 bytes (1 long) stored at ADDR. When the cell size is greater than 4 bytes, propogate the high-order"
+  "bit of the high-order byte into the unused high-order bits of the cell"
+  (stack-push data-stack (memory-quad-byte memory (stack-pop data-stack))))
+
+(define-word fetch-unsigned-long (:word "UL@")
+  "( addr -- x )"
+  "Fetch 4 bytes (1 long) stored at ADDR. When the cell size is greater than 4 bytes, the unused high-order bits"
+  "are all zeroes"
+  (stack-push data-stack (quad-byte-unsigned (memory-quad-byte memory (stack-pop data-stack)))))
+
+(define-word store-long (:word "L!")
+  "( x addr -- )"
+  "Store the low-order 4 bytes (1 long) of X at ADDR"
+  (let ((address (stack-pop data-stack))
+        (data (stack-pop data-stack)))
+    (setf (memory-quad-byte memory address) data)))
+
+(define-word allocate-long (:word "L,")
+  "( x -- )"
+  "Reserve space for 4 bytes (1 long) in data space and store the low-order 4 bytes of X in the space"
+  (let ((value (stack-pop data-stack))
+        (address (allocate-memory memory 2)))
+    (setf (memory-quad-byte memory address) value)))
+
+(define-word fetch-pointer (:word "P@")
+  "( addr -- x )"
+  "Fetch X from ADDR. X is interpreted as a pointer to, possibly, foreign memory"
+  (stack-push data-stack (native-address memory (address-pointer (memory-cell memory (stack-pop data-stack))))))
+
+(define-word store-pointer (:word "P!")
+  "( x addr -- )"
+  "Store X at ADDR. X is interpreted as a pointer to, possibly, foreign memory"
+  (let ((address (stack-pop data-stack))
+        (data (stack-pop data-stack)))
+    (setf (memory-cell memory address) (pointer-address (foreign-pointer memory data)))))

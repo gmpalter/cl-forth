@@ -56,7 +56,26 @@
 (defstruct (forth-structure (:conc-name #:fs-))
   (size 0)
   (word nil)
+  (named? nil)
   (fields nil))
+
+(defun add-structure-field (fs name field-size &optional (align? t))
+  (with-forth-system (fs)
+    (let* ((original-offset (stack-pop data-stack))
+           (offset (cond ((zerop (mod original-offset field-size))
+                          original-offset)
+                         (align?
+                          (+ original-offset (- field-size (mod original-offset field-size))))
+                         (t
+                          original-offset)))
+           (struct (stack-cell data-stack 0))
+           (name (if (fs-named? struct)
+                     (format nil "~A.~A" (word-name (fs-word struct)) name)
+                     name))
+           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
+      (push word (fs-fields struct))
+      (add-and-register-word fs word)
+      (stack-push data-stack (+ offset field-size)))))
 
 (defun push-structure-size-from-parameter (fs &rest parameters)
   (with-forth-system (fs)

@@ -29,12 +29,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((size (stack-pop data-stack))
-           (offset (stack-pop data-stack))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset size)))))
+    (add-structure-field fs name (stack-pop data-stack) nil)))
 
 (define-word begin-structure (:word "BEGIN-STRUCTURE")
   "BEGIN-STRUCTURE <name>" "( -- struct-sys 0 )"
@@ -62,14 +57,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((original-offset (stack-pop data-stack))
-           (offset (if (zerop (mod original-offset +char-size+))
-                       original-offset
-                       (+ original-offset (- +char-size+ (mod original-offset +char-size+)))))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset +char-size+)))))
+    (add-structure-field fs name +char-size+)))
 
 ;;;---*** EKEY
 ;;;---*** EKEY>CHAR
@@ -103,14 +91,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((original-offset (stack-pop data-stack))
-           (offset (if (zerop (mod original-offset +cell-size+))
-                       original-offset
-                       (+ original-offset (- +cell-size+ (mod original-offset +cell-size+)))))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset +cell-size+)))))
+    (add-structure-field fs name +cell-size+)))
 
 ;;;---*** K-ALT-MASK, K-CTRL-MASK, K-DELETE, K-DOWN, K-END, K-F1, K-F10, K-F11, K-F12, K-F2, K-F3, K-F4, K-F5
 ;;;---*** K-F6, K-F7, K-K8, K-F9, K-HOME, K-INSERT, K-LEFT, K-NEXT, K-PRIOR, K-RIGHT, K-SHIFT-MASK, K-UP

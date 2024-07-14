@@ -361,14 +361,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((original-offset (stack-pop data-stack))
-           (offset (if (zerop (mod original-offset +double-float-cell-size+))
-                       original-offset
-                       (+ original-offset (- +double-float-cell-size+ (mod original-offset +double-float-cell-size+)))))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset +double-float-cell-size+)))))
+    (add-structure-field fs name +double-float-cell-size+)))
 
 (define-word dfloat-plus (:word "DFLOAT+")
   "( df-addr1 -- df-addr2 )"
@@ -525,14 +518,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((original-offset (stack-pop data-stack))
-           (offset (if (zerop (mod original-offset +double-float-cell-size+))
-                       original-offset
-                       (+ original-offset (- +double-float-cell-size+ (mod original-offset +double-float-cell-size+)))))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset +double-float-cell-size+)))))
+    (add-structure-field fs name +native-float-cell-size+)))
 
 (define-word float-natural-log (:word "FLN")
   "(F: r1 -- r2 )"
@@ -715,14 +701,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let* ((original-offset (stack-pop data-stack))
-           (offset (if (zerop (mod original-offset +single-float-cell-size+))
-                       original-offset
-                       (+ original-offset (- +single-float-cell-size+ (mod original-offset +single-float-cell-size+)))))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
-      (push word (fs-fields (stack-cell data-stack 0)))
-      (add-and-register-word fs word)
-      (stack-push data-stack (+ offset +single-float-cell-size+)))))
+    (add-structure-field fs name +single-float-cell-size+)))
 
 (define-word sfloat-plus (:word "SFLOAT+")
   "( sf-addr1 -- sf-addr2 )"
