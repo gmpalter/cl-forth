@@ -243,6 +243,7 @@
                                  :parameters (copy-list (word-parameters old-word)))))
         (setf (word-inlineable? new-word) (word-inlineable? old-word)
               (word-inline-forms new-word) (word-inline-forms old-word)
+              (word-documentation new-word) (word-documentation old-word)
               (word-does> new-word) (word-does> old-word))
         (add-and-register-word fs new-word)))))
 
