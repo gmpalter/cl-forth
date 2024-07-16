@@ -30,7 +30,21 @@
          (libraries (loop for library = (word files #\Space)
                           while library
                           collect library))
-         (library (find target-suffix libraries :key #'pathname-type :test #'equalp)))
+         (library (find-if #'(lambda (library)
+                               (labels ((match? (filename)
+                                          (let ((type (pathname-type filename)))
+                                            (or (equalp type target-suffix)
+                                                ;; On Linux, library names may end with a version number rather than the
+                                                ;; the "so" suffix (e.g., "libc.so.6", "libcurl.so.4.6.0"). As modern Lisps
+                                                ;; will return the last component (e.g., "6", "0") as the pathname-type,
+                                                ;; we need to recursively check the pathname-name to see if it has the
+                                                ;; right suffix until the type is no longer numeric
+                                                (when (multiple-value-bind (val end)
+                                                          (parse-integer type :junk-allowed t)
+                                                        (and (integerp val) (= end (length type))))
+                                                  (match? (pathname-name filename)))))))
+                                 (match? library)))
+                           libraries)))
     (if library
         (load-foreign-library ffi library)
         (format t "~&Warning: No library for this platform specified in: XLIBRARY ~{~A ~}~%" libraries))))
@@ -105,12 +119,12 @@
         (forth-exception :zero-length-name))
       (unless optional?
         (when (null (cffi:foreign-symbol-pointer name :library (library-ffi-library (ffi-current-library ffi))))
-          (forth-exception :undefined-foreign-function "~A is not defined in ~A"
-                           name (library-name (ffi-current-library ffi)))))
+          (forth-exception :undefined-foreign-function "Foreign function ~A~@[ (AS ~A)~] is not defined~@[ in ~A~]"
+                           name forth-name  #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)))
       (multiple-value-bind (parameters return-value)
           (parse-parameters-and-return fs "FUNCTION:")
         (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?))
-               (word (make-word (or forth-name name) code)))
+               (word (make-word (or forth-name name) code :parameters (list forth-name))))
           (add-and-register-word fs word))))))
 
 (define-word ffi-function (:word "FUNCTION:")
@@ -128,9 +142,10 @@
         (forth-exception :zero-length-name))
       (unless optional?
         (when (null (cffi:foreign-symbol-pointer name :library (library-ffi-library (ffi-current-library ffi))))
-          (forth-exception :undefined-foreign-global "~A is not defined in ~A" name (library-name (ffi-current-library ffi)))))
+          (forth-exception :undefined-foreign-global "Foreign global ~A~@[ (AS ~A)~] is not defined~@[ ~A~]"
+                           name forth-name #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)))
       (let ((word (make-word (or forth-name name) #'push-parameter-as-global-pointer
-                             :parameters (list name (ffi-current-library ffi)))))
+                             :parameters (list name forth-name (ffi-current-library ffi)))))
         (add-and-register-word fs word)))))
   
 (define-word ffi-global (:word "GLOBAL:")
@@ -156,9 +171,9 @@
             ((string-equal definition "AS")
              (forth-exception :duplicate-as-clauses))
             ((null definition)
-             (forth-exception :missing-foreign-definition))
+             (forth-exception :missing-foreign-definition "AS must be followed by [OPTIONAL], FUNCTION:, or GLOBAL:"))
             (t
-             (forth-exception :missing-foreign-definition "AS must be followed by [OPTIONAL], FUNCTION: or GLOBAL:, not ~A"
+             (forth-exception :missing-foreign-definition "AS must be followed by [OPTIONAL], FUNCTION:, or GLOBAL:, not ~A"
                               definition))))))
 
 (define-word ffi-rename (:word "AS")
@@ -173,6 +188,11 @@
              (ffi-define-function fs :forth-name forth-name :optional? t))
             ((string-equal definition "GLOBAL:")
              (ffi-define-global fs :forth-name forth-name :optional? t))
+            ((string-equal definition "LIBRARY")
+             (let ((filename (word files #\Space)))
+               (when (null filename)
+                 (forth-exception :zero-length-name))
+               (load-foreign-library ffi filename :optional? t)))
             ((string-equal definition "AS")
              (when forth-name
                (forth-exception :duplicate-as-clauses))
@@ -180,14 +200,15 @@
             ((string-equal definition "[OPTIONAL]")
              (forth-exception :duplicate-optional-clauses))
             ((null definition)
-             (forth-exception :missing-foreign-definition))
+             (forth-exception :missing-foreign-definition "[OPTIONAL] must be followed by AS, LIBRARY, FUNCTION:, or GLOBAL:"))
             (t
-             (forth-exception :missing-foreign-definition "[OPTIONAL] must be followed by AS, FUNCTION,: or GLOBAL:, not ~A"
+             (forth-exception :missing-foreign-definition
+                              "[OPTIONAL] must be followed by AS, LIBRARY, FUNCTION:, or GLOBAL:, not ~A"
                               definition))))))
 
 (define-word ffi-optional (:word "[OPTIONAL]")
   "[OPTIONAL] <definition>"
-  "Mark the next definition, either a FUNCTION: or GLOBAL:, as optional"
+  "Mark the next definition, a LIBRARY, FUNCTION: or GLOBAL:, as optional"
   (ffi-do-optional fs))
 
 (define-word show-libraries (:word ".LIBS")
@@ -197,7 +218,10 @@
         (t
          (write-line "Foreign Libraries:")
          (loop for library across (ffi-libraries ffi)
-               do (format t "~& ~A~%" (library-name library))))))
+               if (eq (library-ffi-library library) :default)
+                 do (write-line " [Default]")
+               else
+                 do (format t "~& ~A~@[ (not loaded)~]~%" (library-name library) (library-not-loaded? library))))))
 
 (define-word show-imports (:word ".IMPORTS")
   "Displays a list of all currently available functions imported by FUNCTION:"
@@ -220,10 +244,10 @@
                                                    (t t))))))
            (write-line "Imported functions:")
            (dolist (import imports)
-             (format t "~&  ~16,'0X ~A ~A~%"
+             (format t "~&  ~16,'0X ~@[~A ~]~A~%"
                      (let ((pointer (cffi:foreign-symbol-pointer (ffi-call-name import))))
-                       (if pointer (pointer-address pointer) "<Undefined>     "))
-                     (library-name (ffi-call-library import))
+                       (if pointer (pointer-address pointer) "     <Undefined>"))
+                     #+LispWorks (library-name (ffi-call-library import)) #-LispWorks nil
                      (ffi-call-name import)))))))
 
 (define-word ffi-callback (:word "CALLBACK:")

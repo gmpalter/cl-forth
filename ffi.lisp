@@ -130,7 +130,8 @@
 
 (defstruct library
   name
-  ffi-library)
+  ffi-library
+  not-loaded?)
 
 (defstruct ffi-call
   name
@@ -149,6 +150,15 @@
    (ffi-calls :accessor ffi-ffi-calls :initform (make-hash-table :test #'equalp))
    (callbacks :initform (make-hash-table :test #'equalp)))
   )
+
+#-LispWorks
+;;; In CCL and SBCL, CFFI ignores the :LIBRARY argument to CFFI:FOREIGN-FUNCALL and CFFI:FOREIGN-SYMBOL-POINTER
+;;; For those platforms, provide a "libDefault" library to allow FUNCTION: and GLOBAL: to be used without first
+;;; loading a library
+(defmethod initialize-instance :after ((ffi ffi) &key &allow-other-keys)
+  (with-slots (libraries current-library) ffi
+    (setf current-library (make-library :name "libDefault" :ffi-library :default))
+    (vector-push-extend current-library libraries)))
 
 (defmethod save-to-template ((ffi ffi))
   (with-slots (libraries ffi-calls callbacks) ffi
@@ -183,22 +193,29 @@
                                         (callback-parameters callback) (callback-return-value callback)))))))))
   nil)
 
-(defmethod load-foreign-library ((ffi ffi) name-or-path)
+(defmethod load-foreign-library ((ffi ffi) name-or-path &key optional?)
   (with-slots (libraries current-library) ffi
-    (handler-case
-        (let* ((library-symbol (intern (string-upcase (file-namestring name-or-path)) '#:forth-ffi-symbols))
-               (name-or-path (if (string-equal (file-namestring name-or-path) name-or-path)
-                                 name-or-path
-                                 (pathname name-or-path)))
-               (library (make-library :name name-or-path :ffi-library library-symbol)))
-          ;; If REGISTER-FOREIGN-LIBRARY were exported, I'd use it instead to avoid using EVAL
-          (eval `(cffi:define-foreign-library ,library-symbol (t ,name-or-path)))
-          (cffi:load-foreign-library library-symbol)
-          (when (null (position library-symbol libraries :key #'library-ffi-library))
-            (vector-push-extend library libraries))
-          (setf current-library library))
-      (cffi:load-foreign-library-error (e)
-        (forth-exception :cant-load-foreign-library "~A" e)))))
+    (let* ((library-symbol (intern (string-upcase (file-namestring name-or-path)) '#:forth-ffi-symbols))
+           (name-or-path (if (string-equal (file-namestring name-or-path) name-or-path)
+                             name-or-path
+                             (pathname name-or-path)))
+           (library (make-library :name name-or-path :ffi-library library-symbol)))
+      (flet ((add-library ()
+               (when (null (position library-symbol libraries :key #'library-ffi-library))
+                 (vector-push-extend library libraries))
+               (setf current-library library)))
+        (handler-case
+            (progn
+              ;; If REGISTER-FOREIGN-LIBRARY were exported, I'd use it instead to avoid using EVAL
+              (eval `(cffi:define-foreign-library ,library-symbol (t ,name-or-path)))
+              (cffi:load-foreign-library library-symbol)
+              (add-library))
+          (cffi:load-foreign-library-error (e)
+            (if optional?
+                (progn
+                  (setf (library-not-loaded? library) t)
+                  (add-library))
+                (forth-exception :cant-load-foreign-library "~A" e))))))))
 
 (defmethod build-ffi-call ((ffi ffi) name library parameters return-value optional?)
   (with-slots (ffi-calls) ffi
@@ -227,10 +244,12 @@
            (optional-form
              (when optional?
                `((when (null (cffi:foreign-symbol-pointer ,name :library ',(library-ffi-library library)))
-                   (forth-exception :undefined-foreign-function "~A is not defined in ~A"
-                                    ,name ',(library-name library))))))
+                   (forth-exception :undefined-foreign-function "Foreign function ~A~@[ (AS ~A)~] is not defined~@[ in ~A~]"
+                                    ,name (first parameters) #+LispWorks ',(library-name library) #-LispWorks nil)))))
            (call-form
-             `((,result-symbol (cffi:foreign-funcall (,name :library ,(library-ffi-library library))
+             ;; CFFI:FOREIGN-FUNCALL will crash if passed :DEFAULT as the foreign library. (Sigh)
+             `((,result-symbol (cffi:foreign-funcall (,name ,@(unless (eq (library-ffi-library library) :default)
+                                                                `((:library ,(library-ffi-library library)))))
                                                      ,@(loop for parameter in parameters
                                                              for symbol in parameter-symbols
                                                              collect parameter

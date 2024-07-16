@@ -91,10 +91,12 @@
 (defun push-parameter-as-global-pointer (fs &rest parameters)
   (with-forth-system (fs)
     (let* ((name (first parameters))
-           (library (library-ffi-library (second parameters)))
+           (forth-name (second parameters))
+           (library (library-ffi-library (third parameters)))
            (pointer (cffi:foreign-symbol-pointer name :library library)))
       (if (null pointer)
-          (forth-exception :undefined-foreign-global "~A is not defined in ~A" name (library-name (second parameters)))
+          (forth-exception :undefined-foreign-global "Foreign global ~A~@[ (AS ~A)~] is not defined~@[ ~A~]"
+                           name forth-name #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)
           (stack-push data-stack (native-address memory pointer))))))
 
 (defun push-parameter-as-callback-ptr (fs &rest parameters)

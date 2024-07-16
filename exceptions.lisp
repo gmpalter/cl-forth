@@ -135,7 +135,7 @@
   (:undefined-foreign-function -303 "Foreign function not defined")
   (:undefined-foreign-global -304 "Foreign global not defined")
   (:invalid-foreign-parameter-list -305 "Invalid foreign function parameter llist")
-  (:missing-foreign-definitions -306 "AS not followed by FUNCTION: or GLOBAL:")
+  (:missing-foreign-definition -306 "AS or [OPTIONAL] not followed by LIBRARY, FUNCTION:, or GLOBAL:")
   (:no-platform-library -307 "No library for this platform found")
   (:null-pointer-reference -308 "Attempt to reference through a null pointer")
   (:duplicate-as-clauses -309 "AS appears more than once in a definition")
