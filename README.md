@@ -48,6 +48,9 @@ To start the CL-Forth interpreter loop
 (forth:run)
 ```
 
+CL-Forth is case-insensitive.
+
+
 ### Standalone CL-Forth in CCL
 
 You can build a standalone CL-Forth application when using CCL.
@@ -66,7 +69,7 @@ loop.
 
 ``` forth
 ./cl-forth
-CL-Forth 1.2
+CL-Forth 1.3
 Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-82-g0fb21fc7) DarwinX8664
 1 1 + .
 2 OK.
@@ -122,17 +125,56 @@ AS
 .LIBS
 .IMPORTS
 
-;;; The available prefixes and the CFFI equivalent data type are
-;;;   *   :POINTER -- An address of data either in one of Forth's data spaces or the external data space
-;;;   $   :INT32   -- 32-bit signed integer value taken/pushed from/to the data stack
-;;;   $u  :UINT32  -- 32-bit unsigned integer value taken/pushed from/to the data stack
-;;;   $$  :INT64   -- 64-bit signed integer value taken/pushed from/to the data stack
-;;;   $$u :UINT64  -- 64-bit unsigned integer value taken/pushed from/to the data stack
-;;;   %   :SINGLE  -- Single precision floating point value taken/pushed from/to the floating-point stack
-;;;   %%  :DOUBLE  -- Double precision floating point value taken/pushed from/to the floating-point stack
+;;; The form of a parameter list is
 ;;;
+;;;  ( params -- return )
+;;;
+;;; The name given to each parameter and the return value is for documentation purposes only as all parameters
+;;; are taken from the data stack or floating-point stack and the return value is placed on the data or floating-point stack.
+;;;
+;;; However, prefix character(s) determine the type of a parameter or the return value.
+;;; If no prefix is present, the parameter or return value is a 64-bit signed integer
+
+| Prefix | CFFI type | Interpretation |
+| --- | --- | --- |
+| `*` | `:pointer` | An address of data either in one of Forth's data spaces or the foreign data space |
+| `$` | `:int32` | 32-bit signed integer value taken/pushed from/to the data stack |
+| `$u` | `:uint32` | 32-bit unsigned integer value taken/pushed from/to the data stack |
+| `$$` | `:int64` | 64-bit signed integer value taken/pushed from/to the data stack |
+| `$$u` | `:uint64` | 64-bit unsigned integer value taken/pushed from/to the data stack |
+| `%` | `:single` | Single precision floating point value taken/pushed from/to the floating-point stack |
+| `%%` | `:double` | Double precision floating point value taken/pushed from/to the floating-point stack |
+
+BEGIN-NAMED-STRUCTURE
+WFIELD:
+LFIELD:
+word access (W@, UW@, W!, W,)
+longword access (L@, UL@, L!, L,)
+pointer access (P@, P!)
 
 -->
+
+### FFI Examples
+
+The file [time-sample.4th](examples/time-sample.4th) uses `xlibrary` and `function:` to define  `gettimeofday`, `time`, and
+`localtime_r` words which invoke the corresponding C functions. It then uses those words and appropriate structure definitions
+to define two words, `timeofday` and `localtime`, to print the results of calling those functions.
+
+``` forth
+? (forth:run)
+CL-Forth 1.3
+Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-82-g0fb21fc7) DarwinX8664
+include examples/time-sample.4th
+OK.
+timeofday
+Time = 1721097098 . 613105 
+TZ = 300 (DST)
+OK.
+localtime
+Local time is Monday, 15 July 2024 22:31:34 EDT
+OK.
+bye
+```
 
 ## Additional Words
 

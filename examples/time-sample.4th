@@ -1,89 +1,89 @@
-XLIBRARY libc.dylib libc.so.6
+xlibrary libc.dylib libc.so.6
 
-BEGIN-STRUCTURE TIMEVAL
-    FIELD: TV_SEC
-    FIELD: TV_USEC
-END-STRUCTURE
+begin-structure timeval
+    field: tv_sec
+    field: tv_usec
+end-structure
 
-BEGIN-STRUCTURE TIMEZONE
-    LFIELD: TZ_MINUTESWEST
-    LFIELD: TZ_DSTTIME
-END-STRUCTURE
+begin-structure timezone
+    lfield: tz_minuteswest
+    lfield: tz_dsttime
+end-structure
 
-FUNCTION: gettimeofday ( *tp *tz -- $status )
+function: gettimeofday ( *tp *tz -- $status )
 
-: TIMEOFDAY
-    HERE TIMEVAL TIMEZONE + 0 FILL
-    HERE HERE TIMEVAL +
-    {: TP TZ :}
-    TP TZ GETTIMEOFDAY
-    0= IF
-        ." Time = " TP TV_SEC ? ." . " TP TV_USEC ? CR
-        ." TZ = " TZ TZ_MINUTESWEST L@ . TZ TZ_DSTTIME L@ IF ." (DST)" THEN CR
-    ELSE
-        ." FAIL" CR
-    THEN
+: timeofday
+    here timeval timezone + 0 fill
+    here here timeval +
+    {: tp tz :}
+    tp tz gettimeofday
+    0= if
+        ." Time = " tp tv_sec ? ." . " tp tv_usec ? cr
+        ." TZ = " tz tz_minuteswest l@ . tz tz_dsttime l@ if ." (DST)" then cr
+    else
+        ." Fail" cr
+    then
 ;
 
-BEGIN-STRUCTURE TMS
-    LFIELD: TM_SEC
-    LFIELD: TM_MIN
-    LFIELD: TM_HOUR
-    LFIELD: TM_MDAY
-    LFIELD: TM_MON
-    LFIELD: TM_YEAR
-    LFIELD: TM_WDAY
-    LFIELD: TM_YDAY
-    LFIELD: TM_ISDST
-     FIELD: TM_GMTOFF
-     FIELD: TM_ZONE                     \ pointer (char*)
-END-STRUCTURE
+begin-structure tms
+    lfield: tm_sec
+    lfield: tm_min
+    lfield: tm_hour
+    lfield: tm_mday
+    lfield: tm_mon
+    lfield: tm_year
+    lfield: tm_wday
+    lfield: tm_yday
+    lfield: tm_isdst
+     field: tm_gmtoff
+     field: tm_zone                     \ pointer (char*)
+end-structure
 
-FUNCTION: time ( *tloc -- $$time )
-FUNCTION: localtime_r ( *clock *tm -- *tm )
+function: time ( *tloc -- $$time )
+function: localtime_r ( *clock *tm -- *tm )
 
 \ Ugly but it works
-: DAYOFWEEK
-    CASE
-        0 OF ." Sunday" ENDOF
-        1 OF ." Monday" ENDOF
-        2 OF ." Tuesday" ENDOF
-        3 OF ." Wednesday" ENDOF
-        4 OF ." Thursday" ENDOF
-        5 OF ." Friday" ENDOF
-        6 OF ." Saturday" ENDOF
-    ENDCASE
+: dayofweek
+    case
+        0 of ." Sunday" endof
+        1 of ." Monday" endof
+        2 of ." Tuesday" endof
+        3 of ." Wednesday" endof
+        4 of ." Thursday" endof
+        5 of ." Friday" endof
+        6 of ." Saturday" endof
+    endcase
 ;
 
 \ Ugly but it works
-: MONTH
-    CASE
-         0 OF ." January" ENDOF
-         1 OF ." February" ENDOF
-         2 OF ." March" ENDOF
-         3 OF ." April" ENDOF
-         4 OF ." May" ENDOF
-         5 OF ." June" ENDOF
-         6 OF ." July" ENDOF
-         7 OF ." August" ENDOF
-         8 OF ." September" ENDOF
-         9 OF ." October" ENDOF
-        10 OF ." November" ENDOF
-        11 OF ." December" ENDOF
-    ENDCASE
+: month
+    case
+         0 of ." January" endof
+         1 of ." February" endof
+         2 of ." March" endof
+         3 of ." April" endof
+         4 of ." May" endof
+         5 of ." June" endof
+         6 of ." July" endof
+         7 of ." August" endof
+         8 of ." September" endof
+         9 of ." October" endof
+        10 of ." November" endof
+        11 of ." December" endof
+    endcase
 ;
 
-: LOCALTIME
-    HERE 1 CELLS TMS + 0 FILL
-    HERE HERE 1 CELLS +
-    {: TLOC TM :}
-    TLOC TIME DROP                      \ Clock is stored in tloc, don't need return value
-    TLOC TM LOCALTIME_R DROP            \ Structure is passed in, don't need return value
+: localtime
+    here 1 cells tms + 0 fill
+    here here 1 cells +
+    {: tloc tm :}
+    tloc time drop                      \ Clock is stored in tloc, don't need return value
+    tloc tm localtime_r drop            \ Structure is passed in, don't need return value
     ." Local time is "
-    TM TM_WDAY L@ DAYOFWEEK ." , " TM TM_MDAY L@ . TM TM_MON L@ MONTH BL EMIT
-    TM TM_YEAR L@ 1900 + 0 <# # # # # #> TYPE BL EMIT
-    TM TM_HOUR L@ 0 <# # # #> TYPE [CHAR] : EMIT  TM TM_MIN L@ 0 <# # # #> TYPE [CHAR] : EMIT
-    TM TM_SEC L@ 0 <# # # #> TYPE BL EMIT
-    TM TM_ZONE P@ BEGIN DUP C@ DUP WHILE EMIT 1+ REPEAT 2DROP
-    CR
+    tm tm_wday l@ dayofweek ." , " tm tm_mday l@ . tm tm_mon l@ month bl emit
+    tm tm_year l@ 1900 + 0 <# # # # # #> type bl emit
+    tm tm_hour l@ 0 <# # # #> type [char] : emit  tm tm_min l@ 0 <# # # #> type [char] : emit
+    tm tm_sec l@ 0 <# # # #> type bl emit
+    tm tm_zone p@ begin dup c@ dup while emit 1+ repeat 2drop
+    cr
 ;
