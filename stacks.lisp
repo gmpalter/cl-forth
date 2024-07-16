@@ -16,9 +16,7 @@
   (size 0 :type fixnum)
   (depth 0 :type fixnum)
   overflow-key
-  underflow-key
-  saved-cells
-  (saved-depth 0))
+  underflow-key)
 
 (defun %print-stack (st stream depth)
   (declare (ignore depth))
@@ -209,17 +207,17 @@
         cell)
     (setf (stack-depth st) (the fixnum (1- (stack-depth st))))))
 
-;;; Save/Restore stack contents for FFI callbacks
+;;; FFI callback support
 
-(define-stack-fun save-stack (st)
-  (setf (stack-saved-cells st) (copy-seq (stack-cells st))
-        (stack-saved-depth st) (stack-depth st)
-        (stack-depth st) 0))
+(define-stack-fun stack-contents (st)
+  (subseq (stack-cells st) 0 (stack-depth st)))
 
-(define-stack-fun restore-stack (st)
-  (setf (stack-cells st) (copy-seq (stack-saved-cells st))
-        (stack-depth st) (stack-saved-depth st)
-        (stack-saved-cells st) nil))
+(define-stack-fun (setf stack-contents) (contents st)
+  (let ((depth (length contents)))
+    (declare (fixnum depth))
+    (replace (stack-cells st) contents :end1 depth)
+    (setf (stack-depth st) depth))
+  contents)
 
 ;;; Display stack contents
 

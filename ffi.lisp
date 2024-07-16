@@ -282,7 +282,9 @@
     (setf (gethash name callbacks) (make-callback :name name :xt xt
                                                   :parameters (copy-list parameters) :return-value return-value))
     (let* ((callback (gentemp (format nil "~A-CALLBACK" (string-upcase name)) '#:forth-ffi-symbols))
-           (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters)))
+           (parameter-symbols (mapcar #'(lambda (x) (declare (ignore x)) (gensym "PARM")) parameters))
+           (saved-data-stack (gensym "SDS"))
+           (saved-float-stack (gensym "SFS")))
       (eval
        `(cffi:defcallback ,callback ,return-value (,@(loop for parameter in parameters
                                                            for parameter-symbol in parameter-symbols
@@ -290,40 +292,42 @@
           (funcall #'(lambda (fs xt)
                        (declare (optimize (speed 3) (safety 0)))
                        (with-forth-system (fs)
-                         (unwind-protect
-                              (progn
-                                (save-stack data-stack)
-                                (save-stack float-stack)
-                                ,@(loop for parameter in parameters
-                                        for parameter-symbol in parameter-symbols
-                                        collect (case parameter
-                                                  ((:int64 :uint64 :int32 :uint32)
-                                                   `(stack-push data-stack ,parameter-symbol))
-                                                  (:pointer
-                                                   `(stack-push data-stack (native-address memory ,parameter-symbol)))
-                                                  (:single
-                                                   `(stack-push float-stack (native-float ,parameter-symbol)))
-                                                  (:double
-                                                   `(stack-push float-stack (native-float ,parameter-symbol)))))
-                                (execute execution-tokens xt fs)
-                                ,@(case return-value
-                                    (:void nil)
-                                    (:int64
-                                     `((cell-signed (stack-pop data-stack))))
-                                    (:uint64
-                                     `((cell-unsigned (stack-pop data-stack))))
-                                    (:int32
-                                     `((quad-byte-signed (stack-pop data-stack))))
-                                    (:uint32
-                                     `((quad-byte-unsigned (stack-pop data-stack))))
-                                    (:pointer
-                                     `((foreign-pointer memory (stack-pop data-stack))))
-                                    (:single
-                                     `((>single-float (stack-pop float-stack))))
-                                    (:double
-                                     `((>double-float (stack-pop float-stack)))))))
-                         (restore-stack data-stack)
-                         (restore-stack float-stack)))
+                         (let ((,saved-data-stack (stack-contents data-stack))
+                               (,saved-float-stack (stack-contents float-stack)))
+                           (unwind-protect
+                                (progn
+                                  (stack-reset data-stack)
+                                  (stack-reset float-stack)
+                                  ,@(loop for parameter in parameters
+                                          for parameter-symbol in parameter-symbols
+                                          collect (case parameter
+                                                    ((:int64 :uint64 :int32 :uint32)
+                                                     `(stack-push data-stack ,parameter-symbol))
+                                                    (:pointer
+                                                     `(stack-push data-stack (native-address memory ,parameter-symbol)))
+                                                    (:single
+                                                     `(stack-push float-stack (native-float ,parameter-symbol)))
+                                                    (:double
+                                                     `(stack-push float-stack (native-float ,parameter-symbol)))))
+                                  (execute execution-tokens xt fs)
+                                  ,@(case return-value
+                                      (:void nil)
+                                      (:int64
+                                       `((cell-signed (stack-pop data-stack))))
+                                      (:uint64
+                                       `((cell-unsigned (stack-pop data-stack))))
+                                      (:int32
+                                       `((quad-byte-signed (stack-pop data-stack))))
+                                      (:uint32
+                                       `((quad-byte-unsigned (stack-pop data-stack))))
+                                      (:pointer
+                                       `((foreign-pointer memory (stack-pop data-stack))))
+                                      (:single
+                                       `((>single-float (stack-pop float-stack))))
+                                      (:double
+                                       `((>double-float (stack-pop float-stack))))))
+                             (setf (stack-contents data-stack) ,saved-data-stack)
+                             (setf (stack-contents float-stack) ,saved-float-stack)))))
                    ,fs ,xt))))))
   
 ;;; Support for the Memory-Allocation word set
