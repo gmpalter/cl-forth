@@ -249,7 +249,7 @@
            (call-form
              ;; CFFI:FOREIGN-FUNCALL will crash if passed :DEFAULT as the foreign library. (Sigh)
              `((,result-symbol (cffi:foreign-funcall (,name ,@(unless (eq (library-ffi-library library) :default)
-                                                                `((:library ,(library-ffi-library library)))))
+                                                                `(:library ,(library-ffi-library library))))
                                                      ,@(loop for parameter in parameters
                                                              for symbol in parameter-symbols
                                                              collect parameter
