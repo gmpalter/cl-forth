@@ -122,7 +122,7 @@
           (forth-exception :undefined-foreign-function "Foreign function ~A~@[ (AS ~A)~] is not defined~@[ in ~A~]"
                            name forth-name  #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)))
       (multiple-value-bind (parameters return-value)
-          (parse-parameters-and-return fs "FUNCTION:")
+          (parse-parameters-and-return fs (format nil "~:[~;[OPTIONAL] ~]~@[AS ~A ~]FUNCTION: ~A" optional? forth-name name))
         (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?))
                (word (make-word (or forth-name name) code :parameters (list forth-name))))
           (add-and-register-word fs word))))))
@@ -262,7 +262,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (multiple-value-bind (parameters return-value)
-        (parse-parameters-and-return fs "FUNCTION:")
+        (parse-parameters-and-return fs (format nil "CALLBACK: ~A" name))
       (let* ((callback (build-ffi-callback ffi fs name xt parameters return-value))
              (word (make-word name #'push-parameter-as-callback-ptr :parameters (list callback))))
         (add-and-register-word fs word)))))
