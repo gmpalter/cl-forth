@@ -126,6 +126,19 @@
     nil))
 
 
+;;; CFFI in LispWorks prints an announcement whenever it creates an FLI foreign funcallable
+;;; Advise the internal CFFI function to suppress the announcement
+
+#+LispWorks
+(defvar *create-foreign-funcallable-sink* (make-broadcast-stream))
+
+#+LispWorks
+(lw:defadvice (cffi-sys::create-foreign-funcallable suppress-create-foreign-funcallable-announcement :around)
+              (types rettype convention)
+  (let ((*standard-output* *create-foreign-funcallable-sink*))
+    (lw:call-next-advice types rettype convention)))
+
+
 ;;;
 
 (defstruct library
