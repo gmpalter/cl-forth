@@ -1,3 +1,15 @@
+\ -*- Syntax: Forth -*-
+\ 
+\ Copyright (c) 2024 Gary Palter
+\ 
+\ Licensed under the MIT License;
+\ you may not use this file except in compliance with the License.
+\ You may obtain a copy of the License at
+\ 
+\   https://opensource.org/license/mit
+
+\ Example: Using CL-Forth's foreign function interface (FFI) facility
+
 \ Functions are defined in libc on macOS and Linux
 xlibrary libc.dylib libc.so.6
 
