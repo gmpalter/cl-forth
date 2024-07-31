@@ -22,7 +22,7 @@ function: gettimeofday ( *tp *tz -- $status )
     tp tz gettimeofday
     0= if
         \ Success, display contents of both structures
-        ." Time = " tp tv_sec ? ." . " tp tv_usec ? cr
+        ." Time = " tp tv_sec @ 0 <# #S #> type [char] . emit tp tv_usec @ 0 <# # # # # # # #> type cr
         ." TZ = " tz tz_minuteswest l@ . tz tz_dsttime l@ if ." (DST)" then cr
     else
         ." Fail" cr
@@ -51,7 +51,7 @@ function: time ( *tloc -- $$time )
 \ Return value is also a pointer to the tm structure
 function: localtime_r ( *clock *tm -- *tm )
 
-\ Ugly but it works
+\ Naive but it works
 : dayofweek
     case
         0 of ." Sunday" endof
@@ -64,7 +64,7 @@ function: localtime_r ( *clock *tm -- *tm )
     endcase
 ;
 
-\ Ugly but it works
+\ Naive but it works
 : month
     case
          0 of ." January" endof
@@ -94,7 +94,7 @@ function: localtime_r ( *clock *tm -- *tm )
     \ Print year as YYYY
     tm tm_year l@ 1900 + 0 <# # # # # #> type bl emit
     \ Print time of day as HH:MM:SS
-    tm tm_hour l@ 0 <# # # #> type [char] : emit  tm tm_min l@ 0 <# # # #> type [char] : emit
+    tm tm_hour l@ 0 <# # # #> type [char] : emit tm tm_min l@ 0 <# # # #> type [char] : emit
     tm tm_sec l@ 0 <# # # #> type bl emit
     \ tm_zone is a pointer to a C string -- Print characters until we reach the terminating NUL
     tm tm_zone p@ begin dup c@ dup while emit 1+ repeat 2drop
