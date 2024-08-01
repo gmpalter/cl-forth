@@ -62,7 +62,7 @@
 (defun add-structure-field (fs name field-size &optional (align? t))
   (with-forth-system (fs)
     (let* ((original-offset (stack-pop data-stack))
-           (offset (cond ((zerop (mod original-offset field-size))
+           (offset (cond ((zerop (mod original-offset (max field-size 1)))
                           original-offset)
                          (align?
                           (+ original-offset (- field-size (mod original-offset field-size))))
