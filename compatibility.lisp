@@ -30,6 +30,7 @@
 (defmacro define-constant (name value &optional docstring)
   `(defconstant ,name ,value ,@(when docstring (list docstring))))
 
+
 ;;; NAMED-LAMBDA
 
 #+CCL
