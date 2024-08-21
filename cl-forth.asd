@@ -67,7 +67,7 @@
   :version (:read-file-line "version.text")
   :depends-on (#:cl-forth)
   :serial t
-  :components ((:file "application"))
+  :components ((:file "ccl-application"))
   )
 
 (defsystem #:cl-forth/test
