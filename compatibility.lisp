@@ -128,19 +128,6 @@
         (change-class os 'unbuffered-fd-character-output-stream)
         (values is os)))))
 
-#||
-#+CCL
-;;; Using OS pipes to communicate between threads in the same process in CCL isn't practical because of CCL's buffering
-(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
-  (assert (eq element-type 'character) () "~S only supports ~S ~S, not ~S"
-          'make-piped-streams :element-type 'character element-type)
-  (assert (eq external-format :default) () "~S only supports ~S ~S, not ~S"
-          'make-piped-streams :external-format :default external-format)
-  (let ((buffer (make-in-memory-buffer +default-in-memory-buffer-size+)))
-    (values (make-in-memory-character-input-stream buffer name)
-            (make-in-memory-character-output-stream buffer name))))
-||#
-
 #+SBCL
 (defun make-piped-streams (&key name (element-type 'character) (external-format :default))
   (declare (ignore name))
@@ -161,8 +148,13 @@
 
 #+LispWorks
 (defun make-piped-streams (&key name (element-type 'character) (external-format :default))
-  (declare (ignore name element-type external-format))
-  (error "NYI: ~S" 'make-piped-streams))
+  (assert (eq element-type 'character) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :element-type 'character element-type)
+  (assert (eq external-format :default) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :external-format :default external-format)
+  (let ((buffer (make-in-memory-buffer +default-in-memory-buffer-size+)))
+    (values (make-in-memory-character-input-stream buffer name)
+            (make-in-memory-character-output-stream buffer name))))
 
 
 ;;; PROCESS-RUN-FUNCTION
@@ -189,26 +181,9 @@
     (apply #'mp:process-run-function name `(:priority ,priority) function args)))
 
 
-;;; PREFIXED-STREAM, TIMESTAMPED-STREAM, ADD/REMOVE-AUTO-FLUSH-STREAM
-
-#+CCL
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (require '#:prefixed-stream)
-  (require '#:timestamped-stream))
-
-#+CCL
-(import '(ccl:make-prefixed-stream ccl:make-timestamped-stream))
+;;; ADD/REMOVE-AUTO-FLUSH-STREAM
 
 ;;; CCL provides ADD/REMOVE-AUTO-FLUSH-STREAM natively
-
-#+(or SBCL LispWorks)
-(defun make-prefixed-stream (prefix stream)
-  (declare (ignore prefix))
-  stream)
-
-#+(or SBCL LispWorks)
-(defun make-timestamped-stream (stream)
-  stream)
 
 #+(or SBCL LispWorks)
 (defun add-auto-flush-stream (stream)

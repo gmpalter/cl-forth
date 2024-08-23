@@ -8,32 +8,6 @@
 ;;;
 ;;;   https://opensource.org/license/mit
 
-(in-package #:cl-user)
-
-(defpackage #:forth-application
-  (:nicknames #:forth-app)
-  (:use #:ccl #:common-lisp)
-  (:import-from #:ccl
-                #:application
-                #:application-version-string
-                #:*standard-help-argument*
-	        #:*standard-version-argument*
-                #:*standard-terminal-encoding-argument*
-                #:make-command-line-argument
-                #:command-line-arguments
-                #:process-application-arguments
-                #:%usage-exit
-                #:summarize-option-syntax
-                #:with-standard-initial-bindings
-                #:housekeeping-loop
-                #:make-application-error-handler
-                #:*terminal-input*
-                #:input-stream-shared-resource
-                #:shared-resource-primary-owner
-                #:*terminal-output*
-                #:*initial-process*)
-  (:export #:forth-application))
-
 (in-package #:forth-application)
 
 (defclass forth-application (application)
@@ -63,7 +37,7 @@
 (defmethod application-version-string ((app forth-application))
   (with-slots (asdf-system) app
     (let ((me (asdf:find-system asdf-system)))
-      (format nil "~A version ~A~%Running under ~A" (asdf:system-long-name me) (asdf:component-version me)
+      (format nil "~A Version ~A~%Running under ~A" (asdf:system-long-name me) (asdf:component-version me)
               (call-next-method)))))
 
 (defmethod process-application-arguments ((app forth-application) error-flag options args)
@@ -99,9 +73,7 @@
                                           :interpret interpret :transcript-file transcript-file)))
               ;;---*** TODO: Figure out why calling QUIT sometimes causes kernel crashes
               #+TODO
-              (if clean-exit?
-                  (quit)
-                  (quit -1))
+              (quit (if clean-exit? 0 -1))
               ;;---*** TODO: Remove this once we resolve the QUIT problem
               (#__exit (if clean-exit? 0 -1)))))))
   ;; Ensure that CCL's housekeeping functions run periodcally as intended
@@ -110,6 +82,5 @@
                      (housekeeping-loop))))
   (toplevel))
 
-
-
-
+(defun save-application (filename &key (application-class 'forth-application))
+  (ccl:save-application filename :prepend-kernel t :application-class application-class))

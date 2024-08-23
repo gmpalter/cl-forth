@@ -22,7 +22,7 @@
                         (and (not (eq system cl-forth)) (format nil "~A ~A" cl-forth-name cl-forth-version)))
                 (values cl-forth-name cl-forth-version nil))
             (values cl-forth-name cl-forth-version  nil))
-      (format t "~&~A ~A~@[ (built on ~A)~]~%Running under ~A ~A~%~@[~A~%~]" system-name system-version cl-forth-note
+      (format t "~&~A Version ~A~@[ (built on ~A)~]~%Running under ~A ~A~%~@[~A~%~]" system-name system-version cl-forth-note
               (lisp-implementation-type) (lisp-implementation-version) (forth-system-announce-addendum fs)))))
 
 (defun run (&key (asdf-system '#:cl-forth) template interpret transcript-file)

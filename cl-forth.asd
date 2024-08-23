@@ -15,9 +15,11 @@
   :description "Forth interpreter"
   :version (:read-file-line "version.text")
   :serial t
-  :depends-on (#:cffi)
+  :depends-on (#:cffi #:trivial-gray-streams)
   :components ((:file "packages")
-               (:file "in-memory-streams" :if-feature :ccl)
+               (:file "in-memory-streams" :if-feature :lispworks)
+               (:file "prefixed-stream" :if-feature (:not :ccl))
+               (:file "timestamped-stream" :if-feature (:not :ccl))
                (:file "compatibility")
                (:file "exceptions")
                (:file "strings")
@@ -60,14 +62,15 @@
                                            (invoke-restart 'muffle-warning))))
     (call-next-method)))
 
-#+CCL
 (defsystem #:cl-forth/application
   :long-name "CL-Forth App"
   :description "CL-Forth standalone application"
   :version (:read-file-line "version.text")
   :depends-on (#:cl-forth)
   :serial t
-  :components ((:file "ccl-application"))
+  :components ((:file "ccl-application" :if-feature :ccl)
+               (:file "sbcl-application" :if-feature :sbcl)
+               (:file "lw-application" :if-feature :lw))
   )
 
 (defsystem #:cl-forth/test

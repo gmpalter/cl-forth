@@ -71,7 +71,7 @@
            (optimize (speed 3) (safety 0)))
   (when (imb-full? imb)
     (if wait?
-        (ccl:process-wait "Buffer Put" #'(lambda (imb) (not (imb-full? imb))) imb)
+        (process-wait "Buffer Put" #'(lambda (imb) (not (imb-full? imb))) imb)
         (return-from imb-put-char nil)))
   (let ((put (imb-put imb))
         (size (imb-size imb)))
@@ -97,7 +97,7 @@
         while (plusp length)
         for chunk fixnum = (min (the fixnum (min length (the fixnum (imb-free imb)))) (the fixnum (- size put)))
         when (imb-full? imb)
-          do (ccl:process-wait "Buffer Put String" #'(lambda (imb) (not (imb-empty? imb))) imb)
+          do (process-wait "Buffer Put String" #'(lambda (imb) (not (imb-empty? imb))) imb)
         do (replace (imb-buffer imb) string :start1 put :end1 (the fixnum (+ put chunk))
                                               :start2 start :end2 (the fixnum (+ start chunk)))
              (setf put (the fixnum (+ put  chunk)))
@@ -116,7 +116,7 @@
            (optimize (speed 3) (safety 0)))
   (when (imb-empty? imb)
     (if wait?
-        (ccl:process-wait "Buffer Take" #'(lambda (imb) (not (imb-empty? imb))) imb)
+        (process-wait "Buffer Take" #'(lambda (imb) (not (imb-empty? imb))) imb)
         (return-from imb-take-char nil)))
   (let* ((take (imb-take imb))
          (size (imb-size imb))
@@ -131,7 +131,12 @@
 
 ;;;
 
-(defclass in-memory-character-stream (ccl:fundamental-character-stream)
+(define-condition stream-is-closed (stream-error)
+  ()
+  (:report (lambda (condition stream)
+             (format stream "~S is closed" (stream-error-stream condition)))))
+
+(defclass in-memory-character-stream (trivial-gray-streams:fundamental-character-stream)
   ((name :initarg :name :initform nil)
    (buffer :accessor imcs-buffer :initarg :buffer :initform nil))
   )
@@ -157,30 +162,30 @@
 (defmacro with-imcs-buffer ((st &key eof?) &body body)
   `(with-slots (buffer) ,st
      (when (and (imb-closed? buffer) (not ,eof?))
-       (ccl::stream-is-closed ,st))
+       (error 'stream-is-closed-error :stream ,st))
      ,@body))
 
 
 ;;;
 
-(defclass in-memory-character-input-stream (ccl:fundamental-character-input-stream in-memory-character-stream)
+(defclass in-memory-character-input-stream (trivial-gray-streams:fundamental-character-input-stream in-memory-character-stream)
   ((unread-char :initform nil))
   )
 
-(defmethod ccl:stream-read-char ((st in-memory-character-input-stream))
+(defmethod trivial-gray-streams:stream-read-char ((st in-memory-character-input-stream))
   (with-imcs-buffer (st)
     (with-slots (unread-char) st
       (if unread-char
           (shiftf unread-char nil)
           (imb-take-char buffer)))))
 
-(defmethod ccl:stream-unread-char ((st in-memory-character-input-stream) char)
+(defmethod trivial-gray-streams:stream-unread-char ((st in-memory-character-input-stream) char)
   (with-slots (unread-char) st
     (if unread-char
         (error "Two UNREAD-CHARs without intervening READ-CHAR on ~s" st)
         (setf unread-char char))))
 
-(defmethod ccl:stream-listen ((st in-memory-character-input-stream))
+(defmethod trivial-gray-streams:stream-listen ((st in-memory-character-input-stream))
   (with-imcs-buffer (st :eof? t)
     (if (imb-closed? buffer)
         :eof
@@ -192,11 +197,12 @@
 
 ;;;
 
-(defclass in-memory-character-output-stream (ccl:fundamental-character-output-stream in-memory-character-stream)
-  ((column :initform 0 :reader ccl:stream-line-column))
+(defclass in-memory-character-output-stream
+    (trivial-gray-streams:fundamental-character-output-stream in-memory-character-stream)
+  ((column :initform 0 :reader trivial-gray-streams:stream-line-column))
   )
 
-(defmethod ccl:stream-write-char ((st in-memory-character-output-stream) char)
+(defmethod trivial-gray-streams:stream-write-char ((st in-memory-character-output-stream) char)
   (with-imcs-buffer (st)
     (with-slots (column) st
       (imb-put-char buffer char)
@@ -205,7 +211,7 @@
           (incf column))
       char)))
 
-(defmethod ccl:stream-write-string ((st in-memory-character-output-stream) string &optional start end)
+(defmethod trivial-gray-streams:stream-write-string ((st in-memory-character-output-stream) string &optional start end)
   (let ((start (or start 0))
         (end (or end (length string))))
     (with-imcs-buffer (st)
@@ -217,7 +223,7 @@
               (incf column (- end start))))))
     string))
 
-(defmethod ccl:stream-force-output ((st in-memory-character-output-stream))
+(defmethod trivial-gray-streams:stream-force-output ((st in-memory-character-output-stream))
   nil)
 
 (defun make-in-memory-character-output-stream (in-memory-buffer &optional name)
