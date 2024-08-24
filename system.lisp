@@ -169,6 +169,20 @@
                       (reset-interpreter/compiler fs)
                       (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
                         (funcall exception-hook fs))
+                      (force-output))
+                    ;; Intercept Ctrl-C and return to top level
+                    #+(or CCL SBCL)
+                    (#+CCL ccl:interrupt-signal-condition #+CCL ()
+                     #+SBCL sb-sys:interactive-interrupt #+SBCL ()
+                      (when exception-prefix
+                        (write-string exception-prefix))
+                      (write-line "Forced ABORT")
+                      (when (truep show-backtraces-on-error?)
+                        (show-backtrace fs))
+                      (clear-input)
+                      (reset-interpreter/compiler fs)
+                      (when exception-hook
+                        (funcall exception-hook fs))
                       (force-output)))
                 (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
                   (reset-interpreter/compiler fs)))))))
@@ -179,6 +193,16 @@
             t
           (when exit-hook
             (funcall exit-hook fs))))))
+
+;;; CCL doesn't signal a condition when the user presses Ctrl-C. But, it does invoke its break loop
+;;; with a specific condition (INTERRUPT-SIGNAL-CONDITION). If the break loop is being entered for
+;;; that condition, signal it first to allow CL-Forth to catch it an abort to its top level.
+#+CCL
+(ccl:advise ccl::cbreak-loop ;; (msg cont-string condition *top-error-frame*)
+            (when (typep (third ccl:arglist) 'ccl:interrupt-signal-condition)
+              (signal (third ccl:arglist)))
+            :when :before
+            :name signal-interrupt-signal-condition)
 
 (define-forth-method interpreter/compiler (fs &key (toplevel? t))
   (loop with first = t
