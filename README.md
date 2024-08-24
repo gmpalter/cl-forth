@@ -12,6 +12,17 @@ resulting in 7 failures in the File-Access word set tests.
 CL-Forth compiles with LispWorks but crashes running the Forth test suite.
 
 
+## Supported Operating Systems
+
+CL-Forth is supported on macOS, Linux, and Windows 10.
+
+On macOS, it has been verified to run on macOS Ventura or later.
+
+On Linux, it has been verified to run on distributions with 5.10.162 kernels or later.
+
+On Windows, it has been verified to run on Windows 10 or later.
+
+
 ## License
 
 CL-Forth is made available under the terms of the [MIT License](LICENSE).
@@ -19,7 +30,8 @@ CL-Forth is made available under the terms of the [MIT License](LICENSE).
 
 ## Usage
 
-CL-Forth is defined using ASDF and is dependent on the [CFFI](https://github.com/cffi/cffi) library.
+CL-Forth is defined using ASDF and is dependent on the [CFFI](https://github.com/cffi/cffi) and
+[trivial-gray-streams](https://github.com/trivial-gray-streams/trivial-gray-streams ) libraries.
 
 To fetch a copy of CL-Forth and the [Forth 2012 Test Suite](https://github.com/gerryjackson/forth2012-test-suite.git) configured
 to only run tests for those word sets implemented by CL-Forth.
@@ -51,17 +63,17 @@ To start the CL-Forth interpreter loop
 CL-Forth is case-insensitive.
 
 
-### Standalone CL-Forth in CCL
+### Building a Standalone CL-Forth
 
-You can build a standalone CL-Forth application when using CCL.
+You can build a standalone CL-Forth application.
 
-Launch CCL and evaluate the forms
+Launch Lisp and evaluate the forms
 
 ``` lisp
 (require '#:asdf)
 (load "cl-forth.asd")
 (asdf:load-system '#:cl-forth/application)
-(save-application "cl-forth" :prepend-kernel t :application-class 'forth-app:forth-application)
+(forth-app:save-application "cl-forth")
 ```
 
 This will create an executable named `cl-forth`. When you run `cl-forth`, it will startup directly into the Forth interpreter
@@ -69,14 +81,28 @@ loop.
 
 ``` forth
 ./cl-forth
-CL-Forth 1.3
-Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-82-g0fb21fc7) DarwinX8664
+CL-Forth Version 1.3
+Running under Clozure Common Lisp Version 1.13 (v1.13) DarwinX8664
 1 1 + .
 2 OK.
+: hello-world ." Hello World!" cr ;
+OK.
+hello-world
+Hello World!
+OK.
+see hello-world
+Source code for hello-world:
+(DEFUN FORTH-WORDS::HELLO-WORLD (FS &REST PARAMETERS)
+  (DECLARE (IGNORABLE PARAMETERS))
+  (WITH-FORTH-SYSTEM (FS)
+    (TAGBODY (WRITE-STRING "Hello World!")
+             (TERPRI)
+     :EXIT)))
+OK.
 bye
 ```
 
-The `cl-forth` command recognizes these command line arguments
+The application  recognizes these command line arguments
 
 | | |
 | --- | --- |
@@ -110,71 +136,8 @@ The following words that are part of the optional Facility and Facility extensio
 ## Foreign Function Interface
 
 CL-Forth includes a foreign function interface (FFI) loosely based on the External Library Interface in
-[SwiftForth](https://www.forth.com/swiftforth/).
+[SwiftForth](https://www.forth.com/swiftforth/). See [FFI.md](FFI.md) for details.
 
-_TO BE CONTINUED_
-
-<!--
-LIBRARY
-XLIBRARY
-FUNCTION:
-GLOBAL:
-CALLBACK:
-AS
-[OPTIONAL]
-.LIBS
-.IMPORTS
-
-;;; The form of a parameter list is
-;;;
-;;;  ( params -- return )
-;;;
-;;; The name given to each parameter and the return value is for documentation purposes only as all parameters
-;;; are taken from the data stack or floating-point stack and the return value is placed on the data or floating-point stack.
-;;;
-;;; However, prefix character(s) determine the type of a parameter or the return value.
-;;; If no prefix is present, the parameter or return value is a 64-bit signed integer
-
-| Prefix | CFFI type | Interpretation |
-| --- | --- | --- |
-| `*` | `:pointer` | An address of data either in one of Forth's data spaces or the foreign data space |
-| `$` | `:int32` | 32-bit signed integer value taken/pushed from/to the data stack |
-| `$u` | `:uint32` | 32-bit unsigned integer value taken/pushed from/to the data stack |
-| `$$` | `:int64` | 64-bit signed integer value taken/pushed from/to the data stack |
-| `$$u` | `:uint64` | 64-bit unsigned integer value taken/pushed from/to the data stack |
-| `%` | `:single` | Single precision floating point value taken/pushed from/to the floating-point stack |
-| `%%` | `:double` | Double precision floating point value taken/pushed from/to the floating-point stack |
-
-BEGIN-NAMED-STRUCTURE
-WFIELD:
-LFIELD:
-word access (W@, UW@, W!, W,)
-longword access (L@, UL@, L!, L,)
-pointer access (P@, P!)
-
--->
-
-### FFI Examples
-
-The file [time-sample.4th](examples/time-sample.4th) uses `xlibrary` and `function:` to define  `gettimeofday`, `time`, and
-`localtime_r` words which invoke the corresponding C functions. It then uses those words and appropriate structure definitions
-to define two words, `timeofday` and `localtime`, to print the results of calling those functions.
-
-``` forth
-? (forth:run)
-CL-Forth 1.3
-Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-82-g0fb21fc7) DarwinX8664
-include examples/time-sample.4th
-OK.
-timeofday
-Time = 1721097098 . 613105 
-TZ = 300 (DST)
-OK.
-localtime
-Local time is Monday, 15 July 2024 22:31:34 EDT
-OK.
-bye
-```
 
 ## Additional Words
 
