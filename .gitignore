@@ -1,4 +1,7 @@
 cl-forth
+cl-forth.ccl
+cl-forth.sbcl
+cl-forth.lw
 *~
 *.FASL
 *.fasl
