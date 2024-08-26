@@ -59,8 +59,13 @@
                    (exit))
                   (t
                    (option-error "Unknown option: \"~A\"" option))))))
-      (let ((clean-exit? (forth:run :asdf-system asdf-system :template template
-                                    :interpret interpret :transcript-file transcript)))
+      ;; Apparently, CL-Forth can get into a state where it's waits for input but the application driving it
+      ;; it is waiting for output from a previous expression to finish. Somehow, SBCL doesn't flush buffers when
+      ;; it should.
+      (let* ((sb-impl::*periodic-polling-period* 0.001)
+             (sb-impl::*periodic-polling-function* #'(lambda () (force-output)))
+             (clean-exit? (forth:run :asdf-system asdf-system :template template
+                                     :interpret interpret :transcript-file transcript)))
         (exit :code (if clean-exit? 0 -1))))))
 
 (defun save-application (filename &key (application-class 'forth-application))

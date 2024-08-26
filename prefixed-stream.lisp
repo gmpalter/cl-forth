@@ -62,5 +62,11 @@
     (close (prefixed-stream-stream ps))
     t))
 
+;;; For some reason, when CL-Forth calls CLEAR-INPUT and we're recording a transcript, SBCL will
+;;; call SB-GRAY:STREAM-CLEAR-INPUT on the output stream of the ECHO-STREAM bound to *STANDARD-INPUT*.
+#+SBCL
+(defmethod sb-gray:stream-clear-input ((ps prefixed-stream))
+  nil)
+
 (defun make-prefixed-stream (prefix output-stream)
   (make-instance 'prefixed-stream :prefix prefix :stream output-stream))
