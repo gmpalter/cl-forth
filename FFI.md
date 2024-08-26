@@ -55,15 +55,15 @@ to define two words, `timeofday` and `localtime`, to print the results of callin
 ``` forth
 ? (forth:run)
 CL-Forth Version 1.3
-Running under Clozure Common Lisp Version 1.12.2 (v1.12.2-102-gdd595bb6) DarwinX8664
+Running under Clozure Common Lisp Version 1.13 (v1.13) DarwinX8664
 include examples/time-sample.4th
 OK.
-timeofday 
-Time = 1722479563.358060
+timeofday
+Time = 1724547469.354513
 TZ = 300 (DST)
 OK.
 localtime
-Local time is Wednesday, 31 July 2024 22:32:49 EDT
+Local time is Saturday, 24 August 2024 20:57:52 EDT
 OK.
 bye
 ```

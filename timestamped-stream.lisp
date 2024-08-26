@@ -66,5 +66,11 @@
     (close (timestamped-stream-stream ts))
     t))
 
+;;; For some reason, when CL-Forth calls CLEAR-INPUT and we're recording a transcript, SBCL will
+;;; call SB-GRAY:STREAM-CLEAR-INPUT on the output stream of the ECHO-STREAM bound to *STANDARD-INPUT*.
+#+SBCL
+(defmethod sb-gray:stream-clear-input ((ts timestamped-stream))
+  nil)
+
 (defun make-timestamped-stream (output-stream)
   (make-instance 'timestamped-stream :stream output-stream))
