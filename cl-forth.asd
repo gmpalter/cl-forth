@@ -17,7 +17,7 @@
   :serial t
   :depends-on (#:cffi #:trivial-gray-streams)
   :components ((:file "packages")
-               (:file "in-memory-streams" :if-feature :lispworks)
+               (:file "in-memory-streams")
                (:file "prefixed-stream" :if-feature (:not :ccl))
                (:file "timestamped-stream" :if-feature (:not :ccl))
                (:file "compatibility")
