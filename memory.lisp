@@ -697,7 +697,8 @@
   (pictured-buffer (make-instance 'pictured-buffer :size +pictured-buffer-size+) :type mspace)
   (name>string-space (make-instance 'transient-data-space :size +name>string-space-size+) :type mspace)
   (string-spaces (make-array +number-of-string-spaces+ :initial-element nil) :type string-spaces-array)
-  (current-string-space-index 0 :type fixnum))
+  (current-string-space-index 0 :type fixnum)
+  (preallocated 0 :type fixnum))
 
 (defun make-memory ()
   (let ((memory (%make-memory)))
@@ -812,7 +813,7 @@
     (incf usage (space-high-water-mark (memory-name>string-space memory)))
     (dotimes (i +number-of-string-spaces+)
       (incf usage (space-high-water-mark (aref (memory-string-spaces memory) i))))
-    usage))
+    (values usage (memory-preallocated memory))))
 
 ;;;
 
@@ -831,7 +832,8 @@
           (space-template (aref template i)))
       (if (and space space-template)
           (space-load-from-template space space-template)
-          (assert (and (null space) (null space-template)) () "Memory template mismatch")))))
+          (assert (and (null space) (null space-template)) () "Memory template mismatch"))))
+  (setf (memory-preallocated memory) (memory-usage memory)))
 
 ;;;
 
