@@ -157,9 +157,9 @@
             (make-in-memory-character-output-stream buffer name))))
 
 
-;;; PROCESS-RUN-FUNCTION
+;;; PROCESS-RUN-FUNCTION, PROCESS-WAIT
 
-;;; CCL provides PROCESS-RUN-FUNCTION natively
+;;; CCL provides PROCESS-RUN-FUNCTION and PROCESS-WAIT natively
 
 #+SBCL
 (defun process-run-function (name-or-keywords function &rest args)
@@ -170,6 +170,12 @@
                   name-or-keywords)))
     (sb-thread:make-thread function :name name :arguments args)))
 
+#+SBCL
+(defun process-wait (whostate function &rest args)
+  (declare (dynamic-extent args) (ignore whostate))
+  (loop until (apply function args)
+        do (sleep 0.001)))
+
 #+LispWorks
 (defun process-run-function (name-or-keywords function &rest args)
   (multiple-value-bind (name priority)
@@ -179,6 +185,8 @@
             (values name priority))
           (values name-or-keywords mp:*default-process-priority*))
     (apply #'mp:process-run-function name `(:priority ,priority) function args)))
+
+;;; LispWorks provides PROCESS-WAIT natively
 
 
 ;;; ADD/REMOVE-AUTO-FLUSH-STREAM
@@ -226,3 +234,21 @@
 (defun %address-of (object)
   (cerror "Continue anyway" "NYI: ~S" '%address-of)
   object)
+
+
+;;; OBJECT-SIZE
+
+(declaim (inline object-size))
+
+#+CCL
+(defun object-size (object)
+  (ccl:object-direct-size object))
+
+#+SBCL
+(defun object-size (object)
+  (sb-ext:primitive-object-size object))
+
+#+LispWorks
+(defun object-size (object)
+  (declare (ignore object))
+  0)

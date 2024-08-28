@@ -187,9 +187,8 @@
                 (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
                   (reset-interpreter/compiler fs)))))))
     (ignore-errors
-     (progn
-       (format t "~&~D word~:P created in this session.~%" (word-lists-n-words-added word-lists))
-       (force-output)))
+     ;; Suppress any errors if *standard-output* is closed prematurely
+     (report-statistics fs))
     ;; Return T if the interpreter loop exited cleanly. Return NIL on a fatal error, usually detected by an exception hook
     (if fatal?
         nil
@@ -197,6 +196,20 @@
             t
           (when exit-hook
             (funcall exit-hook fs))))))
+
+(define-forth-method report-statistics (fs)
+  (let ((words-created (word-lists-words-created word-lists))
+        (memory-usage (memory-usage memory))
+        (object-code-size (word-lists-object-code-size word-lists)))
+    (when (plusp (+ words-created memory-usage object-code-size))
+      (write-line "In this session:")
+      (when (plusp words-created)
+        (format t "  ~D definition~:P created~%" words-created))
+      (when (plusp memory-usage)
+        (format t "  ~D byte~:P of memory allocated~%" memory-usage))
+      (when (plusp object-code-size)
+        (format t "  ~D byte~:P of object code generated~%" object-code-size))
+      (force-output))))
 
 ;;; CCL doesn't signal a condition when the user presses Ctrl-C. But, it does invoke its break loop
 ;;; with a specific condition (INTERRUPT-SIGNAL-CONDITION). If the break loop is being entered for
@@ -394,6 +407,7 @@
                                  ,@locals-block
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (setf (word-code word) (compile nil (eval thunk)))
+             (note-object-code-size word-lists word)
              ;; Keep the forms for subsequent inlining and also for SEE
              (when locals-block
                ;; Ensure subsequent inlining of this definition will include the locals block
