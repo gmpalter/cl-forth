@@ -279,3 +279,7 @@
   "( -- addr )"
   "Return the address of the flag that controls whether to show a backtrace when an exception occurs"
   (stack-push data-stack (state-slot-address memory 'show-backtraces-on-error?)))
+
+(define-word report-statistics (:word "STATISTICS")
+  "Report some useful statistics about this Forth session"
+  (report-statistics fs))

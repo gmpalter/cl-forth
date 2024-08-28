@@ -206,11 +206,11 @@
         (write-line "In this session:")
         (when (plusp words-created)
           (format t "  ~D definition~:P created~%" words-created))
+        (when (plusp object-code-size)
+          (format t "  ~D byte~:P of object code generated~%" object-code-size))
         (when (plusp memory-allocated)
           (format t "  ~D byte~:P of memory allocated~@[, ~D byte~:P preallocated~]~%"
                   (- memory-allocated memory-preallocated) (and (plusp memory-preallocated) memory-preallocated)))
-        (when (plusp object-code-size)
-          (format t "  ~D byte~:P of object code generated~%" object-code-size))
         (force-output)))))
 
 ;;; CCL doesn't signal a condition when the user presses Ctrl-C. But, it does invoke its break loop
