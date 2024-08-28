@@ -186,6 +186,10 @@
                       (force-output)))
                 (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
                   (reset-interpreter/compiler fs)))))))
+    (ignore-errors
+     (progn
+       (format t "~&~D word~:P created in this session.~%" (word-lists-n-words-added word-lists))
+       (force-output)))
     ;; Return T if the interpreter loop exited cleanly. Return NIL on a fatal error, usually detected by an exception hook
     (if fatal?
         nil

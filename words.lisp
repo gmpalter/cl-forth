@@ -110,7 +110,8 @@
    (saved-compilation-word-list :initform nil)
    (markers :initform (make-array 0 :fill-pointer 0 :adjustable t))
    (context :initform 0)
-   (current :initform 0))
+   (current :initform 0)
+   (n-words-added :accessor word-lists-n-words-added :initform 0))
   )
 
 (defmethod print-object ((wls word-lists) stream)
@@ -128,7 +129,8 @@
                (declare (ignore key))
                (let ((wl (word-list wls (car wl-and-word) :if-not-found :create)))
                  (add-word wl (cdr wl-and-word) :override t :silent t)))
-           *predefined-words*))
+           *predefined-words*)
+  (setf (word-lists-n-words-added wls) 0))
 
 (defmethod register-predefined-words ((wls word-lists) execution-tokens here)
   (maphash #'(lambda (key wl-and-word)
@@ -216,7 +218,8 @@
 
 (defmethod load-from-template ((wls word-lists) template fs)
   (declare (ignore fs))
-  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map markers) wls
+  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map markers n-words-added)
+      wls
     (clrhash all-word-lists)
     (clrhash wid-to-word-list-map)
     (clrhash nt-to-word-map)
@@ -244,6 +247,7 @@
         (setf markers (make-array n-markers :fill-pointer n-markers :adjustable t))
         (dotimes (i n-markers)
           (setf (aref markers i) (load-marker-from-template wls (aref template-markers i)))))
+      (setf n-words-added 0)
       (update-psuedo-state-variables wls)))
   nil)
 
@@ -456,7 +460,7 @@
         (setf (fill-pointer markers) position)))))
 
 (defmethod note-new-word ((wls word-lists) (dict dictionary) (word word))
-  (with-slots (next-nt nt-to-word-map markers) wls
+  (with-slots (next-nt nt-to-word-map markers n-words-added) wls
     (setf (word-parent word) dict)
     (cond ((word-name-token word)
            ;; Don't change the word's name token if it has one
@@ -468,7 +472,8 @@
            (setf (word-name-token word) next-nt
                  (gethash next-nt nt-to-word-map) word)
            (incf next-nt +cell-size+)))
-    (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)))
+    (map nil #'(lambda (marker) (add-word-to-marker marker word)) markers)
+    (incf n-words-added)))
 
 (defmethod note-new-included-file ((wls word-lists) truename)
   (with-slots (markers) wls
