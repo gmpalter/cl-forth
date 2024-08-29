@@ -34,11 +34,13 @@
        (declare (optimize (speed 3) (safety 0)))
        ,@body)))
 
+(declaim (inline stack-overflow-check))
 (define-stack-fun stack-overflow-check (st &optional (minimum-space 1))
   (declare (fixnum minimum-space))
   (unless (< (stack-depth st) (the fixnum (- (the fixnum (- (stack-size st) minimum-space)) -1)))
     (forth-exception (stack-overflow-key st))))
 
+(declaim (inline stack-underflow-check))
 (define-stack-fun stack-underflow-check (st &optional (minimum-depth 1))
   (declare (fixnum minimum-depth))
   (when (< (stack-depth st) minimum-depth)
