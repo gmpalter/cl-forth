@@ -83,5 +83,6 @@
                    ;; Allow input from the console if any test raises a Forth exception
                    (let ((*standard-input* (make-concatenated-stream text *standard-input*))
                          (fs (make-instance (find-symbol* '#:forth-system '#:forth))))
-                     (symbol-call '#:forth '#:forth-toplevel
-                                  fs :interpret "WARNING OFF S\" runtests.fth\" INCLUDED BYE")))))))
+                     (time
+                      (symbol-call '#:forth '#:forth-toplevel
+                                   fs :interpret "WARNING OFF S\" runtests.fth\" INCLUDED BYE"))))))))
