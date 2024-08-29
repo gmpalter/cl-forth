@@ -282,4 +282,5 @@
 
 (define-word report-statistics (:word "STATISTICS")
   "Report some useful statistics about this Forth session"
-  (report-statistics fs))
+  (unless (report-statistics fs)
+    (write-line "Nothing to report.")))

@@ -807,13 +807,7 @@
   (forth-exception :unknown-slot))
 
 (define-memory-fun memory-usage (memory)
-  (let ((usage 0))
-    (incf usage (space-high-water-mark (memory-data-space memory)))
-    (incf usage (space-high-water-mark (memory-word-space memory)))
-    (incf usage (space-high-water-mark (memory-name>string-space memory)))
-    (dotimes (i +number-of-string-spaces+)
-      (incf usage (space-high-water-mark (aref (memory-string-spaces memory) i))))
-    (values usage (memory-preallocated memory))))
+  (values (space-high-water-mark (memory-data-space memory)) (memory-preallocated memory)))
 
 ;;;
 

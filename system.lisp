@@ -202,16 +202,18 @@
         (object-code-size (word-lists-object-code-size word-lists)))
     (multiple-value-bind (memory-allocated memory-preallocated)
         (memory-usage memory)
-      (when (plusp (+ words-created memory-allocated object-code-size))
-        (write-line "In this session:")
-        (when (plusp words-created)
-          (format t "  ~D definition~:P created~%" words-created))
-        (when (plusp object-code-size)
-          (format t "  ~D byte~:P of object code generated~%" object-code-size))
-        (when (plusp memory-allocated)
-          (format t "  ~D byte~:P of memory allocated~@[, ~D byte~:P preallocated~]~%"
-                  (- memory-allocated memory-preallocated) (and (plusp memory-preallocated) memory-preallocated)))
-        (force-output)))))
+      (let ((memory-allocated (- memory-allocated memory-preallocated)))
+        (when (plusp (+ words-created memory-allocated object-code-size))
+          (write-line "In this session:")
+          (when (plusp words-created)
+            (format t "  ~D definition~:P created~%" words-created))
+          (when (plusp object-code-size)
+            (format t "  ~D byte~:P of object code generated~%" object-code-size))
+          (when (plusp memory-allocated)
+            (format t "  ~D byte~:P of memory allocated~@[, ~D byte~:P preallocated~]~%"
+                    memory-allocated (and (plusp memory-preallocated) memory-preallocated)))
+          (force-output)
+          t)))))
 
 ;;; CCL doesn't signal a condition when the user presses Ctrl-C. But, it does invoke its break loop
 ;;; with a specific condition (INTERRUPT-SIGNAL-CONDITION). If the break loop is being entered for
