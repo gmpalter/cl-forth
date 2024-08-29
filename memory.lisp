@@ -740,7 +740,7 @@
 
 (defmacro define-memory-fun (name arglist &body body)
   `(progn
-     (declaim (inline ,name))
+     ;;(declaim (inline ,name))
      (defun ,name (,@arglist)
        (declare (type memory memory) (optimize (speed 3) (safety 0)))
        ,@body)))

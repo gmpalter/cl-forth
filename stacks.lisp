@@ -29,7 +29,7 @@
 
 (defmacro define-stack-fun (name arglist &body body)
   `(progn
-     (declaim (inline ,name))
+     ;;(declaim (inline ,name))
      (defun ,name (,@arglist)
        (declare (optimize (speed 3) (safety 0)))
        ,@body)))
