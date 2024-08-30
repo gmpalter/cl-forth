@@ -14,7 +14,7 @@ CL-Forth compiles with LispWorks but crashes running the Forth test suite.
 
 ## Supported Operating Systems
 
-CL-Forth is supported on macOS, Linux, and Windows 10.
+CL-Forth is supported on macOS, Linux, and Windows.
 
 On macOS, it has been verified to run on macOS Ventura or later.
 
