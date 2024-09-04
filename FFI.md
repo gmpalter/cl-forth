@@ -3,7 +3,7 @@
 CL-Forth includes a foreign function interface (FFI) loosely based on the External Library Interface in
 [SwiftForth](https://www.forth.com/swiftforth/).
 
-_TO BE CONTINUED_
+_TO BE SUPPLIED_
 
 <!--
 
@@ -55,15 +55,18 @@ to define two words, `timeofday` and `localtime`, to print the results of callin
 ``` forth
 ? (forth:run)
 CL-Forth Version 1.3
-Running under Clozure Common Lisp Version 1.13 (v1.13) DarwinX8664
+Running under SBCL 2.4.7
 include examples/time-sample.4th
 OK.
 timeofday
-Time = 1724547469.354513
+Time = 1724872035.919477
 TZ = 300 (DST)
 OK.
 localtime
-Local time is Saturday, 24 August 2024 20:57:52 EDT
+Local time is Wednesday, 28 August 2024 15:07:18 EDT
 OK.
 bye
+In this session:
+  25 definitions created
+  74432 bytes of object code generated
 ```

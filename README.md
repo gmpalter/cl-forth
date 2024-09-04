@@ -100,6 +100,9 @@ Source code for hello-world:
      :EXIT)))
 OK.
 bye
+In this session:
+  1 definition created
+  240 bytes of object code generated
 ```
 
 The application  recognizes these command line arguments
@@ -157,6 +160,7 @@ These words are specific to CL-Forth.
 | `REMOVE` | Erase a single word |
 | `SHOW-BACKTRACES` | Controls whether exceptions display the return and data stacks |
 | `SHOW-CODE` | Controls whether completing a definition shows the generated code |
+| `STATISTICS` | Report some useful statistics about this CL-Forth session |
 
 These words are defined as "Common Usage" in the [Forth Programmer's Manual, 3rd Edition](https://www.forth.com/forth-books/).
 
