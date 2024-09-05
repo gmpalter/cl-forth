@@ -97,7 +97,7 @@
         while (plusp length)
         for chunk fixnum = (min (the fixnum (min length (the fixnum (imb-free imb)))) (the fixnum (- size put)))
         when (imb-full? imb)
-          do (process-wait "Buffer Put String" #'(lambda (imb) (not (imb-empty? imb))) imb)
+          do (process-wait "Buffer Put String" #'(lambda (imb) (not (imb-full? imb))) imb)
         do (replace (imb-buffer imb) string :start1 put :end1 (the fixnum (+ put chunk))
                                               :start2 start :end2 (the fixnum (+ start chunk)))
              (setf put (the fixnum (+ put  chunk)))
