@@ -738,13 +738,14 @@
     (or (aref (memory-all-spaces memory) prefix)
         (forth-exception :invalid-memory))))
 
-(defmacro define-memory-fun (name (memory &rest args) &body body)
+;;; NOTE: The memory argument to functions defined by this macro MUST be named MEMORY.
+(defmacro define-memory-fun (name arglist &body body)
   (multiple-value-bind (body declarations doc)
       (uiop:parse-body body)
     (declare (ignore doc))
-    `(defun ,name (,memory ,@args)
+    `(defun ,name (,@arglist)
        (declare (optimize (speed 3) (safety 0))
-                (type memory ,memory))
+                (type memory memory))
        ,@declarations
        ,@body)))
 
