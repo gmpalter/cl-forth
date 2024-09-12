@@ -196,7 +196,7 @@
 (defmethod word ((f files) delimiter &key multiline? forth-values?)
   (with-slots (source-id >in buffer) f
     (let ((word (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
-          (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
+          (whitespace-delimiter-p (and (eql delimiter #\Space) (plusp source-id))))
       (loop for buffer-len = (length buffer)
             for skip = (or (if whitespace-delimiter-p
                                (position-if-not #'whitespacep buffer :start >in)
@@ -248,7 +248,7 @@
 (defmethod parse ((f files) delimiter &key multiline? forth-values?)
   (with-slots (source-id >in buffer) f
     (let ((parsed (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t))
-          (whitespace-delimiter-p (and (char-equal delimiter #\Space) (plusp source-id))))
+          (whitespace-delimiter-p (and (eql delimiter #\Space) (plusp source-id))))
       (loop with starting->in = >in
             with address = (when forth-values?
                              (multiple-value-bind (address count)
@@ -309,12 +309,12 @@
             with hex = nil
             while (< >in end)
             do (let ((ch (aref buffer >in)))
-                 (cond ((char-equal ch #\")
+                 (cond ((eql ch #\")
                         (incf >in)
                         (return-from escaped-parse parsed))
-                       ((and (char-equal ch #\\) (< >in (1- end)))
+                       ((and (eql ch #\\) (< >in (1- end)))
                         (let ((escapee (aref buffer (1+ >in))))
-                          (cond ((and (char-equal escapee #\x) (< >in (- end 3))
+                          (cond ((and (or (eql escapee #\X) (eql escapee #\x)) (< >in (- end 3))
                                       (setf hex (ignore-errors
                                                  (parse-integer buffer :start (+ >in 2) :end (+ >in 4) :radix 16))))
                                  (vector-push-extend (code-char hex) parsed)

@@ -30,16 +30,16 @@
 (defun interpret-number (token base &key (allow-floats? t) (signal-overflow? t))
   (flet ((interpret-base-prefix ()
            (let ((ch (aref token 0)))
-             (cond ((char-equal ch #\#) (values 10 1))
-                   ((char-equal ch #\$) (values 16 1))
-                   ((char-equal ch #\%) (values  2 1))
-                   (t                 (values base 0))))))
+             (cond ((eql ch #\#) (values 10 1))
+                   ((eql ch #\$) (values 16 1))
+                   ((eql ch #\%) (values  2 1))
+                   (t            (values base 0))))))
     (cond ((and allow-floats?
                 (= base 10)
                 (let ((ch (aref token 0)))
                   (or (digit-char-p ch)
-                      (char-equal ch #\+)
-                      (char-equal ch #\-)))
+                      (eql ch #\+)
+                      (eql ch #\-)))
                 (= (count #\E token :test #'char-equal) 1))
            ;; When BASE is 10 and the string contains exactly one "E", try floating point
            (let* ((token (if (char-equal (aref token (1- (length token))) #\E)
@@ -54,11 +54,11 @@
                  (values nil nil))))
           ;; 'c' is interpreted as a character literal
           ((and (= (length token) 3)
-                (char-equal (aref token 0) #\')
-                (char-equal (aref token 2) #\'))
+                (eql (aref token 0) #\')
+                (eql (aref token 2) #\'))
            (values :single (forth-char (aref token 1))))
-          ((and (= (count #\. token :test #'char-equal) 1)
-                (char-equal (aref token (1- (length token))) #\.))
+          ((and (= (count #\. token :test #'eql) 1)
+                (eql (aref token (1- (length token))) #\.))
            ;; If the string end with a period, try a double precision integer
            (handler-case
                (multiple-value-bind (base start)

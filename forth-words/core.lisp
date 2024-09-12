@@ -351,20 +351,18 @@
         (address (stack-pop data-stack)))
     (unless (plusp count)
       (forth-exception :invalid-numeric-argument "ACCEPT buffer size must be positive"))
-    (multiple-value-bind (forth-memory offset)
-        (memory-decode-address memory address count)
-      ;;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
-      ;;;       until we either get a Newline or fill the buffer. (Sigh)
-      (let ((buffer (make-array count :element-type 'character :fill-pointer 0 :adjustable t)))
-        (loop while (< (length buffer) count)
-              for char = (read-char nil nil :eof)
-              if (or (eq char :eof) (char-equal char #\Newline))
-                do (loop-finish)
-              else
-                do (vector-push-extend char buffer))
-        (when (plusp (length buffer))
-          (native-into-forth-string buffer forth-memory offset)
-          (stack-push data-stack (length buffer)))))))
+    ;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
+    ;;       until we either get a Newline or fill the buffer. (Sigh)
+    (let ((nread 0))
+      (declare (type fixnum nread))
+      (loop for i fixnum below count
+            for char = (read-char nil nil :eof)
+            if (or (eq char :eof) (eql (the character char) #\Newline))
+              do (loop-finish)
+            else
+              do (setf (memory-char memory (the fixnum (+ address i))) (forth-char (the character char))
+                       nread (the fixnum (1+ nread))))
+      (stack-push data-stack nread))))
 
 (define-word align (:word "ALIGN")
   "( -- )"
@@ -464,7 +462,7 @@
         (value (stack-pop data-stack)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let ((word (make-word name #'push-parameter-as-cell :parameters (list value))))
+    (let ((word (make-word name #'push-parameter-as-cell :parameters (make-parameters value))))
       (setf (word-inline-forms word) `((stack-push data-stack ,value))
             (word-inlineable? word) t)
       (add-and-register-word fs word (data-space-high-water-mark memory)))))
@@ -489,7 +487,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (data-space-high-water-mark memory))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (make-parameters address) :created-word? t)))
       (setf (word-inline-forms word) `((stack-push data-stack ,address))
             (word-inlineable? word) t)
       (add-and-register-word fs word address))))
@@ -946,7 +944,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (make-parameters address) :created-word? t)))
       (setf (word-inline-forms word) `((stack-push data-stack ,address))
             (word-inlineable? word) t)
       (add-and-register-word fs word address))))
@@ -1118,13 +1116,13 @@
         (forth-exception :not-defer "~A was not created by DEFER" name))
       (case (state fs)
         (:interpreting
-         (let ((xt (first (word-parameters word))))
+         (let ((xt (parameters-p1 (word-parameters word))))
            (when (null xt)
              (forth-exception :defer-not-set))
            (stack-push data-stack xt)))
         (:compiling
          (add-to-definition fs
-           `(let ((xt (first (word-parameters ,word))))
+           `(let ((xt (parameters-p1 (word-parameters ,word))))
               (when (null xt)
                 (forth-exception :defer-not-set))
               (stack-push data-stack xt))))))))
@@ -1144,7 +1142,7 @@
     (align-memory memory)
     (let* ((count (stack-pop data-stack))
            (address (allocate-memory memory count))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (make-parameters address) :created-word? t)))
       (setf (word-inline-forms word) `((stack-push data-stack ,address))
             (word-inlineable? word) t)
       (add-and-register-word fs word address))))
@@ -1180,7 +1178,7 @@
   (let ((name (word files #\Space)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let ((word (make-word name #'execute-parameter :deferring-word? t :parameters (list nil))))
+    (let ((word (make-word name #'execute-parameter :deferring-word? t :parameters (make-parameters nil))))
       (add-and-register-word fs word))))
 
 (define-word defer! (:word "DEFER!")
@@ -1192,7 +1190,7 @@
     (unless (word-deferring-word? word)
       (forth-exception :not-defer "~A was not created by DEFER" (word-name word)))
     (verify-execution-token execution-tokens xt2)
-    (setf (first (word-parameters word)) xt2)))
+    (setf (parameters-p1 (word-parameters word)) xt2)))
 
 (define-word defer@ (:word "DEFER@")
   "( xt1 -- xt2 )"
@@ -1201,7 +1199,7 @@
          (word (find-word execution-tokens xt1)))
     (unless (word-deferring-word? word)
       (forth-exception :not-defer "~A was not created by DEFER" (word-name word)))
-    (let ((xt (first (word-parameters word))))
+    (let ((xt (parameters-p1 (word-parameters word))))
       (when (null xt)
         (forth-exception :defer-not-set))
       (stack-push data-stack xt))))
@@ -1268,12 +1266,12 @@
         (:interpreting
          (let ((xt (stack-pop data-stack)))
            (verify-execution-token execution-tokens xt)
-           (setf (first (word-parameters word)) xt)))
+           (setf (parameters-p1 (word-parameters word)) xt)))
         (:compiling
          (add-to-definition fs
            `(let ((xt (stack-pop data-stack)))
               (verify-execution-token execution-tokens xt)
-              (setf (first (word-parameters ,word)) xt))))))))
+              (setf (parameters-p1 (word-parameters ,word)) xt))))))))
 
 (define-word marker (:word "MARKER")
   "MARKER <name>"
@@ -1287,7 +1285,7 @@
     (let ((word (make-word name #'do-marker))
           (marker (register-marker word-lists)))
       (add-and-register-word fs word)
-      (setf (word-parameters word) (list marker)))))
+      (setf (parameters-p1 (word-parameters word)) marker))))
 
 (define-word stack-nip (:word "NIP")
   "( x1 x2 -- x2 )"
@@ -1387,8 +1385,8 @@
          (forth-exception :zero-length-name))
        (when (null word)
          (forth-exception :undefined-word "~A is not defined" name))
-       (let ((address (first (word-parameters word)))
-             (type (second (word-parameters word))))
+       (let ((address (parameters-p1 (word-parameters word)))
+             (type (parameters-p2 (word-parameters word))))
          (unless (member type '(:value :2value :fvalue))
            (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
          (case type
@@ -1409,8 +1407,8 @@
        (if local
            (add-to-definition fs
              `(setf ,(local-symbol local) (stack-pop data-stack)))
-           (let ((address (first (word-parameters word)))
-                 (type (second (word-parameters word))))
+           (let ((address (parameters-p1 (word-parameters word)))
+                 (type (parameters-p2 (word-parameters word))))
              (unless (member type '(:value :2value :fvalue))
                (forth-exception :invalid-name-argument "~A was not created by VALUE, 2VALUE, or FVALUE" name))
              (case type
@@ -1465,7 +1463,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory)
     (let* ((address (allocate-memory memory +cell-size+))
-           (word (make-word name #'push-value :parameters (list address :value) :created-word? t)))
+           (word (make-word name #'push-value :parameters (make-parameters address :value) :created-word? t)))
       (setf (memory-cell memory address) value)
       (add-and-register-word fs word address))))
 

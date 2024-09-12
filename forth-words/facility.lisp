@@ -42,7 +42,7 @@
         (struct (make-forth-structure)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let ((word (make-word name #'push-structure-size-from-parameter :smudge? t :parameters (list struct))))
+    (let ((word (make-word name #'push-structure-size-from-parameter :smudge? t :parameters (make-parameters struct))))
       (setf (fs-word struct) word)
       (add-and-register-word fs word)
       (stack-push data-stack struct)
@@ -77,7 +77,7 @@
           (word-smudge? (fs-word struct)) nil)
     (map nil #'(lambda (field)
                  (setf (word-inline-forms field) `((stack-push data-stack (+ (stack-pop data-stack)
-                                                                             ,(first (word-parameters field)))))
+                                                                             ,(parameters-p1 (word-parameters field)))))
                        (word-inlineable? field) t
                        (word-smudge? field) nil))
          (fs-fields struct))))

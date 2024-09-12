@@ -10,7 +10,11 @@
 
 (in-package #:forth)
 
+(defparameter *forth-package* (find-package '#:forth))
+
 (defconstant +maximum-locals+ 16)
+
+(deftype forth-boolean () `(member ,+false+ ,+true+))
 
 (defstruct local
   name
@@ -22,6 +26,7 @@
   locals
   forms)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
 (defstruct definition
   word
   (locals (make-locals :state :none))
@@ -29,6 +34,7 @@
   >body-address
   (call-site 0)
   (in-progress? t))
+)
 
 (defstruct (branch-reference (:constructor %make-branch-reference))
   type
@@ -42,90 +48,105 @@
 (defun next-psuedo-pc (definition)
   (make-psuedo-pc (definition-word definition) (incf (definition-call-site definition))))
 
-(defclass forth-system ()
-  ((memory :initform (make-memory))
-   (data-stack :initform (make-stack "Data" 1024 :stack-overflow :stack-underflow))
-   (return-stack :initform (make-stack "Return" 128 :return-stack-overflow :return-stack-underflow))
-   (control-flow-stack :initform (make-stack "Control-flow" 128 :control-flow-stack-overflow :control-flow-stack-underflow))
-   (exception-stack :initform (make-stack "Exception" 128 :exception-stack-overflow :exception-stack-underflow))
-   (loop-stack :initform (make-stack "Loop Control" 32 :do-loops-nesting :loop-stack-underflow))
-   (float-stack :initform (make-stack "Floating-point" 32 :float-stack-overflow :float-stack-underflow))
-   (definitions-stack :initform (make-stack "Definitions" 32 :definitions-stack-overflow :definitions-stack-underflow))
-   (word-lists :initform (make-instance 'word-lists))
-   (files :reader forth-system-files :initform (make-instance 'files))
-   (execution-tokens :initform (make-instance 'execution-tokens))
-   (ffi :initform (make-instance 'ffi))
-   (replacements :initform (make-instance 'replacements))
-   (base :initform 10)
-   (float-precision :initform 17)
-   state
-   (definition :initform nil)
-   (compiling-paused? :initform nil)
-   (show-redefinition-warnings? :initform +true+)
-   (reset-redefinition-warnings? :initform nil)
-   (show-definition-code? :initform +false+)
-   (show-backtraces-on-error? :initform +false+)
-   (current-frame :initform nil)
-   (exception-hook :initform nil
-      :documentation "If non-NIL, called after an exception, including ABORT and ABORT\",  to perform additional processing")
-   (exception-prefix :initform nil
-      :documentation "If non-NIL, display this string before displaying the exception's phrase")
-   (exit-hook :initform nil
-      :documentation "If non-NIL, called before a non-fatal exit to perform additional processing")
-   (announce-addendum  :accessor forth-system-announce-addendum :initform nil
-      :documentation "If non-NIL, a string that's displayed after Forth's initial announcement")
-   (prompt-string :initform #.(format nil "OK.~%"))
-   (extensions :initform nil))
-  )
+(defstruct (forth-system (:conc-name fs-) (:constructor %make-forth-system) (:print-function %print-forth-system))
+  (memory (make-memory) :type memory :read-only t)
+  (data-stack (make-stack "Data" 1024 :stack-overflow :stack-underflow) :type stack :read-only t)
+  (return-stack (make-stack "Return" 128 :return-stack-overflow :return-stack-underflow) :type stack :read-only t)
+  (control-flow-stack (make-stack "Control-flow" 128 :control-flow-stack-overflow :control-flow-stack-underflow) :type stack :read-only t)
+  (exception-stack (make-stack "Exception" 128 :exception-stack-overflow :exception-stack-underflow) :type stack :read-only t)
+  (loop-stack (make-stack "Loop Control" 32 :do-loops-nesting :loop-stack-underflow) :type stack :read-only t)
+  (float-stack (make-stack "Floating-point" 32 :float-stack-overflow :float-stack-underflow) :type stack :read-only t)
+  (definitions-stack (make-stack "Definitions" 32 :definitions-stack-overflow :definitions-stack-underflow) :type stack :read-only t)
+  (word-lists (make-word-lists) :type word-lists :read-only t)
+  (files (make-instance 'files) :type files :read-only t)
+  (execution-tokens (make-instance 'execution-tokens) :type execution-tokens :read-only t)
+  (ffi (make-instance 'ffi) :type ffi :read-only t)
+  (replacements (make-instance 'replacements) :type replacements :read-only t)
+  (base 10 :type fixnum)
+  (float-precision 17 :type fixnum)
+  (%state 0 :type fixnum)
+  (definition nil :type (or definition null))
+  (compiling-paused? nil :type boolean)
+  (show-redefinition-warnings? +true+ :type forth-boolean)
+  (reset-redefinition-warnings? nil :type boolean)
+  (show-definition-code? +false+ :type forth-boolean)
+  (show-backtraces-on-error? +false+ :type forth-boolean)
+  (current-frame nil)
+  ;; If non-NIL, called after an exception, including ABORT and ABORT\", to perform additional processing
+  (exception-hook  nil)
+  ;; If non-NIL, display this string before displaying the exception's phrase
+  (exception-prefix nil :type (or string null))
+  ;; If non-NIL, called before a non-fatal exit to perform additional processing
+  (exit-hook nil)
+  ;; If non-NIL, a string that's displayed after Forth's initial announcement
+  (announce-addendum nil :type (or string null))
+  (prompt-string #.(format nil "OK.~%") :type string)
+  (extensions nil))
 
-(defmethod initialize-instance :after ((fs forth-system) &key template &allow-other-keys)
-  (with-slots (memory word-lists files execution-tokens ffi) fs
-    (add-state-space memory fs)
-    (add-state-space memory word-lists)
-    (add-state-space memory files)
-    (add-space memory (files-source-as-space files))
-    (add-space memory (files-saved-buffer-space files))
-    (add-space memory execution-tokens)
-    (add-space memory (ffi-foreign-space ffi))
-    (cond (template
-           (load-from-template fs template fs))
-          (t
-           (reset-word-lists word-lists)
-           (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory))))
-    ))
-  
-(defmethod state ((fs forth-system))
-  (with-slots (state) fs
-    (if (zerop state)
-        :interpreting
-        :compiling)))
+(defun %print-forth-system (fs stream depth)
+  (declare (ignore depth))
+  (print-unreadable-object (fs stream :type t :identity t)))
 
-(defmethod (setf state) (value (fs forth-system))
-  (with-slots (state) fs
-    (setf state (ecase value
-                  (:interpreting 0)
-                  (:compiling 1))))
-  value)
-         
 (defmacro with-forth-system ((fs) &body body)
-  `(with-slots (memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack definitions-stack
-                word-lists files execution-tokens ffi replacements base float-precision state definition compiling-paused?
-                show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? show-backtraces-on-error?
-                current-frame exception-hook exception-prefix exit-hook announce-addendum prompt-string extensions)
-       ,fs
-     (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack float-stack
-                         definitions-stack word-lists files execution-tokens ffi replacements base float-precision state
-                         definition compiling-paused? show-redefinition-warnings? reset-redefinition-warnings?
-                         show-definition-code? show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
-                         announce-addendum prompt-string extensions))
+  `(symbol-macrolet (,@(map 'list #'(lambda (slot accessor)
+                                      `(,slot (,accessor ,fs)))
+                            '(memory data-stack return-stack control-flow-stack exception-stack loop-stack
+                              float-stack definitions-stack word-lists files execution-tokens ffi
+                              replacements base float-precision %state definition compiling-paused?
+                              show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                              show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
+                              announce-addendum prompt-string extensions)
+                            '(fs-memory fs-data-stack fs-return-stack fs-control-flow-stack fs-exception-stack fs-loop-stack
+                              fs-float-stack fs-definitions-stack fs-word-lists fs-files fs-execution-tokens fs-ffi
+                              fs-replacements fs-base fs-float-precision fs-%state fs-definition fs-compiling-paused?
+                              fs-show-redefinition-warnings? fs-reset-redefinition-warnings? fs-show-definition-code?
+                              fs-show-backtraces-on-error? fs-current-frame fs-exception-hook fs-exception-prefix fs-exit-hook
+                              fs-announce-addendum fs-prompt-string fs-extensions)))
      ,@body))
 
-(defmacro define-forth-method (name (fs &rest args) &body body)
-  `(defmethod ,name ((,fs forth-system) ,@args)
-     (with-forth-system (,fs)
-       ,@body)))
+(defmacro define-forth-function (name (fs &rest args) &body body)
+  (multiple-value-bind (body declarations doc)
+      (uiop:parse-body body)
+    (declare (ignore doc))
+    `(defun ,name (,fs ,@args)
+       (declare (optimize (speed 3) (safety 0))
+                (type forth-system ,fs))
+       ,@declarations
+       (with-forth-system (,fs)
+         ,@body))))
 
-(define-forth-method reset-interpreter/compiler (fs)
+(defun make-forth-system (&key template)
+  (let ((fs (%make-forth-system)))
+    (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+    (with-forth-system (fs)
+      (add-state-space memory fs)
+      (add-state-space memory word-lists)
+      (add-state-space memory files)
+      (add-space memory (files-source-as-space files))
+      (add-space memory (files-saved-buffer-space files))
+      (add-space memory execution-tokens)
+      (add-space memory (ffi-foreign-space ffi))
+      (cond (template
+             (load-from-template fs template fs))
+            (t
+             (reset-word-lists word-lists)
+             (register-predefined-words word-lists execution-tokens (data-space-high-water-mark memory)))))
+    fs))
+
+(defun state (fs)
+  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (if (zerop (fs-%state fs))
+      :interpreting
+      :compiling))
+
+(defun (setf state) (value fs)
+  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (setf (fs-%state fs) (ecase value
+                         (:interpreting 0)
+                         (:compiling 1)))
+  value)
+
+(define-forth-function reset-interpreter/compiler (fs)
   (stack-reset data-stack)
   (stack-reset return-stack)
   (setf current-frame nil)
@@ -141,7 +162,7 @@
   (setf compiling-paused? nil)
   )
 
-(define-forth-method forth-toplevel (fs &key interpret)
+(define-forth-function forth-toplevel (fs &key interpret)
   (reset-interpreter/compiler fs)
   (when interpret
     (etypecase interpret
@@ -197,7 +218,7 @@
           (when exit-hook
             (funcall exit-hook fs))))))
 
-(define-forth-method report-statistics (fs)
+(define-forth-function report-statistics (fs)
   (let ((words-created (word-lists-words-created word-lists))
         (object-code-size (word-lists-object-code-size word-lists)))
     (multiple-value-bind (memory-allocated memory-preallocated)
@@ -225,7 +246,7 @@
             :when :before
             :name signal-interrupt-signal-condition)
 
-(define-forth-method interpreter/compiler (fs &key (toplevel? t))
+(define-forth-function interpreter/compiler (fs &key (toplevel? t))
   (loop with first = t
     do (loop for empty = t then nil
              while (input-available-p files)
@@ -296,15 +317,17 @@
                   (force-output)))))))
 
 (defun forth-call (fs word psuedo-pc)
+  (declare (type forth-system fs) (type word word)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
     (stack-push return-stack psuedo-pc)
     (setf current-frame (make-psuedo-pc word -1))
-    (apply (word-code word) fs (word-parameters word))
+    (funcall (word-code word) fs (word-parameters word))
     (when (word-does> word)
-      (apply (word-code (word-does> word)) fs (word-parameters word)))
+      (funcall (word-code (word-does> word)) fs (word-parameters word)))
     (setf current-frame (stack-pop return-stack))))
 
-(define-forth-method show-backtrace (fs)
+(define-forth-function show-backtrace (fs)
   (let* ((cells (stack-cells return-stack))
          (depth (stack-depth return-stack))
          (nframes (reduce #'(lambda (n cell) (if (psuedo-pc-p cell) (1+ n) n)) cells :initial-value 0)))
@@ -322,7 +345,7 @@
 
 ;;;
 
-(define-forth-method begin-compilation (fs &optional name)
+(define-forth-function begin-compilation (fs &optional name)
   (unless (eq (state fs) :interpreting)
     (forth-exception :recursive-compile))
   (setf definition (make-definition :word (make-word name nil :smudge? t) :exit-branch (make-branch-reference :exit)
@@ -338,14 +361,14 @@
 
 ;;; Used by words that create words (e.g., CREATE, CONSTANT, etc.) to add the word to compilation word list
 ;;; and register its execution token
-(define-forth-method add-and-register-word (fs word &optional >body-address)
+(define-forth-function add-and-register-word (fs word &optional >body-address)
   ;; Ensure that IMMEDIATE and DOES> will find this word
   (let ((>body-address (or >body-address (data-space-high-water-mark memory))))
     (setf definition (make-definition :word word :>body-address >body-address :in-progress? nil))
     (add-word (word-lists-compilation-word-list word-lists) word :silent (falsep show-redefinition-warnings?))
     (register-execution-token execution-tokens word >body-address)))
 
-(define-forth-method add-forms-to-definition (fs &rest forms)
+(define-forth-function add-forms-to-definition (fs &rest forms)
   (case (locals-state (definition-locals definition))
     (:none
      (let ((word (definition-word definition)))
@@ -359,10 +382,10 @@
 (defmacro add-to-definition (fs &body body)
   `(add-forms-to-definition ,fs ,@body))
 
-(define-forth-method start-local-definitions (fs)
+(define-forth-function start-local-definitions (fs)
   (setf (locals-state (definition-locals definition)) :in-progress))
 
-(define-forth-method add-local-definition (fs name &optional (initialize? t))
+(define-forth-function add-local-definition (fs name &optional (initialize? t))
   (let ((locals (definition-locals definition)))
     (when (eq (locals-state locals) :complete)
       (forth-exception :multiple-local-blocks))
@@ -375,10 +398,10 @@
     (let ((local (make-local :name name :symbol (intern (string-upcase name) *forth-words-package*) :initialize? initialize?)))
       (push local (locals-locals locals)))))
 
-(define-forth-method end-local-definitions (fs)
+(define-forth-function end-local-definitions (fs)
   (setf (locals-state (definition-locals definition)) :complete))
 
-(define-forth-method finish-compilation (fs)
+(define-forth-function finish-compilation (fs)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
   (unless (zerop (stack-depth control-flow-stack))
@@ -403,8 +426,9 @@
                                                                   collect (local-symbol local)))))
                              (tagbody
                                 ,@(reverse (locals-forms locals)))))))))
-                  (thunk `(named-lambda ,name (fs &rest parameters)
-                            (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
+                  (thunk `(named-lambda ,name (fs parameters)
+                            (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
+                                     (optimize (speed 3) (safety 0)))
                             (with-forth-system (fs)
                               (tagbody
                                  ,@(reverse (word-inline-forms word))
@@ -432,7 +456,7 @@
       (setf show-redefinition-warnings? +true+))
     (setf (state fs) :interpreting)))
 
-(define-forth-method postpone (fs word)
+(define-forth-function postpone (fs word)
   (cond ((word-immediate? word)
          (add-forms-to-definition fs `(forth-call fs ,word ,(next-psuedo-pc definition))))
         (t
@@ -449,18 +473,18 @@
         ;; (forth-exception :invalid-postpone))
         ))
 
-(define-forth-method compile-comma (fs xt)
+(define-forth-function compile-comma (fs xt)
   (when (definition-in-progress? definition)
     (add-to-definition fs
       `(execute execution-tokens ,xt fs))))
 
-(define-forth-method compile-does> (fs)
+(define-forth-function compile-does> (fs)
   (let ((does>-word (make-word (symbol-name (gensym "DOES>")) nil)))
     (stack-push definitions-stack definition)
     (setf definition (make-definition :word does>-word :exit-branch (make-branch-reference :exit)
                                       :>body-address (data-space-high-water-mark memory)))))
 
-(define-forth-method execute-does> (fs does>-word)
+(define-forth-function execute-does> (fs does>-word)
   (unless definition
     (forth-exception :invalid-does>))
   (let ((word (definition-word definition)))
@@ -471,7 +495,7 @@
     (when (word-inline-forms word)
       (if (word-inline-forms does>-word)
           (apply #'add-forms-to-definition fs (reverse (word-inline-forms does>-word)))
-          (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,@(word-parameters word)))))
+          (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,(word-parameters word)))))
     (setf (word-does> word) does>-word)))
 
 ;;; If a word was created by a definition that modifies said word using DOES>, the word's inline forms will include
@@ -491,10 +515,12 @@
           (sublis substitutions forms))
         forms)))
 
-(defun execute-compile-token (fs &rest parameters)
+(defun execute-compile-token (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
     (stack-pop data-stack)
-    (let ((word (first parameters)))
+    (let ((word (parameters-p1 parameters)))
       (if (word-immediate? word)
           (forth-call fs word *interpreter-psuedo-pc*)
           (when (definition-in-progress? definition)
@@ -502,15 +528,16 @@
                 (apply #'add-forms-to-definition fs (reverse (word-inline-forms word)))
                 (add-forms-to-definition fs `(forth-call fs ,word ,(next-psuedo-pc definition)))))))))
 
-(define-forth-method create-compile-execution-token (fs word)
+(define-forth-function create-compile-execution-token (fs word)
   (if (word-compile-token word)
       (values 0 (word-compile-token word))
-      (let* ((cword (make-word nil #'execute-compile-token :parameters (list word)))
+      (let* ((cword (make-word nil #'execute-compile-token :parameters (make-parameters word)))
              (cxt (register-execution-token execution-tokens cword (data-space-high-water-mark memory))))
         (setf (word-compile-token word) cxt)
         (values 0 cxt))))
 
-(define-forth-method show-definition (fs word)
+(define-forth-function show-definition (fs word)
+  (declare (ignore fs))
   (flet ((show-documentation (add-newline?)
            (when (word-documentation word)
              (dolist (line (word-documentation word))
@@ -518,7 +545,7 @@
              (when add-newline?
                (terpri)))))
     (cond ((word-inline-forms word)
-           (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs &rest parameters)
+           (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs parameters)
                            (declare (ignorable parameters))
                            (with-forth-system (fs)
                              (tagbody
@@ -526,7 +553,7 @@
                               :exit)))))
              (format t "~&Source code for ~A:" (word-name word))
              (show-documentation nil)
-             (let ((*package* (find-package '#:forth)))
+             (let ((*package* *forth-package*))
                (pprint thunk)
                (terpri))))
           ((word-code word)
@@ -538,7 +565,7 @@
 
 ;;;
 
-(define-forth-method verify-control-structure (fs type &optional (n 1))
+(define-forth-function verify-control-structure (fs type &optional (n 1))
   type n ;; (declare (ignore type n))
   (when (zerop (stack-depth control-flow-stack))
     (forth-exception :control-mismatch))
@@ -550,10 +577,10 @@
                   always (eq (branch-reference-type (stack-cell control-flow-stack i)) type))
       (forth-exception :control-mismatch)))
 
-(define-forth-method control-structure-push (fs branch)
+(define-forth-function control-structure-push (fs branch)
   (stack-push control-flow-stack branch))
 
-(define-forth-method control-structure-find (fs type &optional (n 0))
+(define-forth-function control-structure-find (fs type &optional (n 0))
   "Find the Nth TYPE entry on the control stack and return it, where N=0 is the most recent entry, etc."
   (let* ((count 0)
          (position (stack-find-if #'(lambda (cell) (when (eq (branch-reference-type cell) type)
@@ -565,14 +592,14 @@
         (stack-cell control-flow-stack position)
         (forth-exception :control-mismatch))))
 
-(define-forth-method control-structure-pop (fs type)
+(define-forth-function control-structure-pop (fs type)
   "Find the most recent TYPE entry on the control stack, remove it from the stack, and return it"
   (let ((n (stack-find-if #'(lambda (cell) (eq (branch-reference-type cell) type)) control-flow-stack)))
     (if n
         (stack-snip control-flow-stack n)
         (forth-exception :control-mismatch))))
 
-(define-forth-method execute-branch (fs branch &optional condition)
+(define-forth-function execute-branch (fs branch &optional condition)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
   (if condition
@@ -586,7 +613,7 @@
       `(execute-branch ,fs ,branch ',@body)
       `(execute-branch ,fs ,branch '(progn ,@body))))
 
-(define-forth-method resolve-branch (fs branch)
+(define-forth-function resolve-branch (fs branch)
   (unless (eq (state fs) :compiling)
     (forth-exception :not-compiling))
   (add-forms-to-definition fs (branch-reference-tag branch))
@@ -602,14 +629,14 @@
   input-state
   )
 
-(define-forth-method make-exception-frame (fs)
+(define-forth-function make-exception-frame (fs)
   (%make-exception-frame :data-stack-depth (stack-depth data-stack)
                          :return-stack-depth (stack-depth return-stack)
                          :control-flow-stack-depth (stack-depth control-flow-stack)
                          :float-stack-depth (stack-depth float-stack)
                          :input-state (save-input files :for-catch? t)))
 
-(define-forth-method apply-exception-frame (fs frame)
+(define-forth-function apply-exception-frame (fs frame)
   (setf (stack-depth data-stack) (exception-frame-data-stack-depth frame)
         (stack-depth return-stack) (exception-frame-return-stack-depth frame)
         (stack-depth control-flow-stack) (exception-frame-control-flow-stack-depth frame)

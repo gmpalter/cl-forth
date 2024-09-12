@@ -82,7 +82,7 @@
                  (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
                    ;; Allow input from the console if any test raises a Forth exception
                    (let ((*standard-input* (make-concatenated-stream text *standard-input*))
-                         (fs (make-instance (find-symbol* '#:forth-system '#:forth))))
+                         (fs (symbol-call '#:forth '#:make-forth-system)))
                      (time
                       (symbol-call '#:forth '#:forth-toplevel
                                    fs :interpret "WARNING OFF S\" runtests.fth\" INCLUDED BYE"))))))))

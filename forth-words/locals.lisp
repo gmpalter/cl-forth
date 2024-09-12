@@ -100,7 +100,7 @@
               (t
                (flet ((check-name ()
                         (when (or (and (= (length name) 1) (not (alpha-char-p (aref name 0))))
-                                  (member (aref name (1- (length name))) '(#\: #\[ #\^) :test #'char-equal))
+                                  (member (aref name (1- (length name))) '(#\: #\[ #\^) :test #'eql))
                           (forth-exception :invalid-local-name "\"~A\" is not a valid LOCAL name" name))))
                  (cond (args?
                         (check-name)

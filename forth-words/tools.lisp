@@ -65,7 +65,7 @@
 
 ;;; Programming-Tools extension words as defined in Section 15 of the Forth 2012 specification
 
-(define-forth-method assemble-native-code (fs)
+(define-forth-function assemble-native-code (fs)
   (let ((forms (with-output-to-string (forms)
                  (loop do
                    (multiple-value-bind (buffer >in)
@@ -78,7 +78,7 @@
                        (forth-exception :missing-endcode)))))))
     (with-input-from-string (forms forms)
       (with-standard-io-syntax
-        (let ((*package* (find-package '#:forth))
+        (let ((*package* *forth-package*)
               (*read-eval* nil)
               (eof '#:eof))
           (loop for form = (read forms nil eof)
@@ -221,7 +221,7 @@
         (stack-push data-stack (aref vector i)))
       (stack-push data-stack n))))
 
-(define-state-word state :word "STATE")
+(define-state-word %state :word "STATE")
 
 (define-word synonym (:word "SYNONYM")
   "SYNONYM <newname> <oldname>"
@@ -240,7 +240,7 @@
                                  :immediate? (word-immediate? old-word)
                                  :compile-only? (word-compile-only? old-word)
                                  :created-word? (word-created-word? old-word)
-                                 :parameters (copy-list (word-parameters old-word)))))
+                                 :parameters (copy-parameters (word-parameters old-word)))))
         (setf (word-inlineable? new-word) (word-inlineable? old-word)
               (word-inline-forms new-word) (word-inline-forms old-word)
               (word-documentation new-word) (word-documentation old-word)
@@ -264,7 +264,7 @@
              (stack-push data-stack nt)
              (execute execution-tokens xt fs)
              (truep (stack-pop data-stack))))
-      (traverse-wordlist word-lists wl #'do-nt))))
+      (traverse-wordlist wl #'do-nt))))
 
 (define-word defined (:word "[DEFINED]" :immediate? t)
   "[DEFINED] <name>" "( -- flag )"

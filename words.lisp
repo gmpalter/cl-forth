@@ -13,21 +13,69 @@
 (defparameter *forth-words-package* (find-package '#:forth-words))
 
 
+;;; Type Definitions
+
+(defstruct (dictionary (:constructor %make-dictionary) (:print-function %print-dictionary))
+  (name "" :type string)
+  (wid 0 :type integer)
+  (last-ordinal -1 :type integer)
+  (words (make-hash-table :test #'equalp) :type hash-table)
+  (parent nil))
+
+(defstruct (parameters (:constructor %make-parameters))
+  p1 p2 p3 p4)
+
+(defstruct (word (:constructor %make-word) (:print-function %print-word))
+  (name nil :type (or string null))
+  (previous nil :type (or word null))
+  (smudge? nil :type boolean)
+  (immediate? nil :type boolean)
+  (compile-only? nil :type boolean)
+  (inlineable? nil :type boolean)
+  (created-word? nil :type boolean)
+  (deferring-word? nil :type boolean)
+  (code nil)
+  (inline-forms nil)
+  (parameters (%make-parameters) :type parameters)
+  (documentation nil)
+  (does> nil :type (or word null))
+  (parent nil :type (or dictionary null))
+  (execution-token nil)
+  (compile-token nil)
+  (name-token nil :type (or integer null))
+  (ordinal -1 :type integer))
+
+(defstruct (word-lists (:print-function %print-word-lists))
+  (all-word-lists (make-hash-table :test #'equalp) :type hash-table)
+  (forth-word-list nil :type (or dictionary null))
+  (search-order nil :type list)
+  (compilation-word-list nil :type (or dictionary null))
+  (next-wid (make-address #xFF 0) :type integer)
+  (wid-to-word-list-map (make-hash-table) :type hash-table)
+  (next-nt (make-address #xFE 0) :type integer)
+  (nt-to-word-map (make-hash-table) :type hash-table)
+  (saved-word-lists nil)
+  (saved-search-order nil)
+  (saved-compilation-word-list nil)
+  (markers (make-array 0 :fill-pointer 0 :adjustable t))
+  (context 0 :type integer)
+  (current 0 :type integer)
+  (words-created 0 :type integer)
+  (object-code-size 0 :type integer))
+
+
 ;;; Dictionaries
 
-(defclass dictionary ()
-  ((name :accessor dictionary-name :initarg :name)
-   (wid :accessor dictionary-wid :initarg :wid)
-   (last-ordinal :initform -1)
-   (words :accessor dictionary-words :initform (make-hash-table :test #'equalp))
-   (parent :accessor dictionary-parent :initform nil :initarg :parent))
-  )
-
-(defmethod print-object ((dict dictionary) stream)
+(defun %print-dictionary (dict stream depth)
+  (declare (ignore depth))
   (print-unreadable-object (dict stream :type t :identity t)
     (write-string (dictionary-name dict) stream)))
 
-(defmethod add-word ((dict dictionary) word &key override silent)
+(defun make-dictionary (name wid parent)
+  (%make-dictionary :name name :wid wid :parent parent))
+
+(defun add-word (dict word &key override silent)
+  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
   (with-slots (last-ordinal words parent) dict
     (let ((old (gethash (word-name word) words)))
       (when old
@@ -42,7 +90,8 @@
       (note-new-word parent dict word)
       (setf (gethash (word-name word) words) word))))
 
-(defmethod delete-word ((dict dictionary) xts word)
+(defun delete-word (dict xts word)
+  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
   (with-slots (words) dict
     (let ((name (word-name word))
           (old (word-previous word)))
@@ -55,7 +104,7 @@
             (t
              (remhash name words))))))
 
-(defmethod show-words ((dict dictionary))
+(defun show-words (dict)
   (let* ((words (dictionary-words dict))
          (names nil))
     (maphash #'(lambda (key word)
@@ -77,55 +126,59 @@
              (when (> column 2)
                (terpri)))))
 
-(defmethod search-dictionary ((dict dictionary) name)
-  (with-slots (words) dict
-    (gethash name words)))
+(defun search-dictionary (dict name)
+  (declare (type dictionary dict) (optimize (speed 3) (safety 0)))
+  (gethash name (dictionary-words dict)))
 
-(defmethod forget-word ((dict dictionary) xts word)
-  (with-slots (words) dict
-    (let ((ordinal (word-ordinal word)))
-      (maphash #'(lambda (key a-word)
-                   (declare (ignore key))
-                   (when (> (word-ordinal a-word) ordinal)
-                     (delete-word dict xts a-word)))
-               words))
-    (delete-word dict xts word)))
+(defun traverse-wordlist (dict function)
+  (declare (type dictionary dict) (optimize (speed 3) (safety 0)))
+  (maphash #'(lambda (name word)
+               (declare (ignore name) (type word word))
+               (if (funcall function (word-name-token word))
+                   (loop for old = (word-previous word) then (word-previous old)
+                         while old
+                         do (when (eq (word-parent old) dict)
+                              (unless (funcall function (word-name-token old))
+                                (return-from traverse-wordlist))))
+                   (return-from traverse-wordlist)))
+           (dictionary-words dict)))
+
+(defun forget-word (dict xts word)
+  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
+  (let ((ordinal (word-ordinal word)))
+    (maphash #'(lambda (key a-word)
+                 (declare (ignore key))
+                 (when (> (word-ordinal a-word) ordinal)
+                   (delete-word dict xts a-word)))
+             (dictionary-words dict)))
+  (delete-word dict xts word))
 
 
 ;;; Word Lists and the Search Order
 
 (defvar *predefined-words* (make-hash-table :test #'equalp))
 
-(defclass word-lists ()
-  ((all-word-lists :initform (make-hash-table :test #'equalp))
-   (forth :reader word-lists-forth-word-list :initform nil)
-   (search-order :accessor  word-lists-search-order :initform nil)
-   (compilation-word-list :accessor word-lists-compilation-word-list :initform nil)
-   (next-wid :initform (make-address #xFF 0))
-   (wid-to-word-list-map :initform (make-hash-table))
-   (next-nt :initform (make-address #xFE 0))
-   (nt-to-word-map :initform (make-hash-table))
-   (saved-word-lists :initform nil)
-   (saved-search-order :initform nil)
-   (saved-compilation-word-list :initform nil)
-   (markers :initform (make-array 0 :fill-pointer 0 :adjustable t))
-   (context :initform 0)
-   (current :initform 0)
-   (words-created :accessor word-lists-words-created :initform 0)
-   (object-code-size :accessor word-lists-object-code-size :initform 0))
-  )
-
-(defmethod print-object ((wls word-lists) stream)
+(defun  %print-word-lists (wls stream depth)
+  (declare (ignore depth))
   (with-slots (all-word-lists) wls
     (print-unreadable-object (wls stream :type t :identity t)
       (format stream "~D word list~:P" (hash-table-count all-word-lists)))))
 
-(defmethod update-psuedo-state-variables ((wls word-lists))
-  (with-slots (search-order compilation-word-list context current) wls
-    (setf context (dictionary-wid (first search-order))
-          current (dictionary-wid compilation-word-list))))
+(defmacro define-wls-function (name (wls &rest args) &body body)
+  (multiple-value-bind (body declarations doc)
+      (uiop:parse-body body)
+    (declare (ignore doc))
+    `(defun ,name (,wls ,@args)
+       (declare (optimize (speed 3) (safety 0))
+                (type word-lists ,wls))
+       ,@declarations
+       ,@body)))
 
-(defmethod install-predefined-words ((wls word-lists))
+(define-wls-function update-psuedo-state-variables (wls)
+  (setf (word-lists-context wls) (dictionary-wid (first (word-lists-search-order wls)))
+        (word-lists-current wls) (dictionary-wid (word-lists-compilation-word-list wls))))
+
+(define-wls-function install-predefined-words (wls)
   (maphash #'(lambda (key wl-and-word)
                (declare (ignore key))
                (let ((wl (word-list wls (car wl-and-word) :if-not-found :create)))
@@ -133,7 +186,8 @@
            *predefined-words*)
   (setf (word-lists-words-created wls) 0))
 
-(defmethod register-predefined-words ((wls word-lists) execution-tokens here)
+(define-wls-function register-predefined-words (wls execution-tokens here)
+  (declare (ignore wls))
   (maphash #'(lambda (key wl-and-word)
                (declare (ignore key))
                (let ((word (cdr wl-and-word)))
@@ -143,49 +197,45 @@
                        do (register-execution-token execution-tokens old-word here))))
            *predefined-words*))
 
-(defmethod reset-word-lists ((wls word-lists))
-  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map
-               saved-word-lists saved-search-order saved-compilation-word-list markers)
-      wls
-    (clrhash all-word-lists)
-    (clrhash wid-to-word-list-map)
-    (clrhash nt-to-word-map)
-    (when saved-word-lists
-      ;; This will create the FORTH word list, all word lists in the search order, the compilation word list,
-      ;; and any other word lists that were created but currently not in use
-      (dolist (name-and-wid saved-word-lists)
-        (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid)))
-      (setf search-order (loop for wl in saved-search-order
-                               collect (word-list wls wl :if-not-found :create)))
-      ;; In case the user just creates an empty word list and sets it as the compilation word list before GILDing
-      (setf compilation-word-list (word-list wls saved-compilation-word-list :if-not-found :create))
-      (update-psuedo-state-variables wls))
-    (when (plusp (hash-table-count *predefined-words*))
-      ;; Even if SAVED-WORD-LISTS is NIL, this next call will create the FORTH word list at a minimum
-      (install-predefined-words wls)
-      (when (null saved-word-lists)
-        (setf forth (word-list wls "FORTH"))
-        (setf search-order (list forth))
-        (setf compilation-word-list forth)
-        (update-psuedo-state-variables wls)))
-    (setf markers (make-array 0 :fill-pointer 0 :adjustable t))))
+(define-wls-function reset-word-lists (wls)
+  (clrhash (word-lists-all-word-lists wls))
+  (clrhash (word-lists-wid-to-word-list-map wls))
+  (clrhash (word-lists-nt-to-word-map wls))
+  (when (word-lists-saved-word-lists wls)
+    ;; This will create the FORTH word list, all word lists in the search order, the compilation word list,
+    ;; and any other word lists that were created but currently not in use
+    (dolist (name-and-wid (word-lists-saved-word-lists wls))
+      (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid)))
+    (setf (word-lists-search-order wls) (loop for wl in (word-lists-saved-search-order wls)
+                                              collect (word-list wls wl :if-not-found :create)))
+    ;; In case the user just creates an empty word list and sets it as the compilation word list before GILDing
+    (setf (word-lists-compilation-word-list wls) (word-list wls (word-lists-saved-compilation-word-list wls)
+                                                            :if-not-found :create))
+    (update-psuedo-state-variables wls))
+  (when (plusp (hash-table-count *predefined-words*))
+    ;; Even if SAVED-WORD-LISTS is NIL, this next call will create the FORTH word list at a minimum
+    (install-predefined-words wls)
+    (when (null (word-lists-saved-word-lists wls))
+      (setf (word-lists-forth-word-list wls) (word-list wls "FORTH"))
+      (setf (word-lists-search-order wls) (list (word-lists-forth-word-list wls)))
+      (setf (word-lists-compilation-word-list wls) (word-lists-forth-word-list wls))
+      (update-psuedo-state-variables wls)))
+  (setf (word-lists-markers wls) (make-array 0 :fill-pointer 0 :adjustable t)))
 
-(defmethod save-word-lists-state ((wls word-lists))
-  (with-slots (all-word-lists search-order compilation-word-list
-               saved-word-lists saved-search-order saved-compilation-word-list) wls
-    (setf saved-word-lists nil)
-    (maphash #'(lambda (name dictionary)
-                 (push (cons name (dictionary-wid dictionary)) saved-word-lists))
-             all-word-lists)
-    (clrhash *predefined-words*)
-    (maphash #'(lambda (dictionary-name dictionary)
-                 (maphash #'(lambda (word-name word)
-                              (let ((key (format nil "~A.~A" dictionary-name word-name)))
-                                (setf (gethash key *predefined-words*) (cons dictionary-name word))))
-                          (dictionary-words dictionary)))
-             all-word-lists)
-    (setf saved-search-order (map 'list #'dictionary-name search-order))
-    (setf saved-compilation-word-list (dictionary-name compilation-word-list))))
+(define-wls-function save-word-lists-state (wls)
+  (setf (word-lists-saved-word-lists wls) nil)
+  (maphash #'(lambda (name dictionary)
+               (push (cons name (dictionary-wid dictionary)) (word-lists-saved-word-lists wls)))
+           (word-lists-all-word-lists wls))
+  (clrhash *predefined-words*)
+  (maphash #'(lambda (dictionary-name dictionary)
+               (maphash #'(lambda (word-name word)
+                            (let ((key (format nil "~A.~A" dictionary-name word-name)))
+                              (setf (gethash key *predefined-words*) (cons dictionary-name word))))
+                        (dictionary-words dictionary)))
+           (word-lists-all-word-lists wls))
+  (setf (word-lists-saved-search-order wls) (map 'list #'dictionary-name (word-lists-search-order wls))
+        (word-lists-saved-compilation-word-list wls) (dictionary-name (word-lists-compilation-word-list wls))))
 
 (defmethod save-to-template ((wls word-lists))
   (with-slots (all-word-lists search-order compilation-word-list markers) wls
@@ -219,7 +269,8 @@
 
 (defmethod load-from-template ((wls word-lists) template fs)
   (declare (ignore fs))
-  (with-slots (all-word-lists forth search-order compilation-word-list wid-to-word-list-map nt-to-word-map markers words-created)
+  (with-slots (all-word-lists forth-word-list search-order compilation-word-list wid-to-word-list-map nt-to-word-map
+               markers words-created)
       wls
     (clrhash all-word-lists)
     (clrhash wid-to-word-list-map)
@@ -240,7 +291,7 @@
                    (key (format nil "~A.~A" wl-name word-name)))
               (add-word wl word :silent t)
               (setf (gethash key *predefined-words*) (cons wl-name word))))))
-      (setf forth (word-list wls "FORTH"))
+      (setf forth-word-list (word-list wls "FORTH"))
       (setf search-order (loop for wl in template-search-order
                                collect (word-list wls wl)))
       (setf compilation-word-list (word-list wls template-compilation-word-list))
@@ -252,124 +303,96 @@
       (update-psuedo-state-variables wls)))
   nil)
 
-(defmethod word-list ((wls word-lists) name &key (if-not-found :error) (saved-wid nil))
-  (with-slots (all-word-lists wid-to-word-list-map next-wid) wls
-    (let ((name (or name (symbol-name (gensym "WL")))))
-      (or (gethash name all-word-lists)
-          (case if-not-found
-            (:create
-             (let* ((wid (or saved-wid next-wid))
-                    (word-list (make-instance 'dictionary :name name :wid wid :parent wls)))
-               (setf (gethash name all-word-lists) word-list
-                     (gethash wid wid-to-word-list-map) word-list)
-               (if saved-wid
-                   (when (> saved-wid next-wid)
-                     (setf next-wid (+ saved-wid +cell-size+)))
-                   (incf next-wid +cell-size+))
-               word-list))
-            (:error
-             (forth-exception :unknown-word-list "Word list ~A does not exist" name))
-            (otherwise nil))))))
+(define-wls-function word-list (wls name &key (if-not-found :error) (saved-wid nil))
+  (let ((name (or name (symbol-name (gensym "WL")))))
+    (or (gethash name (word-lists-all-word-lists wls))
+        (case if-not-found
+          (:create
+           (let* ((wid (or saved-wid (word-lists-next-wid wls)))
+                  (word-list (make-dictionary name wid wls)))
+             (setf (gethash name (word-lists-all-word-lists wls)) word-list
+                   (gethash wid (word-lists-wid-to-word-list-map wls)) word-list)
+             (if saved-wid
+                 (when (> saved-wid (word-lists-next-wid wls))
+                   (setf (word-lists-next-wid wls) (+ saved-wid +cell-size+)))
+                 (incf (word-lists-next-wid wls) +cell-size+))
+             word-list))
+          (:error
+           (forth-exception :unknown-word-list "Word list ~A does not exist" name))
+          (otherwise nil)))))
 
-(defmethod lookup-wid ((wls word-lists) wid)
-  (with-slots (wid-to-word-list-map) wls
-    (or (gethash wid wid-to-word-list-map)
-        (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid))))
+(define-wls-function lookup-wid (wls wid)
+  (declare (type integer wid))
+  (or (gethash wid (word-lists-wid-to-word-list-map wls))
+      (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid)))
 
-(defmethod lookup ((wls word-lists) token)
-  (with-slots (search-order) wls
-    (loop for dictionary in search-order
-            thereis (loop for word = (gethash token (dictionary-words dictionary)) then (word-previous word)
-                          while word
-                            thereis (and (not (word-smudge? word)) word)))))
+(define-wls-function lookup (wls token)
+  (declare (type string token))
+  (dolist (dict (word-lists-search-order wls) nil)
+    (declare (type dictionary dict))
+    (do ((word (gethash token (dictionary-words dict)) (word-previous word)))
+        ((null word))
+      (when (not (word-smudge? word))
+        (return-from lookup word)))))
 
-(defmethod lookup-nt ((wls word-lists) nt)
-  (with-slots (nt-to-word-map) wls
-    (or (gethash nt nt-to-word-map)
-        (forth-exception :not-a-name-token "~14,'0X is not a name token" nt))))
+(define-wls-function lookup-nt (wls nt)
+  (declare (type integer nt))
+  (or (gethash nt (word-lists-nt-to-word-map wls))
+      (forth-exception :not-a-name-token "~14,'0X is not a name token" nt)))
         
-(defmethod also ((wls word-lists))
-  (with-slots (search-order) wls
-    (push (first search-order) search-order)))
+(define-wls-function also (wls)
+  (push (first (word-lists-search-order wls)) (word-lists-search-order wls)))
 
-(defmethod definitions ((wls word-lists))
-  (with-slots (search-order compilation-word-list) wls
-    (setf compilation-word-list (first search-order))
-    (update-psuedo-state-variables wls)))
+(define-wls-function definitions (wls)
+  (setf (word-lists-compilation-word-list wls) (first (word-lists-search-order wls)))
+  (update-psuedo-state-variables wls))
 
-(defmethod only ((wls word-lists))
-  (with-slots (search-order forth) wls
-    (setf search-order (list forth))
-    (update-psuedo-state-variables wls)))
+(define-wls-function only (wls)
+  (setf (word-lists-search-order wls) (list (word-lists-forth-word-list wls)))
+  (update-psuedo-state-variables wls))
 
-(defmethod previous ((wls word-lists))
-  (with-slots (search-order) wls
-    (when (< (length search-order) 2)
-      (forth-exception :search-order-underflow))
-    (pop search-order)
-    (update-psuedo-state-variables wls)))
+(define-wls-function previous (wls)
+  (when (< (length (word-lists-search-order wls)) 2)
+    (forth-exception :search-order-underflow))
+  (pop (word-lists-search-order wls))
+  (update-psuedo-state-variables wls))
 
-(defmethod vocabulary ((wls word-lists) name)
+(define-wls-function vocabulary (wls name)
   (when (word-list wls name :if-not-found nil)
     (forth-exception :duplicate-word-list "~A is the name of an existing word list" name))
   ;; This will create the list as we already verified it doesn't exist
   (word-list wls name :if-not-found :create))
 
 (defmethod replace-top-of-search-order ((wls word-lists) (dict dictionary))
-  (with-slots (search-order) wls
-    (setf (first search-order) dict)
-    (update-psuedo-state-variables wls)))
+  (setf (first (word-lists-search-order wls)) dict)
+  (update-psuedo-state-variables wls))
 
 (defmethod replace-top-of-search-order ((wls word-lists) (wid integer))
-  (with-slots (wid-to-word-list-map) wls
-    (let ((word-list (gethash wid wid-to-word-list-map)))
-      (if word-list
-          (replace-top-of-search-order wls word-list)
-          (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid)))))
+  (let ((word-list (gethash wid (word-lists-wid-to-word-list-map wls))))
+    (if word-list
+        (replace-top-of-search-order wls word-list)
+        (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid))))
 
-(defmethod traverse-wordlist ((wls word-lists) wl function)
-  (maphash #'(lambda (name word)
-               (declare (ignore name))
-               (if (funcall function (word-name-token word))
-                   (loop for old = (word-previous word) then (word-previous old)
-                         while old
-                         do (when (eq (word-parent old) wl)
-                              (unless (funcall function (word-name-token old))
-                                (return-from traverse-wordlist))))
-                   (return-from traverse-wordlist)))
-           (dictionary-words wl)))
-
-(defmethod note-object-code-size ((wls word-lists) word)
-  (with-slots (object-code-size) wls
-    (incf object-code-size (object-size (word-code word)))))
+(define-wls-function note-object-code-size (wls word)
+  (declare (type word word))
+  (incf (word-lists-object-code-size wls) (object-size (word-code word))))
 
 
 ;;; Words
 
-(defclass word ()
-  ((name :accessor word-name :initarg :name)
-   (previous :accessor word-previous :initarg :previous :initform nil)
-   (smudge? :accessor word-smudge? :initarg :smudge? :initform nil)
-   (immediate? :accessor word-immediate? :initarg :immediate? :initform nil)
-   (compile-only? :accessor word-compile-only? :initarg :compile-only? :initform nil)
-   (inlineable? :accessor word-inlineable? :initarg :inlineable? :initform nil)
-   (created-word? :accessor word-created-word? :initarg :created-word? :initform nil)
-   (deferring-word? :accessor word-deferring-word? :initarg :deferring-word? :initform nil)
-   (code :accessor word-code :initarg :code :initform nil)
-   (inline-forms :accessor word-inline-forms :initarg :inline-forms :initform nil)
-   (parameters :accessor word-parameters :initarg :parameters :initform nil)
-   (documentation :accessor word-documentation :initarg :documentation :initform nil)
-   (does> :accessor word-does> :initform nil)
-   (parent :accessor word-parent :initform nil)
-   (execution-token :accessor word-execution-token :initform nil)
-   (compile-token :accessor word-compile-token :initform nil)
-   (name-token :accessor word-name-token :initform nil)
-   (ordinal :accessor word-ordinal :initform -1))
-  )
+(defun make-parameters (&optional p1 p2 p3 p4)
+  (%make-parameters :p1 p1 :p2 p2 :p3 p3 :p4 p4))
 
-(defmethod print-object ((word word) stream)
+(defmethod make-load-form ((parameters parameters) &optional environment)
+  (make-load-form-saving-slots parameters :environment environment))
+
+(defmethod %print-word (word stream depth)
+  (declare (ignore depth))
   (print-unreadable-object (word stream :type t :identity t)
     (write-string (or (word-name word) "<Anonymous>") stream)))
+
+(defmethod make-load-form ((word word) &optional environment)
+  (make-load-form-saving-slots word :environment environment))
 
 (defmacro define-word (name (&key (word-list "FORTH") ((:word forth-name) (symbol-name name))
                                   immediate? compile-only? (inlineable? (not compile-only?)))
@@ -381,20 +404,20 @@
                      while (stringp (car forms))
                      do (push (pop forms) documentation)
                      finally (return forms)))
-         (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs &rest parameters)
-                   (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
+         (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs parameters)
+                   (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
+                            (optimize (speed 3) (safety 0)))
                    (with-forth-system (fs)
                      ,@body))))
     `(eval-when (:load-toplevel :execute)
-       (let ((,word (make-instance 'word
-                                   :name ,forth-name
-                                   :immediate? ,immediate?
-                                   :compile-only? ,compile-only?
-                                   :inlineable? ,inlineable?
-                                   :code ,thunk
-                                   :inline-forms ',(when inlineable?
-                                                     (reverse body))
-                                   :documentation (reverse ',documentation))))
+       (let ((,word (%make-word :name ,forth-name
+                                :immediate? ,immediate?
+                                :compile-only? ,compile-only?
+                                :inlineable? ,inlineable?
+                                :code ,thunk
+                                :inline-forms ',(when inlineable?
+                                                  (reverse body))
+                                :documentation (reverse ',documentation))))
          (setf (gethash ,key *predefined-words*) (cons ,word-list ,word))))))
 
 (defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
@@ -405,16 +428,17 @@
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
 (defun make-word (name code &key smudge? immediate? compile-only? created-word? deferring-word? parameters)
-  (make-instance 'word :name name
-                       :code code
-                       :smudge? smudge?
-                       :immediate? immediate?
-                       :compile-only? compile-only?
-                       :created-word? created-word?
-                       :deferring-word? deferring-word?
-                       :parameters (copy-list parameters)))
+  (%make-word :name name
+              :code code
+              :smudge? smudge?
+              :immediate? immediate?
+              :compile-only? compile-only?
+              :created-word? created-word?
+              :deferring-word? deferring-word?
+              :parameters (or parameters (make-parameters))))
 
-(defmethod forget ((word word) xts)
+(defun forget (word xts)
+  (declare (type word word) (optimize (speed 3) (safety 0)))
   (forget-word (word-parent word) xts word))
 
 

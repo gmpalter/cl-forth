@@ -18,6 +18,7 @@
 (declaim (inline extract-char))
 (eval-when (:compile-toplevel :load-toplevel :execute)
 (defun extract-char (value)
+  (declare (fixnum value) (optimize (speed 3) (safety 0)))
   (ldb (byte 8 0) value))
 )
 
@@ -25,11 +26,13 @@
 (declaim (inline forth-char))
 (eval-when (:compile-toplevel :load-toplevel :execute)
 (defun forth-char (native-char)
+  (declare (type character native-char) (optimize (speed 3) (safety 0)))
   (extract-char (char-code native-char)))
 )
 
 (declaim (inline native-char))
 (defun native-char (forth-char)
+  (declare (type (integer 0 255) forth-char) (optimize (speed 3) (safety 0)))
   (code-char forth-char))
 
 (defconstant +forth-char-space+ #.(forth-char #\Space))
@@ -38,26 +41,36 @@
 ;;;---*** TODO: Try to find a more efficient way to do these conversions
 
 (defun native-into-forth-string (native-string forth-memory offset)
-  (loop for i below (length native-string)
-        do (setf (aref forth-memory (+ offset (* i +char-size+))) (forth-char (aref native-string i))))
+  (declare (type string native-string) (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
+           (optimize (speed 3) (safety 0)))
+  (loop with length fixnum = (the fixnum (length native-string))
+        for i fixnum below length
+        do (setf (aref forth-memory (the fixnum (+ offset i))) (forth-char (aref native-string i))))
   (length native-string))
 
 (defun native-into-forth-counted-string (native-string forth-memory offset)
+  (declare (type string native-string) (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
+           (optimize (speed 3) (safety 0)))
   (unless (<= (length native-string) +longest-counted-string+)
     (forth-exception :parse-string-overflow))
   ;; Length of a counted string is always a single byte regardless of character size
-  (setf (aref forth-memory offset) (length native-string))
-  (native-into-forth-string native-string forth-memory (1+ offset)))
+  (setf (aref forth-memory offset) (the fixnum (length native-string)))
+  (native-into-forth-string native-string forth-memory (the fixnum (1+ offset))))
 
 (defun forth-string-to-native (forth-memory offset length)
+  (declare (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset) (fixnum length)
+           (optimize (speed 3) (safety 0)))
   (let ((string (make-string length)))
-    (loop for i below length
-          do (setf (aref string i) (native-char (aref forth-memory (+ offset (* i +char-size+))))))
+    (declare (type simple-string string))
+    (loop for i fixnum below length
+          do (setf (aref string i) (native-char (aref forth-memory (the fixnum (+ offset i))))))
     string))
 
 (defun forth-counted-string-to-native (forth-memory offset)
+  (declare (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
+           (optimize (speed 3) (safety 0)))
   ;; Length of a counted string is always a single byte regardless of character size
-  (forth-string-to-native forth-memory (1+ offset) (aref forth-memory offset)))
+  (forth-string-to-native forth-memory (the fixnum (1+ offset)) (aref forth-memory offset)))
 
 
 ;;; REPLACES/SUBSTITUTE support
@@ -86,7 +99,7 @@
 
 (defmethod register-replacement ((replacements replacements) name substitution)
   (with-slots (table) replacements
-    (unless (null (position +native-char-escape+ name :test #'char-equal))
+    (unless (null (position +native-char-escape+ name :test #'eql))
       (forth-exception :replaces-exception "Substition name cannot include escape character (~A)" +native-char-escape+))
     (setf (gethash name table) substitution)))
 
@@ -111,7 +124,7 @@
         (loop with start = 0
               with end = (length input)
               while (< start end)
-              do (let ((next (position +native-char-escape+ input :start start :test #'char-equal)))
+              do (let ((next (position +native-char-escape+ input :start start :test #'eql)))
                    (if next
                        (let ((name-end nil))
                          (when (> next start)
@@ -119,7 +132,7 @@
                          (cond ((= next (1- end))
                                 (vector-push-extend +native-char-escape+ output)
                                 (setf start end))
-                               ((setf name-end (position +native-char-escape+ input :start (1+ next) :test #'char-equal))
+                               ((setf name-end (position +native-char-escape+ input :start (1+ next) :test #'eql))
                                 (if (= name-end (1+ next))
                                     (vector-push +native-char-escape+ output)
                                     (let* ((name (subseq input (1+ next) name-end))

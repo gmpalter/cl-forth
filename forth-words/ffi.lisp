@@ -124,7 +124,7 @@
       (multiple-value-bind (parameters return-value)
           (parse-parameters-and-return fs (format nil "~:[~;[OPTIONAL] ~]~@[AS ~A ~]FUNCTION: ~A" optional? forth-name name))
         (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?))
-               (word (make-word (or forth-name name) code :parameters (list forth-name))))
+               (word (make-word (or forth-name name) code :parameters (make-parameters forth-name))))
           (add-and-register-word fs word))))))
 
 (define-word ffi-function (:word "FUNCTION:")
@@ -145,7 +145,7 @@
           (forth-exception :undefined-foreign-global "Foreign global ~A~@[ (AS ~A)~] is not defined~@[ ~A~]"
                            name forth-name #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)))
       (let ((word (make-word (or forth-name name) #'push-parameter-as-global-pointer
-                             :parameters (list name forth-name (ffi-current-library ffi)))))
+                             :parameters (make-parameters name forth-name (ffi-current-library ffi)))))
         (add-and-register-word fs word)))))
   
 (define-word ffi-global (:word "GLOBAL:")
@@ -264,7 +264,7 @@
     (multiple-value-bind (parameters return-value)
         (parse-parameters-and-return fs (format nil "CALLBACK: ~A" name))
       (let* ((callback (build-ffi-callback ffi fs name xt parameters return-value))
-             (word (make-word name #'push-parameter-as-callback-ptr :parameters (list callback))))
+             (word (make-word name #'push-parameter-as-callback-ptr :parameters (make-parameters callback))))
         (add-and-register-word fs word)))))
 
 
@@ -282,7 +282,7 @@
         (struct (make-forth-structure :named? t)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let ((word (make-word name #'push-structure-size-from-parameter :smudge? t :parameters (list struct))))
+    (let ((word (make-word name #'push-structure-size-from-parameter :smudge? t :parameters (make-parameters struct))))
       (setf (fs-word struct) word)
       (add-and-register-word fs word)
       (stack-push data-stack struct)

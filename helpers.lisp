@@ -12,18 +12,24 @@
 
 ;;; Functions used as the code for some of the words defined by Forth 2012
 
-(defun push-parameter-as-cell (fs &rest parameters)
+(defun push-parameter-as-cell (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push data-stack (first parameters))))
+    (stack-push data-stack (parameters-p1 parameters))))
 
-(defun push-parameter-as-double-cell (fs &rest parameters)
+(defun push-parameter-as-double-cell (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push-double data-stack (first parameters))))
+    (stack-push-double data-stack (parameters-p1 parameters))))
 
-(defun push-value (fs &rest parameters)
+(defun push-value (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (let ((address (first parameters))
-          (type (second parameters)))
+    (let ((address (parameters-p1 parameters))
+          (type (parameters-p2 parameters)))
       (case type
         (:value
          (stack-push data-stack (memory-cell memory address)))
@@ -32,23 +38,31 @@
         (:fvalue
          (stack-push float-stack (memory-native-float memory address)))))))
 
-(defun push-parameter-as-float (fs &rest parameters)
+(defun push-parameter-as-float (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push float-stack (first parameters))))
+    (stack-push float-stack (parameters-p1 parameters))))
 
-(defun execute-parameter (fs &rest parameters)
+(defun execute-parameter (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (when (null (first parameters))
+    (when (null (parameters-p1 parameters))
       (forth-exception :defer-not-set))
-    (execute execution-tokens (first parameters) fs)))
+    (execute execution-tokens (parameters-p1 parameters) fs)))
 
-(defun do-marker (fs &rest parameters)
+(defun do-marker (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (execute-marker word-lists execution-tokens files (first parameters))))
+    (execute-marker word-lists execution-tokens files (parameters-p1 parameters))))
 
-(defun replace-top-of-search-order-with-parameter (fs &rest parameters)
+(defun replace-top-of-search-order-with-parameter (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (replace-top-of-search-order word-lists (first parameters))))
+    (replace-top-of-search-order word-lists (parameters-p1 parameters))))
 
 
 ;;; Structure (BEGIN-STRUCTURE) helpers
@@ -72,33 +86,41 @@
            (name (if (fs-named? struct)
                      (format nil "~A.~A" (word-name (fs-word struct)) name)
                      name))
-           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (list offset))))
+           (word (make-word name #'push-field-address-from-parameter :smudge? t :parameters (make-parameters offset))))
       (push word (fs-fields struct))
       (add-and-register-word fs word)
       (stack-push data-stack (+ offset field-size)))))
 
-(defun push-structure-size-from-parameter (fs &rest parameters)
+(defun push-structure-size-from-parameter (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push data-stack (fs-size (first parameters)))))
+    (stack-push data-stack (fs-size (parameters-p1 parameters)))))
 
-(defun push-field-address-from-parameter (fs &rest parameters)
+(defun push-field-address-from-parameter (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push data-stack (+ (stack-pop data-stack) (first parameters)))))
+    (stack-push data-stack (+ (stack-pop data-stack) (parameters-p1 parameters)))))
 
 
 ;;; Helpers for FFI words
 
-(defun push-parameter-as-global-pointer (fs &rest parameters)
+(defun push-parameter-as-global-pointer (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (let* ((name (first parameters))
-           (forth-name (second parameters))
-           (library (library-ffi-library (third parameters)))
+    (let* ((name (parameters-p1 parameters))
+           (forth-name (parameters-p2 parameters))
+           (library (library-ffi-library (parameters-p3 parameters)))
            (pointer (cffi:foreign-symbol-pointer name :library library)))
       (if (null pointer)
           (forth-exception :undefined-foreign-global "Foreign global ~A~@[ (AS ~A)~] is not defined~@[ ~A~]"
                            name forth-name #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)
           (stack-push data-stack (native-address memory pointer))))))
 
-(defun push-parameter-as-callback-ptr (fs &rest parameters)
+(defun push-parameter-as-callback-ptr (fs parameters)
+  (declare (type forth-system fs) (type parameters parameters)
+           (optimize (speed 3) (safety 0)))
   (with-forth-system (fs)
-    (stack-push data-stack (native-address memory (cffi:get-callback (first parameters))))))
+    (stack-push data-stack (native-address memory (cffi:get-callback (parameters-p1 parameters))))))

@@ -27,11 +27,14 @@
   (%make-stack :name name :cells (make-array size :initial-element 0) :size size
                :overflow-key overflow-key :underflow-key underflow-key))
 
-(defmacro define-stack-fun (name arglist &body body)
-  `(progn
-     ;;(declaim (inline ,name))
-     (defun ,name (,@arglist)
-       (declare (optimize (speed 3) (safety 0)))
+(defmacro define-stack-fun (name (st &rest args) &body body)
+  (multiple-value-bind (body declarations doc)
+      (uiop:parse-body body)
+    (declare (ignore doc))
+    `(defun ,name (,st ,@args)
+       (declare (optimize (speed 3) (safety 0))
+                (type stack ,st))
+       ,@declarations
        ,@body)))
 
 (declaim (inline stack-overflow-check))
@@ -46,11 +49,13 @@
   (when (< (stack-depth st) minimum-depth)
     (forth-exception (stack-underflow-key st))))
 
+(declaim (inline stack-cell))
 (define-stack-fun stack-cell (st index)
   ;; INDEX is zero-based index of element from top of stack
   (declare (fixnum index))
   (aref (stack-cells st) (the fixnum (- (the fixnum (- (stack-depth st) index)) 1))))
 
+(declaim (inline set-stack-cell))
 (define-stack-fun set-stack-cell (st index value)
   (declare (fixnum index))
   (setf (aref (stack-cells st) (the fixnum (- (the fixnum (- (stack-depth st) index)) 1))) value))

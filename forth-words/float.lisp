@@ -53,11 +53,11 @@
         ;; Forth 2012 expects "-35+2" to be converted to -3500.0 whereas Lisp will interpret that string
         ;; as a symbol. So, we'll explicitly check for this situation and insert an "E" into the string
         ;; before passing it to Lisp's reader.
-        (let ((position (position-if #'(lambda (ch) (or (char-equal ch #\+) (char-equal ch #\-))) string :from-end t)))
+        (let ((position (position-if #'(lambda (ch) (or (eql ch #\+) (eql ch #\-))) string :from-end t)))
           (when (and position
                      (plusp position)
                      (let ((ch (aref string (1- position))))
-                       (or (digit-char-p ch) (char-equal ch #\.))))
+                       (or (digit-char-p ch) (eql ch #\.))))
             (setf string (concatenate 'string (subseq string 0 position) "E" (subseq string position)))
             (incf length)))
         ;; If the last character is an exponent marker (E/e/D/d) or a sign (+/-), append a "0" so that
@@ -192,7 +192,7 @@
         (value (stack-pop float-stack)))
     (when (null name)
       (forth-exception :zero-length-name))
-    (let ((word (make-word name #'push-parameter-as-float :parameters (list value))))
+    (let ((word (make-word name #'push-parameter-as-float :parameters (make-parameters value))))
       (setf (word-inline-forms word) `((stack-push float-stack ,value))
             (word-inlineable? word) t)
       (add-and-register-word fs word (data-space-high-water-mark memory)))))
@@ -284,7 +284,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory +native-float-cell-size+)
     (let* ((address (allocate-memory memory +native-float-cell-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (make-parameters address) :created-word? t)))
       (setf (word-inline-forms word) `((stack-push data-stack ,address))
             (word-inlineable? word) t)
       (add-and-register-word fs word address))))
@@ -611,7 +611,7 @@
       (forth-exception :zero-length-name))
     (align-memory memory +native-float-cell-size+)
     (let* ((address (allocate-memory memory +native-float-cell-size+))
-           (word (make-word name #'push-value :parameters (list address :fvalue) :created-word? t)))
+           (word (make-word name #'push-value :parameters (make-parameters address :fvalue) :created-word? t)))
       (setf (memory-native-float memory address) value)
       (add-and-register-word fs word address))))
 

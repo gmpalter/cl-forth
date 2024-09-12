@@ -13,8 +13,9 @@
 (defpackage #:forth-asdf-support
   (:use #:common-lisp #:forth #:asdf)
   (:import-from #:forth
+                #:make-forth-system
+                #:fs-files
                 #:+read-direction+
-                #:forth-system-files
                 #:source-push
                 #:forth-open-file
                 #:interpreter/compiler
@@ -29,7 +30,7 @@
 ;;; Define a FORTH-ASDF-SYSTEM
 
 (defclass forth-asdf-system (system)
-  ((forth-system :accessor fas-forth-system :initform (make-instance 'forth:forth-system)))
+  ((forth-system :accessor fas-forth-system :initform (make-forth-system)))
   )
 
 (defmethod initialize-instance :after ((fas forth-asdf-system) &key &allow-other-keys)
@@ -53,8 +54,8 @@
   (let* ((fs (or (loop for parent = (component-parent c) then (component-parent parent)
                          thereis (and (typep parent 'forth-asdf-system)
                                       (fas-forth-system parent)))
-                 (make-instance 'forth:forth-system)))
-         (files (forth-system-files fs)))
+                 (make-forth-system)))
+         (files (fs-files fs)))
     (source-push files :fileid (forth-open-file files (component-pathname c) +read-direction+))
     (interpreter/compiler fs :toplevel? nil)))
 

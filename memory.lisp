@@ -738,11 +738,14 @@
     (or (aref (memory-all-spaces memory) prefix)
         (forth-exception :invalid-memory))))
 
-(defmacro define-memory-fun (name arglist &body body)
-  `(progn
-     ;;(declaim (inline ,name))
-     (defun ,name (,@arglist)
-       (declare (type memory memory) (optimize (speed 3) (safety 0)))
+(defmacro define-memory-fun (name (memory &rest args) &body body)
+  (multiple-value-bind (body declarations doc)
+      (uiop:parse-body body)
+    (declare (ignore doc))
+    `(defun ,name (,memory ,@args)
+       (declare (optimize (speed 3) (safety 0))
+                (type memory ,memory))
+       ,@declarations
        ,@body)))
 
 (defmacro do-all-spaces (memory space &body body)

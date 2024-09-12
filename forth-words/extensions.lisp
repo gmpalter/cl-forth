@@ -50,7 +50,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((address (allocate-memory memory +char-size+))
-           (word (make-word name #'push-parameter-as-cell :parameters (list address) :created-word? t)))
+           (word (make-word name #'push-parameter-as-cell :parameters (make-parameters address) :created-word? t)))
       (setf (word-inline-forms word) `((stack-push data-stack ,address))
             (word-inlineable? word) t)
       (add-and-register-word fs word address))))
@@ -125,7 +125,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (let* ((dict (vocabulary word-lists name))
-           (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (list dict))))
+           (word (make-word name #'replace-top-of-search-order-with-parameter :parameters (make-parameters dict))))
       (add-and-register-word fs word))))
 
 

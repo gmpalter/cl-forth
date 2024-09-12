@@ -201,7 +201,7 @@
         (dolist (callback saved-callbacks)
           (let ((word (lookup word-lists (callback-name callback))))
             (when word
-              (setf (first (word-parameters word))
+              (setf (parameters-p1 (word-parameters word))
                     (build-ffi-callback ffi fs (callback-name callback) (callback-xt callback)
                                         (callback-parameters callback) (callback-return-value callback)))))))))
   nil)
@@ -280,8 +280,9 @@
                 `((stack-push float-stack (native-float ,result-symbol))))
                (:double
                 `((stack-push float-stack (native-float ,result-symbol))))))
-           (thunk `(named-lambda ,lambda-name (fs &rest parameters)
-                     (declare (ignorable parameters) (optimize (speed 3) (safety 0)))
+           (thunk `(named-lambda ,lambda-name (fs parameters)
+                     (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
+                              (optimize (speed 3) (safety 0)))
                      (with-forth-system (fs)
                        ,@optional-form
                        (let* (,@(reverse parameter-forms)
