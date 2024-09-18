@@ -102,6 +102,13 @@
                               fs-show-redefinition-warnings? fs-reset-redefinition-warnings? fs-show-definition-code?
                               fs-show-backtraces-on-error? fs-current-frame fs-exception-hook fs-exception-prefix fs-exit-hook
                               fs-announce-addendum fs-prompt-string fs-extensions)))
+     #+LispWorks
+     (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack
+                         float-stack definitions-stack word-lists files execution-tokens ffi
+                         replacements base float-precision %state definition compiling-paused?
+                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                         show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
+                         announce-addendum prompt-string extensions))
      ,@body))
 
 (defmacro define-forth-function (name (fs &rest args) &body body)

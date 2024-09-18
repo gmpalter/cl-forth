@@ -250,5 +250,4 @@
 
 #+LispWorks
 (defun object-size (object)
-  (declare (ignore object))
-  0)
+  (hcl:find-object-size object))
