@@ -98,9 +98,19 @@
                raw
                (- raw (dpb 1 (byte 1 64) 0)))))))
 
+(define-compiler-macro cell-signed (&whole form &environment env cell)
+  (if (constantp cell env)
+      (cell-signed cell)
+      form))
+
 (declaim (inline cell-unsigned))
 (defun cell-unsigned (cell)
   (ldb (byte 64 0) cell))
+
+(define-compiler-macro cell-unsigned (&whole form &environment env cell)
+  (if (constantp cell env)
+      (cell-unsigned cell)
+      form))
 
 (declaim (inline double-components))
 (defun double-components (double)
@@ -116,9 +126,19 @@
               raw
               (- raw (dpb 1 (byte 1 128) 0)))))))
 
+(define-compiler-macro double-cell-signed (&whole form &environment env low-cell high-cell)
+  (if (and (constantp low-cell env) (constantp high-cell env))
+      (double-cell-signed low-cell high-cell)
+      form))
+
 (declaim (inline double-cell-unsigned))
 (defun double-cell-unsigned (low-cell high-cell)
   (dpb high-cell (byte 64 64) (ldb (byte 64 0) low-cell)))
+
+(define-compiler-macro double-cell-unsigned (&whole form &environment env low-cell high-cell)
+  (if (and (constantp low-cell env) (constantp high-cell env))
+      (double-cell-unsigned low-cell high-cell)
+      form))
 
 (declaim (inline quad-byte-signed))
 (defun quad-byte-signed (value)
@@ -127,9 +147,19 @@
         raw
         (- raw (dpb 1 (byte 1 32) 0)))))
 
+(define-compiler-macro quad-byte-signed (&whole form &environment env value)
+  (if (constantp value env)
+      (quad-byte-signed value)
+      form))
+
 (declaim (inline quad-byte-unsigned))
 (defun quad-byte-unsigned (value)
   (ldb (byte 32 0) value))
+
+(define-compiler-macro quad-byte-unsigned (&whole form &environment env value)
+  (if (constantp value env)
+      (quad-byte-unsigned value)
+      form))
 
 (declaim (inline double-byte-signed))
 (defun double-byte-signed (value)
@@ -138,9 +168,19 @@
         raw
         (- raw (dpb 1 (byte 1 16) 0)))))
 
+(define-compiler-macro double-byte-signed (&whole form &environment env value)
+  (if (constantp value env)
+      (double-byte-signed value)
+      form))
+
 (declaim (inline double-byte-unsigned))
 (defun double-byte-unsigned (value)
   (ldb (byte 16 0) value))
+
+(define-compiler-macro double-byte-unsigned (&whole form &environment env value)
+  (if (constantp value env)
+      (double-byte-unsigned value)
+      form))
 
 
 ;;; Floating Point
