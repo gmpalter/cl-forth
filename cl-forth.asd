@@ -30,6 +30,7 @@
                (:file "files")
                (:file "execution-tokens")
                (:file "ffi")
+               (:file "optimizer")
                (:file "system")
                (:file "templates")
                (:file "helpers")
@@ -79,10 +80,19 @@
   :perform (test-op (o c)
              (let ((tests-dir (component-pathname c)))
                (uiop:with-current-directory (tests-dir)
-                 (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
-                   ;; Allow input from the console if any test raises a Forth exception
-                   (let ((*standard-input* (make-concatenated-stream text *standard-input*))
-                         (fs (symbol-call '#:forth '#:make-forth-system)))
-                     (time
-                      (symbol-call '#:forth '#:forth-toplevel
-                                   fs :interpret "WARNING OFF S\" runtests.fth\" INCLUDED BYE"))))))))
+                 (flet ((run-tests (optimized?)
+                          (format t "~2&-------------------- Test Suite ~:[Without~;With~] Optimizer --------------------~%"
+                                  optimized?)
+                          (with-input-from-string (text #.(format nil "The quick brown fox jumped over the lazy red dog.~%"))
+                            ;; Allow input from the console if any test raises a Forth exception
+                            (let ((*standard-input* (make-concatenated-stream text *standard-input*))
+                                  (fs (symbol-call '#:forth '#:make-forth-system))
+                                  (phrases `("WARNING OFF"
+                                             ,@(when optimized? '("OPTIMIZER ON"))
+                                             "S\" runtests.fth\" INCLUDED"
+                                             "BYE")))
+                              (time
+                               (symbol-call '#:forth '#:forth-toplevel fs :interpret (reverse phrases)))))))
+                   (run-tests nil)
+                   (terpri) (terpri)
+                   (run-tests t))))))

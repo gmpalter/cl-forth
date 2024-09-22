@@ -140,6 +140,8 @@
   (:null-pointer-reference -308 "Attempt to reference through a null pointer")
   (:duplicate-as-clauses -309 "AS appears more than once in a definition")
   (:duplicate-optional-clauses -310 "[OPTIONAL] appears more than once in a definition")
+  (:optimizer-stack-overflow -311 "Expression too complex for optimizer")
+  (:optimizer-stack-underflow -312 "Optimizer stack underflow")
   )
 
 (define-condition forth-exception (error)

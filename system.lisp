@@ -70,6 +70,7 @@
   (show-redefinition-warnings? +true+ :type forth-boolean)
   (reset-redefinition-warnings? nil :type boolean)
   (show-definition-code? +false+ :type forth-boolean)
+  (%optimize-definitions? +false+ :type forth-boolean)
   (show-backtraces-on-error? +false+ :type forth-boolean)
   (current-frame nil)
   ;; If non-NIL, called after an exception, including ABORT and ABORT\", to perform additional processing
@@ -94,19 +95,21 @@
                               float-stack definitions-stack word-lists files execution-tokens ffi
                               replacements base float-precision %state definition compiling-paused?
                               show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                              %optimize-definitions?
                               show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
                               announce-addendum prompt-string extensions)
                             '(fs-memory fs-data-stack fs-return-stack fs-control-flow-stack fs-exception-stack fs-loop-stack
                               fs-float-stack fs-definitions-stack fs-word-lists fs-files fs-execution-tokens fs-ffi
                               fs-replacements fs-base fs-float-precision fs-%state fs-definition fs-compiling-paused?
                               fs-show-redefinition-warnings? fs-reset-redefinition-warnings? fs-show-definition-code?
+                              fs-%optimize-definitions?
                               fs-show-backtraces-on-error? fs-current-frame fs-exception-hook fs-exception-prefix fs-exit-hook
                               fs-announce-addendum fs-prompt-string fs-extensions)))
      #+LispWorks
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack
                          float-stack definitions-stack word-lists files execution-tokens ffi
                          replacements base float-precision %state definition compiling-paused?
-                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? optimize-definitions?
                          show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
                          announce-addendum prompt-string extensions))
      ,@body))
@@ -151,6 +154,15 @@
   (setf (fs-%state fs) (ecase value
                          (:interpreting 0)
                          (:compiling 1)))
+  value)
+
+(defun optimize-definitions? (fs)
+  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (truep (fs-%optimize-definitions? fs)))
+
+(defun (setf optimize-definitions?) (value fs)
+  (declare (type forth-system fs) (type boolean value) (optimize (speed 3) (safety 0)))
+  (setf (fs-%optimize-definitions? fs) (if value +true+ +false+))
   value)
 
 (define-forth-function reset-interpreter/compiler (fs)
@@ -433,20 +445,22 @@
                                                                   collect (local-symbol local)))))
                              (tagbody
                                 ,@(reverse (locals-forms locals)))))))))
+                  (body `(,@(reverse (word-inline-forms word))
+                          ,@locals-block))
+                  (body (if (optimize-definitions? fs)
+                            (optimize-definition body)
+                            body))
                   (thunk `(named-lambda ,name (fs parameters)
                             (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
                                      (optimize (speed 3) (safety 0)))
                             (with-forth-system (fs)
                               (tagbody
-                                 ,@(reverse (word-inline-forms word))
-                                 ,@locals-block
+                                 ,@body
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (setf (word-code word) (compile nil (eval thunk)))
              (note-object-code-size word-lists word)
-             ;; Keep the forms for subsequent inlining and also for SEE
-             (when locals-block
-               ;; Ensure subsequent inlining of this definition will include the locals block
-               (push (car locals-block) (word-inline-forms (definition-word definition))))
+             ;; Keep the possibly optimized forms for subsequent inlining and also for SEE
+             (setf (word-inline-forms (definition-word definition)) (reverse body))
              (when (truep show-definition-code?)
                (show-definition fs word))
              (setf (word-smudge? word) nil

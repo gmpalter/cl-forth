@@ -284,3 +284,8 @@
   "Report some useful statistics about this Forth session"
   (unless (report-statistics fs)
     (write-line "Nothing to report.")))
+
+(define-word optimizer (:word "OPTIMIZER")
+  "( -- addr )"
+  "Return the address of the flag that controls whether definitions are optimized when compiled"
+  (stack-push data-stack (state-slot-address memory '%optimize-definitions?)))
