@@ -10,46 +10,66 @@
 
 (in-package #:forth)
 
-#||
 (defparameter +not-optimized-marker+ '#:not-optimized)
 
-(defun pop-optimizer-stack (optimizer-stack)
-  (let ((expr (stack-pop optimizer-stack)))
+(defstruct optimizer
+  (data-stack (make-stack "Optimizer" 1024 :optimizer-stack-overflow :optimizer-stack-underflow)    )
+  (return-stack-depth 0))
+
+(defvar *optimizers* (make-hash-table))
+
+(defmacro define-optimizer (name (optimizer form vars) &body body)
+  (flet ((define (name)
+           (let ((optimizer-fun (intern (format nil "OPTIMIZE-~A" name))))
+             `(setf (gethash ',name *optimizers*)
+                    (named-lambda ,optimizer-fun (,optimizer ,form ,vars)
+                      ,@body)))))
+    (if (atom name)
+        (define name)
+        `(progn
+           ,@(loop for name in name
+                   collect (define name))))))
+
+(defun pop-optimizer-data-stack (optimizer)
+  (let ((expr (stack-pop (optimizer-data-stack optimizer))))
     (if (eq expr +not-optimized-marker+)
         `(stack-pop data-stack)
         expr)))
   
-(defun optimize-expr (optimizer-stack topexpr vars)
+(defun empty-optimizer-data-stack (optimizer)
+  (when (plusp (stack-depth (optimizer-data-stack optimizer)))
+    (let ((not-optimized-count (reduce #'+ (stack-contents (optimizer-data-stack optimizer))
+                                       :initial-value 0
+                                       :key #'(lambda (cell)
+                                                (if (eq cell +not-optimized-marker+) 1 0)))))
+      ;;---*** TODO
+      (declare (ignore not-optimized-count))
+      (reverse (loop while (plusp (stack-depth (optimizer-data-stack optimizer)))
+                     for expr = (pop-optimizer-data-stack optimizer)
+                     unless (equal expr '(stack-pop data-stack))
+                       collect`(stack-push data-stack ,expr))))))
+
+(defun optimize-expr (optimizer topexpr vars)
   (let ((substituted? nil))
-  (labels ((optimize (expr)
-             (cond ((atom expr)
-                    (if (member expr vars)
-                        (return-from optimize-expr (values topexpr t))
-                        expr))
-                   ((and (eq (first expr) 'stack-pop) (eq (second expr) 'data-stack))
-                    (if (zerop (stack-depth optimizer-stack))
-                        (if substituted?
-                            expr
-                            (return-from optimize-expr (values topexpr t)))
-                        (prog1
-                            (pop-optimizer-stack optimizer-stack)
-                          (setf substituted? t))))
-                   (t
-                    (loop for subexpr in expr
-                          collect (optimize subexpr))))))
-    (optimize topexpr))))
+    (labels ((optimize (expr)
+               (cond ((atom expr)
+                      (if (member expr vars)
+                          (return-from optimize-expr (values topexpr t))
+                          expr))
+                     ((and (eq (first expr) 'stack-pop) (eq (second expr) 'data-stack))
+                      (if (zerop (stack-depth (optimizer-data-stack optimizer)))
+                          (if substituted?
+                              expr
+                              (return-from optimize-expr (values topexpr t)))
+                          (prog1
+                              (pop-optimizer-data-stack optimizer)
+                            (setf substituted? t))))
+                     (t
+                      (loop for subexpr in expr
+                            collect (optimize subexpr))))))
+      (optimize topexpr))))
 
-(defun optimize-stack-push (optimizer-stack form vars)
-  (multiple-value-bind (expr push-marker?)
-      (optimize-expr optimizer-stack (third form) vars)
-    (cond (push-marker?
-           (stack-push optimizer-stack +not-optimized-marker+)
-           (list form))
-          (t
-           (stack-push optimizer-stack expr)
-           nil))))
-
-(defun optimize-let (optimizer-stack form vars)
+(define-optimizer (let let*) (optimizer form vars)
   (destructuring-bind (word (&rest bindings) &body body) form
     (multiple-value-bind (newvars exprs)
         (loop for (var expr) in bindings
@@ -58,64 +78,140 @@
               finally (return (values vars exprs)))
       `((,word (,@(loop for var in newvars
                         for expr in exprs
-                        collect `(,var ,(optimize-expr optimizer-stack expr vars))))
+                        collect `(,var ,(optimize-expr optimizer expr vars))))
                ,@(loop with vars = (append vars newvars)
                        for form in body
-                       append (optimize-form optimizer-stack form vars)))))))
+                       append (optimize-form optimizer form vars)))))))
 
-(defun optimize-when/unless (optimizer-stack form vars)
+(define-optimizer (when unless) (optimizer form vars)
   (destructuring-bind (word test &body body) form
-    `((,word ,(optimize-expr optimizer-stack test vars)
+    `((,word ,(optimize-expr optimizer test vars)
              ,@(loop for form in body
-                     append (optimize-form optimizer-stack form vars))))))
+                     append (optimize-form optimizer form vars))))))
 
-(defun optimize-form (optimizer-stack form vars)
+(define-optimizer multiple-value-bind (optimizer form vars)
+  (destructuring-bind (word (&rest newvars) expr &body body) form
+    `((,word (,@newvars) ,(optimize-expr optimizer expr vars)
+             ,@(loop with vars = (append vars newvars)
+                     for form in body
+                     append (optimize-form optimizer form vars))))))
+
+(define-optimizer stack-underflow-check (optimizer form vars)
+  (declare (ignore vars))
+  (destructuring-bind (word stack &optional (n 1)) form
+    (declare (ignore word))
+    (cond ((eq stack 'data-stack)
+           (if (>= (stack-depth (optimizer-data-stack optimizer)) n)
+               nil
+               (list form)))
+          ((eq stack 'return-stack)
+           (if (>= (optimizer-return-stack-depth optimizer) n)
+               nil
+               (list form)))
+          (t
+           (list form)))))
+
+(define-optimizer stack-push (optimizer form vars)
+  (destructuring-bind (word stack value) form
+    (declare (ignore word))
+    (cond ((eq stack 'data-stack)
+           (multiple-value-bind (expr push-marker?)
+               (optimize-expr optimizer value vars)
+             (cond (push-marker?
+                    (stack-push (optimizer-data-stack optimizer) +not-optimized-marker+)
+                    (list form))
+                   (t
+                    (stack-push (optimizer-data-stack optimizer) expr)
+                    nil))))
+          ((eq stack 'return-stack)
+           (incf (optimizer-return-stack-depth optimizer))
+           (list `(stack-push return-stack ,(optimize-expr optimizer value vars))))
+          (t
+           (list `(stack-push ,stack ,(optimize-expr optimizer value vars)))))))
+
+(define-optimizer stack-pop (optimizer form vars)
+  (declare (ignore vars))
+  (when (and (eq (second form) 'return-stack)
+             (plusp (optimizer-return-stack-depth optimizer)))
+    (decf (optimizer-return-stack-depth optimizer)))
+  (list form))
+
+(define-optimizer stack-dup (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (if (zerop (stack-depth (optimizer-data-stack optimizer)))
+               (list form)
+               (prog1
+                   (and (eq (stack-cell (optimizer-data-stack optimizer) 0) +not-optimized-marker+) (list form))
+                 (stack-dup (optimizer-data-stack optimizer)))))
+          ((eq stack 'return-stack)
+           (incf (optimizer-return-stack-depth optimizer))
+           (list form))
+          (t
+           (list form)))))
+
+(define-optimizer stack-?dup (optimizer form vars)
+  (declare (ignore vars))
+  (if (eq (second form) 'data-stack)
+      (append (empty-optimizer-data-stack optimizer) (list form))
+      (list form)))
+
+(define-optimizer stack-drop (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (if (zerop (stack-depth (optimizer-data-stack optimizer)))
+               (list form)
+               (let ((expr (pop-optimizer-data-stack optimizer)))
+                 (if (constantp expr)
+                     nil
+                     (append (empty-optimizer-data-stack optimizer) (list expr))))))
+          ((eq stack 'return-stack)
+           (decf (optimizer-return-stack-depth optimizer))
+           (list form))
+          (t
+           (list form)))))
+  
+(define-optimizer stack-swap (optimizer form vars)
+  (declare (ignore vars))
+  (if (eq (second form) 'data-stack)
+      (if (> (stack-depth (optimizer-data-stack optimizer)) 1)
+          (prog1
+              nil
+            (stack-swap (optimizer-data-stack optimizer)))
+          (append (empty-optimizer-data-stack optimizer) (list form)))
+      (list form)))
+
+;;;
+
+(defun optimize-form (optimizer form vars)
   (handler-bind ((forth-exception
                    #'(lambda (exception)
-                       (when (eq (forth-exception-key exception) :optimizer-stack-overflow)
-                         (return-from optimize-form form)))))
-    (flet ((empty-optimizer-stack (form)
-             (nconc (reverse (loop while (plusp (stack-depth optimizer-stack))
-                                   append `((stack-push data-stack ,(pop-optimizer-stack optimizer-stack)))))
-                    (list form))))
+                       (when (member (forth-exception-key exception) '(:optimizer-stack-overflow :optimizer-stack-underflow))
+                         (format t "~A while optimizing ~S~%" (forth-exception-phrase exception) form)
+                         (return-from optimize-form (list form))))))
+    (flet ((punt ()
+             (nconc (empty-optimizer-data-stack optimizer) (list form)))
+           (default-optimizer (optimizer form vars)
+             (list (optimize-expr optimizer form vars))))
       (cond ((atom form)
              ;;---*** TODO: EXPLAIN
-             (empty-optimizer-stack form))
+             (punt))
             ((eq (first form) 'forth-call)
              ;;---*** TODO: EXPLAIN
-             (empty-optimizer-stack form))
+             (punt))
             ((eq (first form) 'go)
              ;;---*** TODO: EXPLAIN
-             (empty-optimizer-stack form))
-            ((and (eq (first form) 'stack-push) (eq (second form) 'data-stack))
-             (optimize-stack-push optimizer-stack form vars))
-            ((and (eq (first form) 'stack-pop) (eq (second form) 'data-stack))
-             ;; STACK-POP as a top-level form is highly unlikely but ...
-             (if (zerop (stack-depth optimizer-stack))
-                 (list form)
-                 (prog1
-                     nil
-                   (pop-optimizer-stack optimizer-stack))))
-            ((and (eq (first form) 'stack-dup) (eq (second form) 'data-stack))
-             (if (zerop (stack-depth optimizer-stack))
-                 (list form)
-                 (prog1
-                     nil
-                   (stack-push optimizer-stack (stack-cell optimizer-stack 0)))))
-            ((or (eq (first form) 'let) (eq (first form) 'let*))
-             (optimize-let optimizer-stack form vars))
-            ((or (eq (first form) 'when) (eq (first form) 'unless))
-             (optimize-when/unless optimizer-stack form vars))
+             (punt))
             (t
-             (list (optimize-expr optimizer-stack form vars)))))))
+             (funcall (gethash (first form) *optimizers* #'default-optimizer) optimizer form vars))))))
 
 (defun optimize-definition (forms)
-  (let* ((optimizer-stack (make-stack "Optimizer" 1024 :optimizer-stack-overflow :optimizer-stack-underflow))
+  (let* ((optimizer (make-optimizer))
          (optimized (loop for form in forms
-                          append (optimize-form optimizer-stack form nil))))
-    (append optimized (reverse (loop while (plusp (stack-depth optimizer-stack))
-                                     append `((stack-push data-stack ,(pop-optimizer-stack optimizer-stack))))))))
-||#
+                          append (optimize-form optimizer form nil))))
+    (append optimized (empty-optimizer-data-stack optimizer))))
 
-(defun optimize-definition (forms)
-  forms)
+;;(defun optimize-definition (forms)
+;;  forms)
