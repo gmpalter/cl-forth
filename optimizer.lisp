@@ -16,20 +16,6 @@
   (data-stack (make-stack "Optimizer" 1024 :optimizer-stack-overflow :optimizer-stack-underflow)    )
   (return-stack-depth 0))
 
-(defvar *optimizers* (make-hash-table))
-
-(defmacro define-optimizer (name (optimizer form vars) &body body)
-  (flet ((define (name)
-           (let ((optimizer-fun (intern (format nil "OPTIMIZE-~A" name))))
-             `(setf (gethash ',name *optimizers*)
-                    (named-lambda ,optimizer-fun (,optimizer ,form ,vars)
-                      ,@body)))))
-    (if (atom name)
-        (define name)
-        `(progn
-           ,@(loop for name in name
-                   collect (define name))))))
-
 (defun pop-optimizer-data-stack (optimizer)
   (let ((expr (stack-pop (optimizer-data-stack optimizer))))
     (if (eq expr +not-optimized-marker+)
@@ -48,6 +34,8 @@
                      for expr = (pop-optimizer-data-stack optimizer)
                      unless (equal expr '(stack-pop data-stack))
                        collect`(stack-push data-stack ,expr))))))
+
+;;;
 
 (defun optimize-expr (optimizer topexpr vars)
   (let ((substituted? nil))
@@ -68,6 +56,22 @@
                       (loop for subexpr in expr
                             collect (optimize subexpr))))))
       (optimize topexpr))))
+
+;;;
+
+(defvar *optimizers* (make-hash-table))
+
+(defmacro define-optimizer (name (optimizer form vars) &body body)
+  (flet ((define (name)
+           (let ((optimizer-fun (intern (format nil "OPTIMIZE-~A" name))))
+             `(setf (gethash ',name *optimizers*)
+                    (named-lambda ,optimizer-fun (,optimizer ,form ,vars)
+                      ,@body)))))
+    (if (atom name)
+        (define name)
+        `(progn
+           ,@(loop for name in name
+                   collect (define name))))))
 
 (define-optimizer (let let*) (optimizer form vars)
   (destructuring-bind (word (&rest bindings) &body body) form
@@ -96,6 +100,16 @@
                      for form in body
                      append (optimize-form optimizer form vars))))))
 
+;;; DO loops with LOOP use INCF to update the loop index -- Be sure to empty the optimizer stack
+;;; before the increment in case the loop index iself is on the stack.
+(define-optimizer incf (optimizer form vars)
+  (declare (ignore vars))
+  (destructuring-bind (word place &optional (increment 1)) form
+    (declare (ignore word increment))
+    (append (when (and (consp place) (eq (first place) 'stack-cell) (eq (second place) 'loop-stack))
+              (empty-optimizer-data-stack optimizer))
+            (list form))))
+
 (define-optimizer stack-underflow-check (optimizer form vars)
   (declare (ignore vars))
   (destructuring-bind (word stack &optional (n 1)) form
@@ -115,11 +129,10 @@
   (destructuring-bind (word stack value) form
     (declare (ignore word))
     (cond ((eq stack 'data-stack)
-           (multiple-value-bind (expr push-marker?)
+           (multiple-value-bind (expr empty-stack?)
                (optimize-expr optimizer value vars)
-             (cond (push-marker?
-                    (stack-push (optimizer-data-stack optimizer) +not-optimized-marker+)
-                    (list form))
+             (cond (empty-stack?
+                    (append (empty-optimizer-data-stack optimizer) (list form)))
                    (t
                     (stack-push (optimizer-data-stack optimizer) expr)
                     nil))))
