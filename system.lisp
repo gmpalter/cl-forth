@@ -447,20 +447,22 @@
                                 ,@(reverse (locals-forms locals)))))))))
                   (body `(,@(reverse (word-inline-forms word))
                           ,@locals-block))
-                  (body (if (optimize-definitions? fs)
-                            (optimize-definition body)
-                            body))
+                  (optimized-body (if (optimize-definitions? fs)
+                                      (optimize-definition body)
+                                      body))
                   (thunk `(named-lambda ,name (fs parameters)
                             (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
                                      (optimize (speed 3) (safety 0)))
                             (with-forth-system (fs)
                               (tagbody
-                                 ,@body
+                                 ,@optimized-body
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (setf (word-code word) (compile nil (eval thunk)))
              (note-object-code-size word-lists word)
-             ;; Keep the possibly optimized forms for subsequent inlining and also for SEE
-             (setf (word-inline-forms (definition-word definition)) (reverse body))
+             ;; Keep the original forms for inlining to allow additional optimizations
+             ;; and keep the optimized forms for SEE
+             (setf (word-inline-forms (definition-word definition)) (reverse body)
+                   (word-optimized-forms (definition-word definition)) (reverse optimized-body))
              (when (truep show-definition-code?)
                (show-definition fs word))
              (setf (word-smudge? word) nil
@@ -565,16 +567,17 @@
                (format t "~&;;; ~A" line))
              (when add-newline?
                (terpri)))))
-    (cond ((word-inline-forms word)
+    (cond ((or (word-optimized-forms word) (word-inline-forms word))
            (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs parameters)
                            (declare (ignorable parameters))
                            (with-forth-system (fs)
                              (tagbody
-                                ,@(reverse (word-inline-forms word))
+                                ,@(reverse (or (word-optimized-forms word) (word-inline-forms word)))
                               :exit)))))
              (format t "~&Source code for ~A:" (word-name word))
              (show-documentation nil)
-             (let ((*package* *forth-package*))
+             (let ((*package* *forth-package*)
+                   (*print-right-margin* 95))
                (pprint thunk)
                (terpri))))
           ((word-code word)

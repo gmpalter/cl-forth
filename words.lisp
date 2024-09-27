@@ -36,6 +36,7 @@
   (deferring-word? nil :type boolean)
   (code nil)
   (inline-forms nil)
+  (optimized-forms nil)
   (parameters (%make-parameters) :type parameters)
   (documentation nil)
   (does> nil :type (or word null))
