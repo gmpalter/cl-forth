@@ -462,7 +462,7 @@
              ;; Keep the original forms for inlining to allow additional optimizations
              ;; and keep the optimized forms for SEE
              (setf (word-inline-forms (definition-word definition)) (reverse body)
-                   (word-optimized-forms (definition-word definition)) (reverse optimized-body))
+                   (word-optimized-forms (definition-word definition)) (or (reverse optimized-body) '(nil)))
              (when (truep show-definition-code?)
                (show-definition fs word))
              (setf (word-smudge? word) nil
