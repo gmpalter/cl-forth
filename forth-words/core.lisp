@@ -793,6 +793,8 @@
   (verify-control-structure fs :begin 2)
   (let ((again (stack-pop control-flow-stack))
         (done (stack-pop control-flow-stack)))
+    (add-to-definition fs
+      `(flush-optimizer-stack))
     (execute-branch fs again)
     (resolve-branch fs done)))
 
@@ -934,6 +936,8 @@
   "If X is zero, branch back to the location immediately following the nearest previous BEGIN; otherwise, continue"
   "execution beyond the UNTIL"
   (verify-control-structure fs :begin)
+  (add-to-definition fs
+    `(flush-optimizer-stack))
   (execute-branch-when fs (stack-pop control-flow-stack)
     (falsep (cell-unsigned (stack-pop data-stack)))))
 
@@ -958,6 +962,8 @@
   (let ((branch (make-branch-reference :begin)))
     (stack-push control-flow-stack branch)
     (stack-roll control-flow-stack 1)
+    (add-to-definition fs
+      '(flush-optimizer-stack))
     (execute-branch-when fs branch
       (falsep (cell-unsigned (stack-pop data-stack))))))
 

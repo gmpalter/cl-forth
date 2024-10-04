@@ -165,11 +165,14 @@
 
 ;;; NOTE: This word pushes a vector of values onto the return stack rather than individual items.
 ;;;  A Forth program will crash if it doesn't maintain proper return stack discipline. But, that's true
-;;;  anyway as the return "address" pushed/popped by a call is actually a CONS.
+;;;  anyway as the return "address" pushed/popped by a call is actually a structure (PSUEDO-PC).
 (define-word save-values (:word "N>R")
   "( i*n +n -- ) (R: -- j*x +n )"
   "Remove N+1 items from the data stack and store them for later retrieval by NR>."
   "The return stack may be used to store the data"
+  ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
+  ;; we're using a loop to pop the values off the data stack to be saved in the vector on the return stack.
+  (flush-optimizer-stack)
   (let ((n (stack-pop data-stack)))
     (when (minusp n)
       (forth-exception :invalid-numeric-argument "N>R count can't be negative"))
@@ -213,6 +216,9 @@
 (define-word retrieve-values (:word "NR>")
   "( -- i*x +n) (R: j*x +n -- )"
   "Retrieve the items previously stored by an invocation of N>R. N is the number of items placed on the data stack."
+  ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
+  ;; we're using a loop to push the saved values back onto the data stack.
+  (flush-optimizer-stack)
   (let ((vector (stack-pop return-stack)))
     (unless (vectorp vector)
       (forth-exception :type-mismatch "Return stack out of sync"))
