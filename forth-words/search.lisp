@@ -22,15 +22,16 @@
   "the word lists in the search order, return C-ADDR and zero."
   "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
   "otherwise also return minus-one (-1)"
-  (multiple-value-bind (forth-memory offset)
-      (memory-decode-address memory (stack-cell data-stack 0) (1+ +longest-counted-string+))
-    (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
-      (cond (word
-             (stack-pop data-stack)
-             (stack-push data-stack (xt-token (word-execution-token word)))
-             (stack-push data-stack (if (word-immediate? word) 1 -1)))
-            (t
-             (stack-push data-stack 0))))))
+  (let ((string (stack-pop data-stack)))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory string (1+ +longest-counted-string+))
+      (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
+        (cond (word
+               (stack-push data-stack (xt-token (word-execution-token word)))
+               (stack-push data-stack (if (word-immediate? word) 1 -1)))
+              (t
+               (stack-push data-stack string)
+               (stack-push data-stack 0)))))))
 
 (define-word forth-wordlist (:word "FORTH-WORDLIST")
   "( -- wid)"
