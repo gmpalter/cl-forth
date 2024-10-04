@@ -50,9 +50,8 @@
 
 (define-word subtract-double (:word "D-")
   "( d1 d2 -- d3 )"
-  (let ((d2 (stack-pop-double data-stack))
-        (d1 (stack-pop-double data-stack)))
-    (stack-push-double data-stack (- d1 d2))))
+  ;; As the first value popped off the stack is D2, we'll compute (- (- d2 d1)) which is equivalent to (- d1 d2).
+  (stack-push-double data-stack (- (- (stack-pop-double data-stack) (stack-pop-double data-stack)))))
 
 (define-word print-double-tos (:word "D.")
   "( d -- )"

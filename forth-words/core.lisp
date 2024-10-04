@@ -15,9 +15,7 @@
 (define-word write-cell (:word "!")
   "( x a-addr -- )"
   "Store the cell X at the address A-ADDR"
-  (let ((address (stack-pop data-stack))
-        (data (stack-pop data-stack)))
-    (setf (memory-cell memory address) data)))
+  (setf (memory-cell memory (stack-pop data-stack)) (stack-pop data-stack)))
 
 (define-word add-digit-to-picture-buffer (:word "#")
   "( ud1 -- ud2 )"
@@ -25,6 +23,7 @@
   "Convert N to external form and add the resulting character to the beginning of the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use # outside <# ... #>"))
+  (flush-optimizer-stack)
   (let ((ud1 (stack-pop-double-unsigned data-stack)))
     (multiple-value-bind (ud2 digit)
         (floor ud1 base)
@@ -37,6 +36,7 @@
   "C-ADDR and U specify the resulting character string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "#> without matching <#"))
+  (flush-optimizer-stack)
   (stack-pop-double data-stack)
   (multiple-value-bind (c-addr u)
       (finish-pictured-buffer (memory-pictured-buffer memory))
@@ -48,6 +48,7 @@
   "Convert one digit of UD1 according to the rule for #. Continue conversion until the quotient is zero. UD2 is zero"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use #S outside <# ... #>"))
+  (flush-optimizer-stack)
   (let ((ud1 (stack-pop-double-unsigned data-stack)))
     (loop do (multiple-value-bind (ud2 digit)
                  (floor ud1 base)
@@ -71,9 +72,7 @@
 
 (define-word multiply (:word "*")
   "( n1 n2 -- n3 )"
-  (let ((n2 (cell-signed (stack-pop data-stack)))
-        (n1 (cell-signed (stack-pop data-stack))))
-    (stack-push data-stack (cell-signed (* n1 n2)))))
+  (stack-push data-stack (cell-signed (* (stack-pop data-stack) (stack-pop data-stack)))))
 
 (define-word multiply-divide (:word "*/")
   "( n1 n2 n3 -- n4 )"
@@ -96,9 +95,7 @@
 
 (define-word add (:word "+")
   "( n1 n2 -- n3 )"
-  (let ((n2 (cell-signed (stack-pop data-stack)))
-        (n1 (cell-signed (stack-pop data-stack))))
-    (stack-push data-stack (cell-signed (+ n1 n2)))))
+  (stack-push data-stack (cell-signed (+ (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack))))))
 
 (define-word incf-cell (:word "+!")
   "( n a-addr -- )"
@@ -114,6 +111,8 @@
   (verify-control-structure fs :do 2)
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
+    (add-to-definition fs
+      '(flush-optimizer-stack))
     (execute-branch-when fs again
       (let* ((increment (cell-signed (stack-pop data-stack)))
              (limit (cell-signed (stack-cell loop-stack 1)))
@@ -148,21 +147,17 @@
 (define-word create-cell (:word ",")
   "( x -- )"
   "Allocate one cell in data space and store x in the cell"
-  (let ((value (stack-pop data-stack))
-        (address (allocate-memory memory +cell-size+)))
-    (setf (memory-cell memory address) value)))
+  (setf (memory-cell memory (allocate-memory memory +cell-size+)) (stack-pop data-stack)))
 
 (define-word subtract (:word "-")
   "( n1 n2 -- n3 )"
-  (let ((n2 (cell-signed (stack-pop data-stack)))
-        (n1 (cell-signed (stack-pop data-stack))))
-    (stack-push data-stack (cell-signed (- n1 n2)))))
+  ;; As the first value popped off the stack is N2, we'll compute (- (- n2 n1)) which is equivalent to (- n1 n2).
+  (stack-push data-stack (cell-signed (- (- (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))))
 
 (define-word print-tos (:word ".")
   "( n -- )"
   "Display the top cell of the data stack as a signed integer in the current base"
-  (let ((value (cell-signed (stack-pop data-stack))))
-    (format t "~VR " base value)))
+  (format t "~VR " base (cell-signed (stack-pop data-stack))))
 
 (define-word type-string (:word ".\"" :immediate? t :inlineable? nil)
   ".\" <text>\""
@@ -273,6 +268,7 @@
 
 (define-word start-pictured (:word "<#")
   "Initialize the pictured numeric output conversion process"
+  (flush-optimizer-stack)
   (start-pictured-buffer (memory-pictured-buffer memory)))
 
 (define-word equal (:word "=")
@@ -494,6 +490,7 @@
 
 (define-word decimal (:word "DECIMAL")
   "Change the system base to decimal"
+  #+TODO (flush-optimizer-stack)
   (setf base 10.))
 
 (define-word stack-depth (:word "DEPTH")
@@ -555,6 +552,7 @@
   "Save the current input source specification. Store minus-one (-1) in SOURCE-ID. Make the string described by c-ADDR and U"
   "both the input source and input buffer, set >IN to zero, and interpret. When the parse area is empty, restore the prior"
   "input source specification. Other stack effects are due to the words EVALUATEd."
+  (flush-optimizer-stack)
   (let ((count (stack-pop data-stack))
         (address (stack-pop data-stack)))
     (when (minusp count)
@@ -627,7 +625,8 @@
   (add-to-definition fs
     `(when (< (stack-depth loop-stack) 2)
        (forth-exception :no-loop-parameters "I not inside DO loop"))
-    `(stack-push data-stack (stack-cell loop-stack 0))))
+    `(stack-push data-stack (stack-cell loop-stack 0))
+    `(flush-optimizer-stack #+TODO 1)))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag -- )"
@@ -656,7 +655,8 @@
   (add-to-definition fs
     `(when (< (stack-depth loop-stack) 4)
        (forth-exception :no-loop-parameters "J not inside DO ... DO ... LOOP ... LOOP"))
-    `(stack-push data-stack (stack-cell loop-stack 2))))
+    `(stack-push data-stack (stack-cell loop-stack 2))
+    `(flush-optimizer-stack #+TODO 1)))
 
 ;;;---*** KEY
 
@@ -664,6 +664,7 @@
   "Discard loop parameters and continue execution immediately following the next LOOP or +LOOP containing this LEAVE"
   (let ((done (control-structure-find fs :do 1)))
     (add-to-definition fs
+      `(flush-optimizer-stack)
       `(stack-pop loop-stack)
       `(stack-pop loop-stack))
     (execute-branch fs done)))
@@ -683,6 +684,7 @@
   (let ((again (stack-cell control-flow-stack 0))
         (done (stack-cell control-flow-stack 1)))
     (add-to-definition fs
+      `(flush-optimizer-stack)
       `(incf (stack-cell loop-stack 0)))
     (execute-branch-when fs again
       (< (stack-cell loop-stack 0) (stack-cell loop-stack 1)))
@@ -706,9 +708,7 @@
 (define-word multiply-double (:word "M*")
   "( n1 n2 -- d )"
   "Multiply the signed integers N1 and N2 and push the resulting double precision integer D onto the data stack"
-  (let ((n2 (cell-signed (stack-pop data-stack)))
-        (n1 (cell-signed (stack-pop data-stack))))
-    (stack-push-double data-stack (* n1 n2))))
+  (stack-push-double data-stack (* (cell-signed (stack-pop data-stack)) (cell-signed (stack-pop data-stack)))))
 
 (define-word max (:word "MAX")
   "( n1 n2 -- n3)"
@@ -926,6 +926,7 @@
   "but it is required before leaving a definition by calling EXIT. One UNLOOP call for each level of loop nesting is required"
   "before leaving a definition."
   (add-to-definition fs
+    `(flush-optimizer-stack)
     `(stack-pop loop-stack)
     `(stack-pop loop-stack)))
 
@@ -1086,14 +1087,14 @@
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
     (add-to-definition fs
+      `(flush-optimizer-stack)
       `(stack-underflow-check data-stack 2))
     (execute-branch-when fs done
       (and (= (stack-cell data-stack 0) (stack-cell data-stack 1))
            (prog1
                t
              ;; Be sure to pop the limit and initial index when they're equal
-             (stack-pop data-stack)
-             (stack-pop data-stack))))
+             (stack-2drop data-stack))))
     (add-to-definition fs
       `(let ((n2 (stack-pop data-stack))
              (n1 (stack-pop data-stack)))
@@ -1210,7 +1211,8 @@
   (verify-control-structure fs :case)
   (let ((branch (stack-pop control-flow-stack)))
     (add-to-definition fs
-      `(stack-pop data-stack))
+      `(flush-optimizer-stack)
+      `(stack-drop data-stack))
     (resolve-branch fs branch)))
 
 (define-word endof (:word "ENDOF" :immediate? t :compile-only? t)
@@ -1237,6 +1239,7 @@
 
 (define-word hex (:word "HEX")
   "Change the system base to hexadecimal"
+  #+TODO (flush-optimizer-stack)
   (setf base 16.))
 
 (define-word add-string-to-picture-buffer (:word "HOLDS")
@@ -1300,10 +1303,13 @@
   (let ((branch (make-branch-reference :case)))
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
+    ;;#+TODO
+    (add-to-definition fs
+      '(flush-optimizer-stack))
     (execute-branch-when fs branch
       (not (= (stack-pop data-stack) (stack-cell data-stack 0))))
     (add-to-definition fs
-      `(stack-pop data-stack))))
+      `(stack-drop data-stack))))
 
 (define-word pad (:word "PAD")
   "( -- a-addr )"
@@ -1406,6 +1412,8 @@
          (forth-exception :undefined-word "~A is not defined" name))
        (if local
            (add-to-definition fs
+             ;;#+TODO
+             `(flush-optimizer-stack)
              `(setf ,(local-symbol local) (stack-pop data-stack)))
            (let ((address (parameters-p1 (word-parameters word)))
                  (type (parameters-p2 (word-parameters word))))

@@ -356,7 +356,8 @@
   "When the input source is a string from EVALUATE, return FALSE and perform no other action."
   "When the input source is a text file, attempt to read the next line from the text-input file. If successful, make"
   "the result the current input buffer, set >IN to zero, and return TRUE. Otherwise return FALSE"
-  (stack-push data-stack (if (refill files) +true+ +false+)))
+  (stack-push data-stack (if (refill files) +true+ +false+))
+  (flush-optimizer-stack #+TODO 1))
 
 (define-word rename-file (:word "RENAME-FILE")
   "( c-addr1 u1 c-addr2 u2 -- ior )"
