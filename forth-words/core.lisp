@@ -147,6 +147,7 @@
 (define-word create-cell (:word ",")
   "( x -- )"
   "Allocate one cell in data space and store x in the cell"
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
   (setf (memory-cell memory (allocate-memory memory +cell-size+)) (stack-pop data-stack)))
 
 (define-word subtract (:word "-")
@@ -379,6 +380,7 @@
   "If N is greater than zero, reserve N address units of data space. If N is less than zero, release abs(N) address units"
   "of data space. If N is zero, leave the data-space pointer unchanged."
   (let ((count (cell-signed (stack-pop data-stack))))
+    (flush-optimizer-stack :contains (data-space-high-water-mark memory))
     (cond ((plusp count)
            (allocate-memory memory count))
           ((minusp count)
@@ -414,9 +416,8 @@
 (define-word create-char (:word "C,")
   "( char -- )"
   "Allocate space for one character in data space and store CHAR"
-  (let ((value (stack-pop data-stack))
-        (address (allocate-memory memory +char-size+)))
-    (setf (memory-char memory address) (extract-char value))))
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
+  (setf (memory-char memory (allocate-memory memory +char-size+)) (extract-char (stack-pop data-stack))))
 
 (define-word read-char (:word "C@")
   "( a-addr -- char )"
@@ -490,7 +491,7 @@
 
 (define-word decimal (:word "DECIMAL")
   "Change the system base to decimal"
-  #+TODO (flush-optimizer-stack)
+  (flush-optimizer-stack :contains (state-slot-address memory 'base))
   (setf base 10.))
 
 (define-word stack-depth (:word "DEPTH")
@@ -626,7 +627,7 @@
     `(when (< (stack-depth loop-stack) 2)
        (forth-exception :no-loop-parameters "I not inside DO loop"))
     `(stack-push data-stack (stack-cell loop-stack 0))
-    `(flush-optimizer-stack #+TODO 1)))
+    `(flush-optimizer-stack #+TODO #+TODO :count 1)))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag -- )"
@@ -656,7 +657,7 @@
     `(when (< (stack-depth loop-stack) 4)
        (forth-exception :no-loop-parameters "J not inside DO ... DO ... LOOP ... LOOP"))
     `(stack-push data-stack (stack-cell loop-stack 2))
-    `(flush-optimizer-stack #+TODO 1)))
+    `(flush-optimizer-stack #+TODO #+TODO :count 1)))
 
 ;;;---*** KEY
 
@@ -1245,7 +1246,7 @@
 
 (define-word hex (:word "HEX")
   "Change the system base to hexadecimal"
-  #+TODO (flush-optimizer-stack)
+  (flush-optimizer-stack :contains (state-slot-address memory 'base))
   (setf base 16.))
 
 (define-word add-string-to-picture-buffer (:word "HOLDS")

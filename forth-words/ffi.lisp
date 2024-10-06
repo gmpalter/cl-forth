@@ -330,16 +330,13 @@
 (define-word store-word (:word "W!")
   "( x addr -- )"
   "Store the low-order 2 bytes (1 word) of X at ADDR"
-  (let ((address (stack-pop data-stack))
-        (data (stack-pop data-stack)))
-    (setf (memory-double-byte memory address) data)))
+  (setf (memory-double-byte memory (stack-pop data-stack)) (stack-pop data-stack)))
 
 (define-word allocate-word (:word "W,")
   "( x -- )"
   "Reserve space for 2 bytes (1 word) in data space and store the low-order 2 bytes of X in the space"
-  (let ((value (stack-pop data-stack))
-        (address (allocate-memory memory 2)))
-    (setf (memory-double-byte memory address) value)))
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
+  (setf (memory-double-byte memory (allocate-memory memory 2)) (stack-pop data-stack)))
 
 (define-word fetch-long (:word "L@")
   "( addr -- x )"
@@ -356,16 +353,13 @@
 (define-word store-long (:word "L!")
   "( x addr -- )"
   "Store the low-order 4 bytes (1 long) of X at ADDR"
-  (let ((address (stack-pop data-stack))
-        (data (stack-pop data-stack)))
-    (setf (memory-quad-byte memory address) data)))
+  (setf (memory-quad-byte memory (stack-pop data-stack)) (stack-pop data-stack)))
 
 (define-word allocate-long (:word "L,")
   "( x -- )"
   "Reserve space for 4 bytes (1 long) in data space and store the low-order 4 bytes of X in the space"
-  (let ((value (stack-pop data-stack))
-        (address (allocate-memory memory 2)))
-    (setf (memory-quad-byte memory address) value)))
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
+  (setf (memory-quad-byte memory (allocate-memory memory 4)) (stack-pop data-stack)))
 
 (define-word fetch-pointer (:word "P@")
   "( addr -- x )"
@@ -375,6 +369,4 @@
 (define-word store-pointer (:word "P!")
   "( x addr -- )"
   "Store X at ADDR. X is interpreted as a pointer to, possibly, foreign memory"
-  (let ((address (stack-pop data-stack))
-        (data (stack-pop data-stack)))
-    (setf (memory-cell memory address) (pointer-address (foreign-pointer memory data)))))
+  (setf (memory-cell memory (stack-pop data-stack)) (pointer-address (foreign-pointer memory (stack-pop data-stack)))))

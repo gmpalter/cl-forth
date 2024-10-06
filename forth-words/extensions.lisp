@@ -15,6 +15,7 @@
 (define-word allocate-counted-string (:word ",\"")
   ",\" <text>\""
   "Compile TEXT as a counted string. User is responsible for keeping track of its address in data space"
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
   (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+))
          ;; Length of a counted string is always a single byte regardless of character size

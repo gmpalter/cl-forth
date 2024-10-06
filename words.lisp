@@ -426,6 +426,7 @@
     `(define-word ,slot (:word-list ,word-list :word ,forth-name :immediate? ,immediate? :compile-only? ,compile-only?)
        "( -- a-addr )"
        ,description
+       (flush-optimizer-stack :contains (state-slot-address memory ',slot))
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
 (defun make-word (name code &key smudge? immediate? compile-only? created-word? deferring-word? parameters)

@@ -86,6 +86,15 @@
              ;; If there are no vars or explicit count, pop the entire stack.
              (empty-stack stack-depth))))))
 
+(defun empty-optimizer-data-stack-containing (optimizer contents)
+  (labels ((references? (expr)
+             (cond ((member expr contents :test #'equal))
+                   ((atom expr) nil)
+                   (t (or (references? (car expr)) (references? (cdr expr)))))))
+    (when (loop for cell across (stack-contents (optimizer-data-stack optimizer))
+                  thereis (references? cell))
+      (empty-optimizer-data-stack optimizer))))
+
 ;;;
 
 (defun optimize-expr (optimizer topexpr vars)
@@ -142,6 +151,23 @@
              ,@(loop for name in name
                      collect (define name)))))))
 
+#+TODO ;;---*** TODO: Doesn't work as the unoptimized SETF won't have STATE-SLOT-ADDRESS
+(define-optimizer setf (optimizer form vars)
+  (destructuring-bind (word &rest places&values) form
+    (declare (ignore word))
+    (let ((slots (loop for place in places&values by #'cddr
+                       when (and (listp place)
+                                 (eq (first place) 'memory-cell)
+                                 ;; (eq (second place) 'memory)
+                                 (listp (third place))
+                                 (eq (first (third place)) 'state-slot-address))
+                         collect (third place))))
+      (if slots
+          (append (empty-optimizer-data-stack-containing optimizer slots) (list form))
+          `((setf ,@(loop for (place value) on places&values by #'cddr
+                          collect (optimize-expr optimizer place vars)
+                          collect (optimize-expr optimizer value vars))))))))
+
 (define-optimizer (let let*) (optimizer form vars)
   (destructuring-bind (word (&rest bindings) &body body) form
     (multiple-value-bind (newvars exprs)
@@ -181,6 +207,8 @@
                append (optimize-form optimizer form vars))
        ,@(empty-optimizer-data-stack optimizer))))
 
+;;;
+
 (defun stack-pop? (form)
   (labels ((pop? (form)
              (cond ((atom form)
@@ -207,9 +235,11 @@
 
 (define-optimizer flush-optimizer-stack (optimizer form vars)
   (declare (ignore vars))
-  (destructuring-bind (word &optional count) form
+  (destructuring-bind (word &key count contains) form
     (declare (ignore word))
-    (empty-optimizer-data-stack optimizer :count count)))
+    (if contains
+        (empty-optimizer-data-stack-containing optimizer (list contains))
+        (empty-optimizer-data-stack optimizer :count count))))
   
 (define-optimizer stack-push (optimizer form vars)
   (destructuring-bind (word stack value) form
