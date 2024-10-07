@@ -574,6 +574,7 @@
      (execute execution-tokens (stack-pop data-stack) fs))
     (:compiling
      (add-to-definition fs
+       `(flush-optimizer-stack)
        `(execute execution-tokens (stack-pop data-stack) fs ,(next-psuedo-pc definition))))))
 
 ;;; Marked as IMMEDIATE so we can generate the proper code sequence
