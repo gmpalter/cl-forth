@@ -286,7 +286,7 @@
   '((#\a #\Bel)
     (#\b #\Backspace)
     (#\e #\Escape)
-    (#\f #\Formfeed)
+    (#\f #\Page)
     (#\l #\Linefeed)
     (#\m (#\Return #\Linefeed))
     (#\n #\Newline)
