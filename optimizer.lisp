@@ -28,22 +28,32 @@
         (t
          (stack-pop (optimizer-data-stack optimizer)))))
   
-(defun empty-optimizer-data-stack (optimizer &key vars count)
+(defun empty-optimizer-data-stack (optimizer &key vars count conditional?)
   (declare (ignore count))
   (let* ((optimizer-stack (optimizer-data-stack optimizer))
-         (stack-depth (stack-depth optimizer-stack)))
+         (stack-depth (stack-depth optimizer-stack))
+         (saved-state (when conditional?
+                        (list (stack-contents (optimizer-data-stack optimizer))
+                              (optimizer-explicit-pops optimizer)
+                              (optimizer-pushed-after-explicit-pops optimizer)))))
+
     (labels ((references? (expr)
                (if (atom expr)
                    (member expr vars)
                    (or (references? (car expr)) (references? (cdr expr)))))
-             (reset ()
+             (clear-counters ()
                (setf (optimizer-explicit-pops optimizer) 0
                      (optimizer-pushed-after-explicit-pops optimizer) 0))
              (empty-stack (count)
                (reverse (loop for i below count
-                              collect `(stack-push data-stack ,(stack-pop optimizer-stack))))))
+                              collect `(stack-push data-stack ,(stack-pop optimizer-stack)))))
+             (reset ()
+               (when conditional?
+                 (setf (stack-contents (optimizer-data-stack optimizer)) (first saved-state)
+                       (optimizer-explicit-pops optimizer) (second saved-state)
+                       (optimizer-pushed-after-explicit-pops optimizer) (third saved-state)))))
       (cond ((zerop stack-depth)
-             (reset)
+             (clear-counters)
              nil)
             ((plusp (optimizer-explicit-pops optimizer))
              (let* ((pops (optimizer-explicit-pops optimizer))
@@ -52,16 +62,17 @@
                                     (prog1
                                         (empty-stack extras)
                                       (decf stack-depth extras)))))
-               (reset)
+               (clear-counters)
                (prog1
                    (append (loop for i below stack-depth
                                  for cell = (stack-cell optimizer-stack (- stack-depth i 1))
                                  collect `(stack-push data-stack ,cell)
                                  collect `(stack-roll-down data-stack ,(+ pops i)))
                            extras-forms)
-                 (setf (stack-depth optimizer-stack) 0))))
+                 (setf (stack-depth optimizer-stack) 0)
+                 (reset))))
             (vars
-             (reset)
+             (clear-counters)
              ;; Find the deepest entry that references one of the variables and
              ;; pop it and everything after it from the stack.
              (let ((count (loop for i below stack-depth
@@ -72,19 +83,23 @@
                (when (plusp count)
                  (prog1
                      (empty-stack count)
-                   (setf (optimizer-explicit-pops optimizer) count)))))
+                   (setf (optimizer-explicit-pops optimizer) count)
+                   (reset)))))
             ;;---*** TODO: This needs more thought
             #+TODO
             ((and count (< count stack-depth))
-             (reset)
+             (clear-counters)
              ;; Flush a specific number of forms off the stack.
              (prog1
                  (empty-stack count)
-               (setf (optimizer-explicit-pops optimizer) count)))
+               (setf (optimizer-explicit-pops optimizer) count)
+               (reset)))
             (t
-             (reset)
+             (clear-counters)
              ;; If there are no vars or explicit count, pop the entire stack.
-             (empty-stack stack-depth))))))
+             (prog1
+                 (empty-stack stack-depth)
+               (reset)))))))
 
 (defun empty-optimizer-data-stack-containing (optimizer contents)
   (labels ((references? (expr)
@@ -466,14 +481,18 @@
            (default-optimizer (optimizer form vars)
              (list (optimize-expr optimizer form vars))))
       (cond ((atom form)
-             ;;---*** TODO: EXPLAIN
+             ;; Flush the optimizer stack before the target of a transfer of control to ensure
+             ;; the data stack has the expected contents.
              (punt))
             ((eq (first form) 'forth-call)
-             ;;---*** TODO: EXPLAIN
+             ;; Flush the optimizer stack before calling another definition to ensure the
+             ;; data stack contents are as that definition would expect.
              (punt))
-            ((and (eq (first form) 'go) (not conditional?))
-             ;;---*** TODO: EXPLAIN
-             (punt))
+            ((eq (first form) 'go)
+             ;; Flush the optimizer stack before transferring control to another point in the
+             ;; definition. But, if the GO is inside a conditional, preserve the optimizer
+             ;; stack contents for the forms after the conditional expression.
+             (append (empty-optimizer-data-stack optimizer :conditional? conditional?) (list form)))
             (t
              (funcall (gethash (first form) *optimizers* #'default-optimizer) optimizer form vars))))))
 
