@@ -518,7 +518,10 @@
     ;; inline forms), add the DOES> word's inline forms to the word being defined.
     (when (word-inline-forms word)
       (if (word-inline-forms does>-word)
-          (apply #'add-forms-to-definition fs (reverse (or (word-optimized-forms does>-word) (word-inline-forms does>-word))))
+          (progn
+            (apply #'add-forms-to-definition fs (reverse (word-inline-forms does>-word)))
+            (when (optimize-definitions? fs)
+              (setf (word-optimized-forms word) (reverse (optimize-definition (reverse (word-inline-forms word)))))))
           (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,(word-parameters word)))))
     (setf (word-does> word) does>-word)))
 
