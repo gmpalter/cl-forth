@@ -249,6 +249,17 @@
                (optimize-expr optimizer value vars)
              (cond (empty-stack?
                     (punt))
+                   ((and (equal expr '(stack-pop return-stack))
+                         (labels ((return-stack-ref? (expr)
+                                    (cond ((atom expr) nil)
+                                          ((and (listp expr)
+                                                (eq (first expr) 'stack-cell)
+                                                (eq (second expr) 'return-stack)))
+                                          (t
+                                           (or (return-stack-ref? (car expr)) (return-stack-ref? (cdr expr)))))))
+                           (loop for cell across (stack-contents (optimizer-data-stack optimizer))
+                                   thereis (return-stack-ref? cell))))
+                    (punt))
                    (t
                     (stack-push (optimizer-data-stack optimizer) expr)
                     (when (plusp (optimizer-explicit-pops optimizer))
@@ -287,7 +298,8 @@
                       nil
                     (stack-drop (optimizer-data-stack optimizer))))))
           ((eq stack 'return-stack)
-           (decf (optimizer-return-stack-depth optimizer))
+           (when (plusp (optimizer-return-stack-depth optimizer))
+             (decf (optimizer-return-stack-depth optimizer)))
            (list form))
           (t
            (list form)))))
@@ -384,7 +396,8 @@
                       nil
                     (stack-2drop (optimizer-data-stack optimizer))))))
           ((eq stack 'return-stack)
-           (decf (optimizer-return-stack-depth optimizer) 2)
+           (when (plusp (optimizer-return-stack-depth optimizer))
+             (decf (optimizer-return-stack-depth optimizer) 2))
            (list form))
           (t
            (list form)))))
