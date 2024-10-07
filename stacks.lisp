@@ -148,6 +148,12 @@
   (shiftf (stack-cell stack 2) (stack-cell stack 1) (stack-cell stack 0) (stack-cell stack 2))
   nil)
   
+(define-stack-fun stack-rot-down (stack)
+  "( x1 x2 x3 -- x3 x1 x2 )"
+  (stack-underflow-check stack 3)
+  (shiftf (stack-cell stack 2) (stack-cell stack 0) (stack-cell stack 1) (stack-cell stack 2))
+  nil)
+
 (define-stack-fun stack-swap (stack)
   "( x1 x2 -- x2 x1 )"
   (stack-underflow-check stack 2)

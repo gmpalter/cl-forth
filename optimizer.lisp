@@ -370,6 +370,23 @@
           (t
            (list form)))))
 
+(define-optimizer stack-rot-down (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (cond ((< (stack-depth (optimizer-data-stack optimizer)) 3)
+                  (punt))
+                 ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 2)))
+                  (punt))
+                 (t
+                  (prog1
+                      nil
+                    (stack-rot-down (optimizer-data-stack optimizer))))))
+          (t
+           (list form)))))
+
 (define-optimizer stack-swap (optimizer form vars)
   (declare (ignore vars))
   (if (eq (second form) 'data-stack)
