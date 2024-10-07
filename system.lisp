@@ -113,7 +113,7 @@
 
 (defmacro define-forth-function (name (fs &rest args) &body body)
   (multiple-value-bind (body declarations doc)
-      (uiop:parse-body body)
+      (alexandria:parse-body body)
     (declare (ignore doc))
     `(defun ,name (,fs ,@args)
        (declare (optimize (speed 3) (safety 0))

@@ -15,7 +15,7 @@
   :description "Forth interpreter"
   :version (:read-file-line "version.text")
   :serial t
-  :depends-on (#:cffi #:trivial-gray-streams)
+  :depends-on (#:alexandria #:cffi #:trivial-gray-streams)
   :components ((:file "packages")
                (:file "in-memory-streams")
                (:file "prefixed-stream" :if-feature (:not :ccl))
