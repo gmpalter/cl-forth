@@ -741,7 +741,7 @@
 ;;; NOTE: The memory argument to functions defined by this macro MUST be named MEMORY.
 (defmacro define-memory-fun (name arglist &body body)
   (multiple-value-bind (body declarations doc)
-      (uiop:parse-body body)
+      (alexandria:parse-body body)
     (declare (ignore doc))
     `(defun ,name (,@arglist)
        (declare (optimize (speed 3) (safety 0))
