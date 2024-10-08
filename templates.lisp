@@ -20,6 +20,8 @@
    (float-precision :accessor template-float-precision)
    (show-redefinition-warnings? :accessor template-show-redefinition-warnings?)
    (show-definition-code? :accessor template-show-definition-code?)
+   (%optimize-definitions? :accessor template-%optimize-definitions?)
+   (show-backtraces-on-error? :accessor template-show-backtraces-on-error?)
    (exception-hook :accessor template-exception-hook)
    (exception-prefix :accessor template-exception-prefix)
    (exit-hook :accessor template-exit-hook)
@@ -39,6 +41,8 @@
             (template-float-precision template) float-precision
             (template-show-redefinition-warnings? template) show-redefinition-warnings?
             (template-show-definition-code? template) show-definition-code?
+            (template-%optimize-definitions? template) %optimize-definitions?
+            (template-show-backtraces-on-error? template) show-backtraces-on-error?
             (template-exception-hook template) exception-hook
             (template-exception-prefix template) exception-prefix
             (template-exit-hook template) exit-hook
@@ -58,6 +62,8 @@
           float-precision (template-float-precision template)
           show-redefinition-warnings? (template-show-redefinition-warnings? template)
           show-definition-code? (template-show-definition-code? template)
+          %optimize-definitions? (template-%optimize-definitions? template)
+          show-backtraces-on-error? (template-show-backtraces-on-error? template)
           exception-hook (template-exception-hook template)
           exception-prefix (template-exception-prefix template)
           exit-hook (template-exit-hook template)
