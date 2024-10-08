@@ -110,7 +110,8 @@
                   thereis (references? cell))
       (empty-optimizer-data-stack optimizer))))
 
-;;;
+
+;;; Expression optimization
 
 (defun optimize-expr (optimizer topexpr vars)
   (let ((substituted? nil))
@@ -144,7 +145,8 @@
                             collect (optimize subexpr nil))))))
       (optimize topexpr t))))
 
-;;;
+
+;;; Optimizers
 
 (defvar *optimizers* (make-hash-table))
 
@@ -158,13 +160,26 @@
                       (named-lambda ,optimizer-fun (,optimizer ,form ,vars)
                         ,@declarations
                         (macrolet ((punt ()
-                                     `(append (empty-optimizer-data-stack optimizer) (list form))))
+                                     `(append (empty-optimizer-data-stack optimizer) (list form)))
+                                   (punt-if-data-stack-pop (expr)
+                                     `(labels ((pop? (expr)
+                                                 (cond ((atom expr)
+                                                        nil)
+                                                       ((equal expr '(stack-pop data-stack)))
+                                                       (t
+                                                        (or (pop? (car expr)) (pop? (cdr expr)))))))
+                                        (if (pop? ,expr)
+                                            (append (empty-optimizer-data-stack optimizer) (list form))
+                                            (list form)))))
                           ,@body))))))
       (if (atom name)
           (define name)
           `(progn
              ,@(loop for name in name
                      collect (define name)))))))
+
+
+;;; Various CL forms optimizers
 
 #+TODO ;;---*** TODO: Doesn't work as the unoptimized SETF won't have STATE-SLOT-ADDRESS
 (define-optimizer setf (optimizer form vars)
@@ -222,7 +237,8 @@
                append (optimize-form optimizer form vars))
        ,@(empty-optimizer-data-stack optimizer))))
 
-;;;
+
+;;; Forth stack operations optimizers
 
 (defun stack-pop? (form)
   (labels ((pop? (form)
@@ -255,7 +271,7 @@
     (if contains
         (empty-optimizer-data-stack-containing optimizer (list contains))
         (empty-optimizer-data-stack optimizer :count count))))
-  
+
 (define-optimizer stack-push (optimizer form vars)
   (destructuring-bind (word stack value) form
     (declare (ignore word))
@@ -365,8 +381,47 @@
           (t
            (list form)))))
 
-;;; stack-pick
-;;; stack-roll
+(define-optimizer stack-pick (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (let ((n (third form)))
+             (cond ((not (constantp n))
+                    (punt))
+                   ((< (stack-depth (optimizer-data-stack optimizer)) n)
+                    (punt))
+                   ((loop for i below n
+                            thereis (stack-pop? (stack-cell (optimizer-data-stack optimizer) i)))
+                    (punt))
+                   (t
+                    (prog1
+                        nil
+                      (stack-pick (optimizer-data-stack optimizer) n))))))
+          ((eq stack 'return-stack)
+           (incf (optimizer-return-stack-depth optimizer))
+           (punt-if-data-stack-pop (third form)))
+          (t
+           (punt-if-data-stack-pop (third form))))))
+
+(define-optimizer stack-roll (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (let ((n (third form)))
+             (cond ((not (constantp n))
+                    (punt))
+                   ((< (stack-depth (optimizer-data-stack optimizer)) n)
+                    (punt))
+                   ((loop for i below n
+                            thereis (stack-pop? (stack-cell (optimizer-data-stack optimizer) i)))
+                    (punt))
+                   (t
+                    (prog1
+                        nil
+                      (stack-roll (optimizer-data-stack optimizer) n))))))
+          ;; Don't have to special case the RETURN-STACK as this operation doesn't change stack depth
+          (t
+           (punt-if-data-stack-pop (third form))))))
 
 (define-optimizer stack-rot (optimizer form vars)
   (declare (ignore vars))
@@ -466,9 +521,28 @@
           (punt))
       (list form)))
 
-;;; stack-snip
+(define-optimizer stack-snip (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (let ((n (third form)))
+             (cond ((not (constantp n))
+                    (punt))
+                   ((< (stack-depth (optimizer-data-stack optimizer)) n)
+                    (punt))
+                   ((loop for i below n
+                            thereis (stack-pop? (stack-cell (optimizer-data-stack optimizer) i)))
+                    (punt))
+                   (t
+                    (prog1
+                        nil
+                      (stack-snip (optimizer-data-stack optimizer) n))))))
+          ;; Don't have to special case the RETURN-STACK as this operation doesn't change stack depth
+          (t
+           (punt-if-data-stack-pop (third form))))))
 
-;;;
+
+;;; Optimizer top-level
 
 (defun optimize-form (optimizer form vars &optional conditional?)
   (handler-bind ((forth-exception
@@ -501,6 +575,3 @@
          (optimized (loop for form in forms
                           append (optimize-form optimizer form nil))))
     (append optimized (empty-optimizer-data-stack optimizer))))
-
-;;(defun optimize-definition (forms)
-;;  forms)
