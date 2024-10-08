@@ -302,7 +302,7 @@
           (t
            (list `(stack-push ,stack ,(optimize-expr optimizer value vars)))))))
 
-;;; stack-push-double
+;;;---*** stack-push-double
 
 (define-optimizer stack-pop (optimizer form vars)
   (declare (ignore vars))
@@ -313,8 +313,8 @@
         (decf (optimizer-return-stack-depth optimizer)))
       (list form)))
 
-;;; stack-pop-double
-;;; stack-pop-double-unsigned
+;;;---*** stack-pop-double
+;;;---*** stack-pop-double-unsigned
 
 (define-optimizer stack-drop (optimizer form vars)
   (declare (ignore vars))
@@ -360,7 +360,25 @@
       (punt)
       (list form)))
   
-;;; stack-nip
+(define-optimizer stack-nip (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (cond ((< (stack-depth (optimizer-data-stack optimizer)) 2)
+                  (punt))
+                 ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1)))
+                  (punt))
+                 (t
+                  (prog1
+                      nil
+                    (stack-nip (optimizer-data-stack optimizer))))))
+          ((eq stack 'return-stack)
+           (when (plusp (optimizer-return-stack-depth optimizer))
+             (decf (optimizer-return-stack-depth optimizer)))
+           (list form))
+          (t
+           (list form)))))
 
 (define-optimizer stack-over (optimizer form vars)
   (declare (ignore vars))
@@ -467,7 +485,24 @@
           (punt))
       (list form)))
 
-;;; stack-tuck
+(define-optimizer stack-tuck (optimizer form vars)
+  (declare (ignore vars))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (cond ((< (stack-depth (optimizer-data-stack optimizer)) 2)
+                  (punt))
+                 ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1)))
+                  (punt))
+                 (t
+                  (prog1
+                      nil
+                    (stack-tuck (optimizer-data-stack optimizer))))))
+          ((eq stack 'return-stack)
+           (incf (optimizer-return-stack-depth optimizer))
+           (list form))
+          (t
+           (list form)))))
 
 (define-optimizer stack-2drop (optimizer form vars)
   (declare (ignore vars))
@@ -508,8 +543,8 @@
           (t
            (list form)))))
 
-;;; stack-2over
-;;; stack-2rot
+;;;---*** stack-2over
+;;;---*** stack-2rot
 
 (define-optimizer stack-2swap (optimizer form vars)
   (declare (ignore vars))
