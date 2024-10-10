@@ -19,7 +19,12 @@
                 #:source-push
                 #:forth-open-file
                 #:interpreter/compiler
-                #:reset-interpreter/compiler)
+                #:reset-interpreter/compiler
+                #:forth-exception
+                #:forth-exception-key
+                #:forth-exception-phrase
+                #:show-backtrace
+                #:current-input-state)
   (:export #:forth-asdf-system
            #:forth-source-file
            #:system-forth-template))
@@ -57,7 +62,25 @@
                  (make-forth-system)))
          (files (fs-files fs)))
     (source-push files :fileid (forth-open-file files (component-pathname c) +read-direction+))
-    (interpreter/compiler fs :toplevel? nil)))
+    (handler-case
+        (interpreter/compiler fs :toplevel? nil)
+      (forth-exception (e)
+        (write-line (forth-exception-phrase e))
+        (show-backtrace fs)
+        (let ((context-format "interpreting line ~D, character ~D: \"~A\"")
+              (context-arguments (multiple-value-bind (buffer >in lineno)
+                                     (current-input-state (fs-files fs))
+                                   (list lineno >in buffer))))
+          (case *compile-file-failure-behaviour*
+            (:warn (warn 'compile-failed-warning
+                         :description "Forth load failed"
+                         :context-format context-format
+                         :context-arguments context-arguments))
+            (:error (error 'compile-failed-error
+                           :description "Forth load failed"
+                           :context-format context-format
+                           :context-arguments context-arguments))
+            (:ignore nil)))))))
 
 
 ;;; Make FORTH-ASDF-SYSTEM and FORTH-SOURCE-FILE available to DEFSYSTEM forms
@@ -66,7 +89,7 @@
 (uiop:import* 'forth-asdf-support:forth-source-file '#:asdf)
 
 
-;;; Create a template from after loading a FORTH-ASDF-SYSTEM
+;;; Create a template after loading a FORTH-ASDF-SYSTEM
 
 (defun system-forth-template (system)
   (let* ((system (find-system system))

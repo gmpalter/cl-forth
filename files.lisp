@@ -134,6 +134,7 @@
 (defclass files ()
   ((source-id :reader source-id :initform 0)
    >in
+   lineno
    buffer
    (source-address :initform nil)
    (verbose :accessor files-verbose :initform nil)
@@ -154,20 +155,22 @@
 (defstruct saved-source
   (id 0)
   (>in 0)
+  (lineno 0)
   (buffer "")
   (source-address nil))
 
 (defmethod reset-input ((f files))
-  (with-slots (source-id >in buffer source-address source-stack) f
+  (with-slots (source-id >in lineno buffer source-address source-stack) f
     (setf source-id 0
           >in 0
+          lineno 0
           buffer ""
           source-address nil)
     (stack-reset source-stack)))
 
 (defmethod current-input-state ((f files))
-  (with-slots (buffer >in) f
-    (values buffer >in)))
+  (with-slots (buffer >in lineno) f
+    (values buffer >in lineno)))
 
 (defmethod terminal-input-p ((f files))
   (with-slots (source-id) f
@@ -338,7 +341,7 @@
             finally (return parsed)))))
 
 (defmethod refill ((f files))
-  (with-slots (source-id >in buffer verbose source-id-map source-as-space) f
+  (with-slots (source-id >in lineno buffer verbose source-id-map source-as-space) f
     (flet ((fillup (stream)
              (setf (source-data-space-is-valid? source-as-space) nil
                    (source-data-space-buffer source-as-space) nil)
@@ -347,6 +350,7 @@
                  (setf buffer line
                        (source-data-space-buffer source-as-space) line
                        >in 0)
+                 (incf lineno)
                  (when (and verbose (plusp source-id))
                    (write-line buffer))
                  t))))
@@ -358,12 +362,13 @@
 
 (defmethod source-push ((f files) &key fileid evaluate ((:source-address source-address-override)))
   (assert (not (and fileid evaluate)) () "Pass ~S or ~S but not both to ~S" :fileid :evaluate 'source-push)
-  (with-slots (source-id >in buffer source-address source-stack source-as-space) f
+  (with-slots (source-id >in lineno buffer source-address source-stack source-as-space) f
     (let ((ss (make-saved-source :id source-id :>in >in :buffer buffer :source-address source-address)))
       (stack-push source-stack ss)
       ;; SOURCE-ID for EVALUATE is always -1
       (setf source-id (or fileid -1)
             >in 0
+            lineno 0
             buffer (or evaluate "")
             ;; SOURCE should return the user's buffer address for EVALUATE
             source-address source-address-override)
@@ -372,12 +377,13 @@
             (source-data-space-buffer source-as-space) evaluate))))
 
 (defmethod source-pop ((f files))
-  (with-slots (source-id >in buffer source-address source-stack source-as-space) f
+  (with-slots (source-id >in lineno buffer source-address source-stack source-as-space) f
     (when (plusp source-id)
       (forth-close-file f source-id))
     (let ((ss (stack-pop source-stack)))
       (setf source-id (saved-source-id ss)
             >in (saved-source->in ss)
+            lineno (saved-source-lineno ss)
             buffer (saved-source-buffer ss)
             source-address (saved-source-source-address ss)
             (source-data-space-is-valid? source-as-space) nil
@@ -421,10 +427,11 @@
       (setf buffer (forth-string-to-native data offset count)))))
 
 (defmethod save-input ((f files) &key for-catch?)
-  (with-slots (source-id >in source-address source-id-map source-stack) f
+  (with-slots (source-id >in lineno source-address source-id-map source-stack) f
     (let ((state-vector (make-array 16 :fill-pointer 0 :adjustable t)))
       (vector-push-extend source-id state-vector)
       (vector-push-extend >in state-vector)
+      (vector-push-extend lineno state-vector)
       (cond ((= source-id -1)
              ;; EVALUATE supplies the address of the input buffer which we'll use to verify the subsequent restore
              (vector-push-extend source-address state-vector))
@@ -451,30 +458,31 @@
       state-vector)))
 
 (defmethod restore-input ((f files) state-vector &key for-throw?)
-  (with-slots (source-id >in buffer source-address source-id-map source-stack) f
+  (with-slots (source-id >in lineno buffer source-address source-id-map source-stack) f
     (let ((saved-source-id (aref state-vector 0))
-          (saved->in (aref state-vector 1)))
+          (saved->in (aref state-vector 1))
+          (saved-lineno (aref state-vector 2))))
       (unless (or (= source-id saved-source-id) for-throw?)
         (forth-exception :save-restore-input-mismatch))
       (setf source-id saved-source-id)
       (prog1
           (cond ((= saved-source-id -1)
-                 (let ((saved-source-address (aref state-vector 2)))
+                 (let ((saved-source-address (aref state-vector 3)))
                    (unless (or (= source-address saved-source-address) for-throw?)
                      (forth-exception :save-restore-input-mismatch))
                    (setf >in saved->in)
                    t))
                 ((zerop saved-source-id)
                  (when for-throw?
-                   (let ((saved-buffer-address (aref state-vector 2))
-                         (saved-buffer-count (aref state-vector 3)))
+                   (let ((saved-buffer-address (aref state-vector 3))
+                         (saved-buffer-count (aref state-vector 4)))
                      (restore-buffer f saved-buffer-address saved-buffer-count)
                      (setf >in saved->in))))
                 (t
                  (let ((stream (file-file-stream saved-source-id source-id-map))
-                       (saved-file-position (aref state-vector 2))
+                       (saved-file-position (aref state-vector 3))
                        (saved-buffer-address (aref state-vector 3))
-                       (saved-buffer-count (aref state-vector 4)))
+                       (saved-buffer-count (aref state-vector 5)))
                    (when stream
                      (handler-case
                          (progn
