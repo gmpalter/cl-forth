@@ -307,10 +307,12 @@
                           (cond ((word-immediate? value)
                                  (forth-call fs value *interpreter-psuedo-pc*))
                                 ((word-inlineable? value)
-                                 (if (word-created-word? value)
-                                     ;; See REWRITE-TAGS, below, for an explanation
-                                     (apply #'add-forms-to-definition fs (reverse (rewrite-tags (word-inline-forms value))))
-                                     (apply #'add-forms-to-definition fs (reverse (word-inline-forms value)))))
+                                 ;; See REWRITE-TAGS, below, for an explanation
+                                 (multiple-value-bind (forms exit-tag)
+                                     (rewrite-tags (word-inline-forms value))
+                                   (apply #'add-forms-to-definition fs (reverse forms))
+                                   (when exit-tag
+                                     (add-forms-to-definition fs exit-tag))))
                                 (t
                                  (add-forms-to-definition fs `(forth-call fs ,value ,(next-psuedo-pc definition))))))
                          (:single
@@ -525,21 +527,38 @@
           (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,(word-parameters word)))))
     (setf (word-does> word) does>-word)))
 
-;;; If a word was created by a definition that modifies said word using DOES>, the word's inline forms will include
-;;; the DOES> word's inline forms. If said word is used multiple times in another definition, its forms will appear
-;;; multiple times in the calling definition. If the DOES> word uses any flow control constructs (e.g., IF/THEN/ELSE),
-;;; the DOES> word's forms will include tags. In this case, we must rewrite the tags to avoid ending up with
-;;; duplicate tags in the calling definition.
+;;; When a word is defined as inlineable, its forms will be inserted into any calling words at the call site.
+;;; If the inlined word uses any flow control constructs (e.g., IF/THEN/ELSE), the word's forms will include tags.
+;;; In this case, we must rewrite the tags to avoid ending up with duplicate tags in the calling word if the
+;;; inlined word is called more than once in the calling word.
+;;; Additionally, if the inlined word uses EXIT, we'll need to add an unique EXIT label after the word's forms so that
+;;; if the inlined word executes the EXIT, it will transfer control to the calling word immediately after the call site.
+;;; Note: Rewriting tags also applies to any word defined by a creating word with DOES> as the DOES> forms will
+;;; be included in the forms of the created word.
 (defun rewrite-tags (forms)
   (let ((tags (loop for form in forms
                     when (atom form)
-                      collect form)))
-    (if tags
+                      collect form))
+        (exit
+          (labels ((exit? (tag)
+                     (let ((tag-name (symbol-name tag)))
+                       (equal (subseq tag-name 0 (position-if #'digit-char-p tag-name)) "EXIT")))
+                   (goto-exit? (form)
+                     (cond ((atom form) nil)
+                           ((and (eq (first form) 'go) (exit? (second form)))
+                            (second form))
+                           ((or (goto-exit? (car form)) (goto-exit? (cdr form)))))))
+            (loop for form in forms
+                  thereis (goto-exit? form)))))
+    (if (or tags exit)
         (let ((substitutions (loop for tag in tags
                                    for tag-name = (symbol-name tag)
                                    collect `(,tag
                                              . ,(gensym (subseq tag-name 0 (position-if #'digit-char-p tag-name)))))))
-          (sublis substitutions forms))
+          (if (and exit (null (assoc exit substitutions)))
+              (push `(,exit . ,(gensym "EXIT")) substitutions)
+              (setf exit nil))
+          (values (sublis substitutions forms) (cdr (assoc exit substitutions))))
         forms)))
 
 (defun execute-compile-token (fs parameters)
