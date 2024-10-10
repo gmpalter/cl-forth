@@ -461,7 +461,7 @@
   (with-slots (source-id >in lineno buffer source-address source-id-map source-stack) f
     (let ((saved-source-id (aref state-vector 0))
           (saved->in (aref state-vector 1))
-          (saved-lineno (aref state-vector 2))))
+          (saved-lineno (aref state-vector 2)))
       (unless (or (= source-id saved-source-id) for-throw?)
         (forth-exception :save-restore-input-mismatch))
       (setf source-id saved-source-id)
@@ -481,14 +481,15 @@
                 (t
                  (let ((stream (file-file-stream saved-source-id source-id-map))
                        (saved-file-position (aref state-vector 3))
-                       (saved-buffer-address (aref state-vector 3))
+                       (saved-buffer-address (aref state-vector 4))
                        (saved-buffer-count (aref state-vector 5)))
                    (when stream
                      (handler-case
                          (progn
                            (file-position stream saved-file-position)
                            (restore-buffer f saved-buffer-address saved-buffer-count)
-                           (setf >in saved->in)
+                           (setf >in saved->in
+                                 lineno saved-lineno)
                            t)
                        ((or file-error stream-error) () nil))))))
         (when for-throw?
