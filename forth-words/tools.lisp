@@ -29,8 +29,7 @@
          (address (stack-pop data-stack))
          (end-address (+ address count)))
     (loop while (plusp count)
-          ;; Addresses in MEMORY are 56 bits
-          do (format t "~&~14,'0X: " address)
+          do (format t "~&$~16,'0X: " address)
              (loop with byte-address = address
                    ;; Four "cells" at a time
                    for i from 0 below 4
