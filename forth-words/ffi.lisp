@@ -244,7 +244,7 @@
                                                    (t t))))))
            (write-line "Imported functions:")
            (dolist (import imports)
-             (format t "~&  ~16,'0X ~@[~A ~]~A~%"
+             (format t "~&  $~16,'0X ~@[~A ~]~A~%"
                      (let ((pointer (cffi:foreign-symbol-pointer (ffi-call-name import))))
                        (if pointer (pointer-address pointer) "     <Undefined>"))
                      #+LispWorks (library-name (ffi-call-library import)) #-LispWorks nil

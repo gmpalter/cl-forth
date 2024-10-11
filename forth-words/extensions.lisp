@@ -290,3 +290,8 @@
   "( -- addr )"
   "Return the address of the flag that controls whether definitions are optimized when compiled"
   (stack-push data-stack (state-slot-address memory '%optimize-definitions?)))
+
+(define-word print-tos-as-pointer (:word "P.")
+  "( n -- )"
+  "Display the top cell of the data stack as a pointer"
+  (format t "$~16,'0X " (cell-unsigned (stack-pop data-stack))))
