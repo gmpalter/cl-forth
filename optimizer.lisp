@@ -28,7 +28,7 @@
         (t
          (stack-pop (optimizer-data-stack optimizer)))))
   
-(defun empty-optimizer-data-stack (optimizer &key vars count conditional?)
+(defun empty-optimizer-data-stack (optimizer &key contains count conditional?)
   (declare (ignore count))
   (let* ((optimizer-stack (optimizer-data-stack optimizer))
          (stack-depth (stack-depth optimizer-stack))
@@ -36,11 +36,17 @@
                         (list (stack-contents (optimizer-data-stack optimizer))
                               (optimizer-explicit-pops optimizer)
                               (optimizer-pushed-after-explicit-pops optimizer)))))
-
+    ;;(show-stack optimizer-stack 10)
     (labels ((references? (expr)
-               (if (atom expr)
-                   (member expr vars)
-                   (or (references? (car expr)) (references? (cdr expr)))))
+               (cond ((member expr contains :test #'equal))
+                     ((atom expr) nil)
+                     (t
+                      (or (references? (car expr)) (references? (cdr expr))))))
+             (stack-pop? (expr)
+               (cond ((atom expr) nil)
+                     ((equal expr '(stack-pop data-stack)))
+                     (t
+                      (or (stack-pop? (car expr)) (stack-pop? (cdr expr))))))
              (clear-counters ()
                (setf (optimizer-explicit-pops optimizer) 0
                      (optimizer-pushed-after-explicit-pops optimizer) 0))
@@ -65,15 +71,15 @@
                (clear-counters)
                (prog1
                    (append (loop for i below stack-depth
-                                 for cell = (stack-cell optimizer-stack (- stack-depth i 1))
+                                 for cell = (stack-cell optimizer-stack i)
                                  collect `(stack-push data-stack ,cell)
                                  collect `(stack-roll-down data-stack ,(+ pops i)))
                            extras-forms)
                  (setf (stack-depth optimizer-stack) 0)
                  (reset))))
-            (vars
+            (contains
              (clear-counters)
-             ;; Find the deepest entry that references one of the variables and
+             ;; Find the deepest entry that references one of the contained forms and
              ;; pop it and everything after it from the stack.
              (let ((count (loop for i below stack-depth
                                 for cell = (stack-cell optimizer-stack (- stack-depth i 1))
@@ -81,9 +87,18 @@
                                   return (- stack-depth i)
                                 finally (return 0))))
                (when (plusp count)
+                 ;; However, if anything below that deepest reference involves popping the stack,
+                 ;; we have to also pop all the entries between that stack popper and the deepest
+                 ;; reference to ensure the stack is consistent with what the definition expects.
+                 ;; So, we'll look for the deepest stack popper to be certain.
+                 (loop for i below (- stack-depth count)
+                       for cell = (stack-cell optimizer-stack (- stack-depth i 1))
+                       when (stack-pop? cell)
+                         do (setf count (- stack-depth i))
+                            (loop-finish))
                  (prog1
                      (empty-stack count)
-                   (setf (optimizer-explicit-pops optimizer) count)
+                   (setf (optimizer-explicit-pops optimizer) (if (< count stack-depth) count 0))
                    (reset)))))
             ;;---*** TODO: This needs more thought
             #+TODO
@@ -100,15 +115,6 @@
              (prog1
                  (empty-stack stack-depth)
                (reset)))))))
-
-(defun empty-optimizer-data-stack-containing (optimizer contents)
-  (labels ((references? (expr)
-             (cond ((member expr contents :test #'equal))
-                   ((atom expr) nil)
-                   (t (or (references? (car expr)) (references? (cdr expr)))))))
-    (when (loop for cell across (stack-contents (optimizer-data-stack optimizer))
-                  thereis (references? cell))
-      (empty-optimizer-data-stack optimizer))))
 
 
 ;;; Expression optimization
@@ -193,7 +199,7 @@
                                  (eq (first (third place)) 'state-slot-address))
                          collect (third place))))
       (if slots
-          (append (empty-optimizer-data-stack-containing optimizer slots) (list form))
+          (append (empty-optimizer-data-stack optimizer :contains slots) (list form))
           `((setf ,@(loop for (place value) on places&values by #'cddr
                           collect (optimize-expr optimizer place vars)
                           collect (optimize-expr optimizer value vars))))))))
@@ -211,7 +217,7 @@
                ,@(loop with vars = (append vars newvars)
                        for form in body
                        append (optimize-form optimizer form vars))
-               ,@(empty-optimizer-data-stack optimizer :vars newvars))))))
+               ,@(empty-optimizer-data-stack optimizer :contains newvars))))))
 
 (define-optimizer multiple-value-bind (optimizer form vars)
     (destructuring-bind (word (&rest newvars) expr &body body) form
@@ -219,7 +225,7 @@
                ,@(loop with vars = (append vars newvars)
                        for form in body
                        append (optimize-form optimizer form vars))
-               ,@(empty-optimizer-data-stack optimizer :vars newvars)))))
+               ,@(empty-optimizer-data-stack optimizer :contains newvars)))))
 
 (define-optimizer (when unless) (optimizer form vars)
   (destructuring-bind (word test &body body) form
@@ -268,9 +274,7 @@
   (declare (ignore vars))
   (destructuring-bind (word &key count contains) form
     (declare (ignore word))
-    (if contains
-        (empty-optimizer-data-stack-containing optimizer (list contains))
-        (empty-optimizer-data-stack optimizer :count count))))
+    (empty-optimizer-data-stack optimizer :count count :contains contains)))
 
 (define-optimizer stack-push (optimizer form vars)
   (destructuring-bind (word stack value) form
