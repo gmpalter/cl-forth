@@ -438,7 +438,7 @@
                         (:in-progress
                          (forth-exception :unterminated-locals-block))
                         (:complete
-                         `((flush-optimizer-stack)
+                         `(;; (flush-optimizer-stack)
                            (let (,@(loop for local in (reverse (locals-locals locals))
                                          collect `(,(local-symbol local)
                                                    ,(if (local-initialize? local)
