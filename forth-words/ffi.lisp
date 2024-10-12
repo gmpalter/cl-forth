@@ -123,9 +123,13 @@
                            name forth-name  #+LispWorks (library-name (ffi-current-library ffi)) #-LispWorks nil)))
       (multiple-value-bind (parameters return-value)
           (parse-parameters-and-return fs (format nil "~:[~;[OPTIONAL] ~]~@[AS ~A ~]FUNCTION: ~A" optional? forth-name name))
-        (let* ((code (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?))
-               (word (make-word (or forth-name name) code :parameters (make-parameters forth-name))))
-          (add-and-register-word fs word))))))
+        (multiple-value-bind (code forms)
+            (build-ffi-call ffi name (ffi-current-library ffi) parameters return-value optional?)
+          (let ((word (make-word (or forth-name name) code :parameters (make-parameters forth-name))))
+            (when forms
+              (setf (word-inline-forms word) forms
+                    (word-inlineable? word) t))
+            (add-and-register-word fs word)))))))
 
 (define-word ffi-function (:word "FUNCTION:")
   "FUNCTION: <name> ( params -- return )"

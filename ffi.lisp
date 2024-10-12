@@ -280,16 +280,17 @@
                 `((stack-push float-stack (native-float ,result-symbol))))
                (:double
                 `((stack-push float-stack (native-float ,result-symbol))))))
+           (forms `(,@optional-form
+                    (let* (,@(reverse parameter-forms)
+                           ,@call-form)
+                      (declare (ignorable ,result-symbol))
+                      ,@return-form)))
            (thunk `(named-lambda ,lambda-name (fs parameters)
                      (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
                               (optimize (speed 3) (safety 0)))
                      (with-forth-system (fs)
-                       ,@optional-form
-                       (let* (,@(reverse parameter-forms)
-                              ,@call-form)
-                         (declare (ignorable ,result-symbol))
-                         ,@return-form)))))
-      (compile nil (eval thunk)))))
+                       ,@forms))))
+      (values (compile nil (eval thunk)) (reverse forms)))))
 
 (defmethod build-ffi-callback ((ffi ffi) fs name xt parameters return-value)
   (with-slots (callbacks) ffi
