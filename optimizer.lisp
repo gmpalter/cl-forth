@@ -176,7 +176,10 @@
                                                         (or (pop? (car expr)) (pop? (cdr expr)))))))
                                         (if (pop? ,expr)
                                             (append (empty-optimizer-data-stack optimizer) (list form))
-                                            (list form)))))
+                                            (list form))))
+                                   (explicit-pops? ()
+                                     `(or (plusp (optimizer-explicit-pops optimizer))
+                                          (plusp (optimizer-pushed-after-explicit-pops optimizer)))))
                           ,@body))))))
       (if (atom name)
           (define name)
@@ -328,6 +331,11 @@
                   (list form))
                  ((stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
                   (punt))
+                 ((explicit-pops?)
+                  (if (plusp (optimizer-pushed-after-explicit-pops optimizer))
+                      (decf (optimizer-pushed-after-explicit-pops optimizer))
+                      (decf (optimizer-explicit-pops optimizer)))
+                  (list form))
                  (t
                   (prog1
                       nil
@@ -497,6 +505,8 @@
                   (punt))
                  ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
                       (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1)))
+                  (punt))
+                 ((explicit-pops?)
                   (punt))
                  (t
                   (prog1
