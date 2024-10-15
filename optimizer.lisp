@@ -280,7 +280,7 @@
   (declare (ignore vars))
   (destructuring-bind (word &key count contains) form
     (declare (ignore word))
-    (empty-optimizer-data-stack optimizer :count count :contains contains)))
+    (empty-optimizer-data-stack optimizer :count count :contains (list contains))))
 
 (define-optimizer stack-push (optimizer form vars)
   (destructuring-bind (word stack value) form
