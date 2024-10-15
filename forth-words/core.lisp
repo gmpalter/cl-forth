@@ -1481,6 +1481,8 @@
     (let* ((address (allocate-memory memory +cell-size+))
            (word (make-word name #'push-value :parameters (make-parameters address :value) :created-word? t)))
       (setf (memory-cell memory address) value)
+      (setf (word-inline-forms word) `((stack-push data-stack (memory-cell memory ,address)))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word within (:word "WITHIN")

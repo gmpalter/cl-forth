@@ -157,6 +157,8 @@
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
            (word (make-word name #'push-value :parameters (make-parameters address :2value) :created-word? t)))
       (setf (memory-double-cell memory address) value)
+      (setf (word-inline-forms word) `((stack-push-double data-stack (memory-double-cell memory ,address)))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word less-than-double-unsigned (:word "DU<")

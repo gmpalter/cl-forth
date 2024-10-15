@@ -613,6 +613,8 @@
     (let* ((address (allocate-memory memory +native-float-cell-size+))
            (word (make-word name #'push-value :parameters (make-parameters address :fvalue) :created-word? t)))
       (setf (memory-native-float memory address) value)
+      (setf (word-inline-forms word) `((stack-push float-stack (memory-native-float memory ,address)))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word float-proximate (:word "F~")
