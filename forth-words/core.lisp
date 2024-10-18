@@ -628,7 +628,7 @@
     `(when (< (stack-depth loop-stack) 2)
        (forth-exception :no-loop-parameters "I not inside DO loop"))
     `(stack-push data-stack (stack-cell loop-stack 0))
-    `(flush-optimizer-stack :count 1)))
+    `(flush-optimizer-stack :contains (stack-cell loop-stack 0))))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag -- )"
@@ -658,7 +658,7 @@
     `(when (< (stack-depth loop-stack) 4)
        (forth-exception :no-loop-parameters "J not inside DO ... DO ... LOOP ... LOOP"))
     `(stack-push data-stack (stack-cell loop-stack 2))
-    `(flush-optimizer-stack :count 1)))
+    `(flush-optimizer-stack :contains (stack-cell loop-stack 2))))
 
 ;;;---*** KEY
 
@@ -1420,8 +1420,7 @@
          (forth-exception :undefined-word "~A is not defined" name))
        (if local
            (add-to-definition fs
-             ;;#+TODO
-             `(flush-optimizer-stack)
+             `(flush-optimizer-stack :contains ,(local-symbol local))
              `(setf ,(local-symbol local) (stack-pop data-stack)))
            (let ((address (parameters-p1 (word-parameters word)))
                  (type (parameters-p2 (word-parameters word))))

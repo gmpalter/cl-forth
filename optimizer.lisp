@@ -36,7 +36,6 @@
                         (list (stack-contents (optimizer-data-stack optimizer))
                               (optimizer-explicit-pops optimizer)
                               (optimizer-pushed-after-explicit-pops optimizer)))))
-    ;;(show-stack optimizer-stack 10)
     (labels ((references? (expr)
                (cond ((member expr contains :test #'equal))
                      ((atom expr) nil)
@@ -220,7 +219,11 @@
       `((,word (,@(loop for var in newvars
                         for expr in exprs
                         collect `(,var ,(optimize-expr optimizer expr vars))))
-               ,@(loop with vars = (append vars newvars)
+               ,@(loop with vars = (append vars
+                                           ;; LOCAL variables are defined in the FORTH-WORDS package.
+                                           ;; Do not treat them specially when manipulating the data stack
+                                           (remove-if #'(lambda (var) (eq (symbol-package var) *forth-words-package*))
+                                                      newvars))
                        for form in body
                        append (optimize-form optimizer form vars))
                ,@(empty-optimizer-data-stack optimizer :contains newvars))))))
