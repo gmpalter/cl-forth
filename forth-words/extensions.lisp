@@ -212,7 +212,8 @@
 
 (define-word break (:word "BREAK")
   "Enter a Lisp debug break loop"
-  (break "Debug Break"))
+  (let ((*package* *forth-package*))
+    (break "Debug Break")))
 
 (define-word show-definition-code (:word "SHOW-CODE")
   "( -- addr )"
