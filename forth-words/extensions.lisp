@@ -296,3 +296,19 @@
   "( n -- )"
   "Display the top cell of the data stack as a pointer"
   (format t "$~16,'0X " (cell-unsigned (stack-pop data-stack))))
+
+(define-word set-inlineable (:word "SETINLINEABLE")
+  "( flag -- )" "SETINLINEABLE <name>"
+  "Change the inlineable attribute of the word NAME to the value of FLAG"
+  (let ((flag (stack-pop data-stack))
+        (name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (if (falsep flag)
+          (setf (word-inlineable? word) nil)
+          ;; Don't enable INLINEABLE for a word that has no inline forms to actually inline
+          (when (word-inline-forms word)
+            (setf (word-inlineable? word) t))))))

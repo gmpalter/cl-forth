@@ -160,6 +160,7 @@ These words are specific to CL-Forth.
 | `P.` | Display the top cell of the data stack as a pointer (i.e., 16 hex digits) ||
 | `RELOAD` | Reload a predefined definition (i.e., created by `define-word`) |
 | `REMOVE` | Erase a single word |
+| `SETINLINEABLE` | Enable/disable inlining of an existing word |
 | `SHOW-BACKTRACES` | Return the address of the flag that controls whether exceptions display the return and data stacks |
 | `SHOW-CODE` | Return the address of the flag that controls whether completing a definition shows the generated code |
 | `STATISTICS` | Report some useful statistics about this CL-Forth session |
