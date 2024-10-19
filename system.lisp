@@ -310,7 +310,7 @@
                                  ;; See REWRITE-TAGS, below, for an explanation
                                  (multiple-value-bind (forms exit-tag)
                                      (rewrite-tags (word-inline-forms value))
-                                   (apply #'add-forms-to-definition fs (reverse (update-forth-calls forms definition)))
+                                   (apply #'add-forms-to-definition fs (reverse (update-psuedo-pcs forms definition)))
                                    (when exit-tag
                                      (add-forms-to-definition fs exit-tag))))
                                 (t
@@ -561,21 +561,25 @@
           (values (sublis substitutions forms) (cdr (assoc exit substitutions))))
         forms)))
 
-;;; When inlining a word into an outer word, we must update any FORTH-CALLs in the inner word
+;;; When inlining a word into an outer word, we must update any FORTH-CALLs or EXECUTEs in the inner word
 ;;; to use PSUEDO-PCs that reference the outer word. Otherwise, backtraces will make little sense.
-(defun update-forth-calls (forms definition)
-  (labels ((forth-call? (form fixup?)
+(defun update-psuedo-pcs (forms definition)
+  (labels ((update-psuedo-pc? (form fixup?)
              (cond ((atom form) nil)
                    ((eq (first form) 'forth-call)
                     (when fixup?
                       (setf (fourth form) (next-psuedo-pc definition)))
                     t)
-                   ((or (forth-call? (car form) fixup?) (forth-call? (cdr form) fixup?))))))
+                   ((eq (first form) 'execute)
+                    (when fixup?
+                      (setf (fifth form) (next-psuedo-pc definition)))
+                    t)
+                   ((or (update-psuedo-pc? (car form) fixup?) (update-psuedo-pc? (cdr form) fixup?))))))
     (if (loop for form in forms
-                thereis (forth-call? form nil))
+                thereis (update-psuedo-pc? form nil))
         (let ((forms (copy-tree forms)))
           (loop for form in forms
-                do (forth-call? form t))
+                do (update-psuedo-pc? form t))
           forms)
         forms)))
 
