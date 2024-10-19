@@ -1095,17 +1095,10 @@
     (stack-push control-flow-stack done)
     (stack-push control-flow-stack again)
     (add-to-definition fs
-      `(flush-optimizer-stack)
-      `(stack-underflow-check data-stack 2))
-    (execute-branch-when fs done
-      (and (= (stack-cell data-stack 0) (stack-cell data-stack 1))
-           (prog1
-               t
-             ;; Be sure to pop the limit and initial index when they're equal
-             (stack-2drop data-stack))))
-    (add-to-definition fs
       `(let ((n2 (stack-pop data-stack))
              (n1 (stack-pop data-stack)))
+         (when (= n1 n2)
+           (go ,(branch-reference-tag done)))
          (stack-push loop-stack n1)
          (stack-push loop-stack n2)))
     (resolve-branch fs again)))

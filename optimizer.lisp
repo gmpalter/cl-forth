@@ -138,12 +138,12 @@
                           expr
                         (when (plusp (optimizer-return-stack-depth optimizer))
                           (decf (optimizer-return-stack-depth optimizer)))))
-                     #+TODO
+                     ;;#+TODO
                      ((and (eq (first expr) 'stack-cell) (eq (second expr) 'data-stack) (constantp (third expr))
                            (< (third expr) (stack-depth (optimizer-data-stack optimizer)))
-                           ;;---*** TODO: Can we do better than this?
-                           (zerop (optimizer-explicit-pops optimizer))
-                           (zerop (optimizer-pushed-after-explicit-pops optimizer)))
+                           ;; Can't perform this optimization if the top of the optimizer
+                           ;; stack isn't in sync with the top of the data stack
+                           (zerop (optimizer-explicit-pops optimizer)))
                       (stack-cell (optimizer-data-stack optimizer) (third expr)))
                      (t
                       (loop for subexpr in expr
