@@ -570,7 +570,7 @@
                     (when fixup?
                       (setf (fourth form) (next-psuedo-pc definition)))
                     t)
-                   ((eq (first form) 'execute)
+                   ((and (eq (first form) 'execute) (= (length form) 5))
                     (when fixup?
                       (setf (fifth form) (next-psuedo-pc definition)))
                     t)
