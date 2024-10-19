@@ -12,7 +12,7 @@
 
 (defparameter *forth-package* (find-package '#:forth))
 
-(defconstant +maximum-locals+ 16)
+(defconstant +maximum-locals+ 32)
 
 (deftype forth-boolean () `(member ,+false+ ,+true+))
 
