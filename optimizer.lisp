@@ -516,12 +516,15 @@
   (if (eq (second form) 'data-stack)
       (cond ((explicit-pops?)
              (punt))
-            ((>= (stack-depth (optimizer-data-stack optimizer)) 2)
+            ((< (stack-depth (optimizer-data-stack optimizer)) 2)
+             (punt))
+            ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                 (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1)))
+             (punt))
+            (t
              (prog1
                  nil
-               (stack-swap (optimizer-data-stack optimizer))))
-            (t
-             (punt)))
+               (stack-swap (optimizer-data-stack optimizer)))))
       (list form)))
 
 (define-optimizer stack-tuck (optimizer form vars)
