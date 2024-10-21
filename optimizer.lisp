@@ -126,13 +126,17 @@
                           (return-from optimize-expr topexpr)
                           expr))
                      ((equal expr '(stack-pop data-stack))
-                      (if (zerop (stack-depth (optimizer-data-stack optimizer)))
-                          (if substituted?
-                              expr
-                              (return-from optimize-expr topexpr))
-                          (prog1
-                              (pop-optimizer-data-stack optimizer)
-                            (setf substituted? t))))
+                      (cond ((or (plusp (optimizer-explicit-pops optimizer))
+                                 (plusp (optimizer-pushed-after-explicit-pops optimizer)))
+                             (throw 'empty-and-retry t))
+                            ((zerop (stack-depth (optimizer-data-stack optimizer)))
+                             (if substituted?
+                                 expr
+                                 (return-from optimize-expr topexpr)))
+                            (t
+                             (prog1
+                                 (pop-optimizer-data-stack optimizer)
+                               (setf substituted? t)))))
                      ((equal expr '(stack-pop return-stack))
                       (prog1
                           expr
@@ -643,25 +647,31 @@
                        (when (member (forth-exception-key exception) '(:optimizer-stack-overflow :optimizer-stack-underflow))
                          (format t "~A while optimizing ~S~%" (forth-exception-phrase exception) form)
                          (return-from optimize-form (list form))))))
-    (flet ((punt ()
-             (append (empty-optimizer-data-stack optimizer) (list form)))
-           (default-optimizer (optimizer form vars)
-             (list (optimize-expr optimizer form vars))))
-      (cond ((atom form)
-             ;; Flush the optimizer stack before the target of a transfer of control to ensure
-             ;; the data stack has the expected contents.
-             (punt))
-            ((eq (first form) 'forth-call)
-             ;; Flush the optimizer stack before calling another definition to ensure the
-             ;; data stack contents are as that definition would expect.
-             (punt))
-            ((eq (first form) 'go)
-             ;; Flush the optimizer stack before transferring control to another point in the
-             ;; definition. But, if the GO is inside a conditional, preserve the optimizer
-             ;; stack contents for the forms after the conditional expression.
-             (append (empty-optimizer-data-stack optimizer :conditional? conditional?) (list form)))
-            (t
-             (funcall (gethash (first form) *optimizers* #'default-optimizer) optimizer form vars))))))
+    (flet ((optimize ()
+             (flet ((punt ()
+                      (append (empty-optimizer-data-stack optimizer) (list form)))
+                    (default-optimizer (optimizer form vars)
+                      (list (optimize-expr optimizer form vars))))
+               (cond ((atom form)
+                      ;; Flush the optimizer stack before the target of a transfer of control to ensure
+                      ;; the data stack has the expected contents.
+                      (punt))
+                     ((eq (first form) 'forth-call)
+                      ;; Flush the optimizer stack before calling another definition to ensure the
+                      ;; data stack contents are as that definition would expect.
+                      (punt))
+                     ((eq (first form) 'go)
+                      ;; Flush the optimizer stack before transferring control to another point in the
+                      ;; definition. But, if the GO is inside a conditional, preserve the optimizer
+                      ;; stack contents for the forms after the conditional expression.
+                      (append (empty-optimizer-data-stack optimizer :conditional? conditional?) (list form)))
+                     (t
+                      (funcall (gethash (first form) *optimizers* #'default-optimizer) optimizer form vars))))))
+      (catch 'empty-and-retry
+        (return-from optimize-form (optimize)))
+      ;; If we get here, OPTIMIZE-EXPR detected a situation that requires
+      ;; we empty the optimizer stack before optimizing this form.
+      (append (empty-optimizer-data-stack optimizer) (optimize)))))
 
 (defun optimize-definition (forms)
   (let* ((optimizer (make-optimizer))

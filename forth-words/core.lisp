@@ -628,7 +628,7 @@
     `(when (< (stack-depth loop-stack) 2)
        (forth-exception :no-loop-parameters "I not inside DO loop"))
     `(stack-push data-stack (stack-cell loop-stack 0))
-    `(flush-optimizer-stack #+TODO #+TODO :contains (stack-cell loop-stack 0))))
+    `(flush-optimizer-stack :contains (stack-cell loop-stack 0))))
 
 (define-word if (:word "IF" :immediate? t :compile-only? t)
   "( flag -- )"
@@ -658,7 +658,7 @@
     `(when (< (stack-depth loop-stack) 4)
        (forth-exception :no-loop-parameters "J not inside DO ... DO ... LOOP ... LOOP"))
     `(stack-push data-stack (stack-cell loop-stack 2))
-    `(flush-optimizer-stack #+TODO #+TODO :contains (stack-cell loop-stack 2))))
+    `(flush-optimizer-stack :contains (stack-cell loop-stack 2))))
 
 ;;;---*** KEY
 
