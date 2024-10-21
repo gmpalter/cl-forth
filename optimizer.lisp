@@ -97,7 +97,7 @@
                             (loop-finish))
                  (prog1
                      (empty-stack count)
-                   (setf (optimizer-explicit-pops optimizer) (if (< count stack-depth) count 0))
+                   (setf (optimizer-explicit-pops optimizer) count)
                    (reset)))))
             ;;---*** TODO: This needs more thought
             #+TODO
@@ -125,7 +125,7 @@
                       (if (and (member expr vars) (not toplevel?))
                           (return-from optimize-expr topexpr)
                           expr))
-                     ((and (eq (first expr) 'stack-pop) (eq (second expr) 'data-stack))
+                     ((equal expr '(stack-pop data-stack))
                       (if (zerop (stack-depth (optimizer-data-stack optimizer)))
                           (if substituted?
                               expr
@@ -133,12 +133,11 @@
                           (prog1
                               (pop-optimizer-data-stack optimizer)
                             (setf substituted? t))))
-                     ((and (eq (first expr) 'stack-pop) (eq (second expr) 'return-stack))
+                     ((equal expr '(stack-pop return-stack))
                       (prog1
                           expr
                         (when (plusp (optimizer-return-stack-depth optimizer))
                           (decf (optimizer-return-stack-depth optimizer)))))
-                     ;;#+TODO
                      ((and (eq (first expr) 'stack-cell) (eq (second expr) 'data-stack) (constantp (third expr))
                            (< (third expr) (stack-depth (optimizer-data-stack optimizer)))
                            ;; Can't perform this optimization if the top of the optimizer
@@ -600,12 +599,17 @@
   (if (eq (second form) 'data-stack)
       (cond ((explicit-pops?)
              (punt))
-            ((>= (stack-depth (optimizer-data-stack optimizer)) 4)
+            ((< (stack-depth (optimizer-data-stack optimizer)) 4)
+             (punt))
+            ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                 (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1))
+                 (stack-pop? (stack-cell (optimizer-data-stack optimizer) 2))
+                 (stack-pop? (stack-cell (optimizer-data-stack optimizer) 3)))
+             (punt))
+            (t
              (prog1
                  nil
-               (stack-2swap (optimizer-data-stack optimizer))))
-            (t
-             (punt)))
+               (stack-2swap (optimizer-data-stack optimizer)))))
       (list form)))
 
 (define-optimizer stack-snip (optimizer form vars)
