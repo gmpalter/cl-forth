@@ -68,9 +68,9 @@
   "Divide the double D by the single N1, producing the single quotient N2"
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
-    (if (zerop n1)
-        (forth-exception :divide-by-zero)
-        (stack-push data-stack (cell-signed (truncate d n1))))))
+    (when (zerop n1)
+      (forth-exception :divide-by-zero))
+    (stack-push data-stack (cell-signed (truncate d n1)))))
 
 (define-word not (:word "NOT")
   "( n -- flag )"

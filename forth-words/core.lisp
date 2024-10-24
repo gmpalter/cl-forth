@@ -86,12 +86,12 @@
   (let ((n3 (cell-signed (stack-pop data-stack)))
         (n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
-    (if (zerop n3)
-        (forth-exception :divide-by-zero)
-        (multiple-value-bind (quotient remainder)
-            (truncate (* n1 n2) n3)
-          (stack-push data-stack (cell-signed remainder))
-          (stack-push data-stack (cell-signed quotient))))))
+    (when (zerop n3)
+      (forth-exception :divide-by-zero))
+    (multiple-value-bind (quotient remainder)
+        (truncate (* n1 n2) n3)
+      (stack-push data-stack (cell-signed remainder))
+      (stack-push data-stack (cell-signed quotient)))))
 
 (define-word add (:word "+")
   "( n1 n2 -- n3 )"
@@ -175,20 +175,20 @@
   "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
-    (if (zerop n2)
-        (forth-exception :divide-by-zero)
-        (stack-push data-stack (cell-signed (truncate n1 n2))))))
+    (when (zerop n2)
+      (forth-exception :divide-by-zero))
+    (stack-push data-stack (cell-signed (truncate n1 n2)))))
 
 (define-word divide-mod (:word "/MOD")
   "( n1 n2 -- n3 n4 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
-    (if (zerop n2)
-        (forth-exception :divide-by-zero)
-        (multiple-value-bind (quotient remainder)
-            (truncate n1 n2)
-          (stack-push data-stack (cell-signed remainder))
-          (stack-push data-stack (cell-signed quotient))))))
+    (when (zerop n2)
+      (forth-exception :divide-by-zero))
+    (multiple-value-bind (quotient remainder)
+        (truncate n1 n2)
+      (stack-push data-stack (cell-signed remainder))
+      (stack-push data-stack (cell-signed quotient)))))
 
 (define-word minusp (:word "0<")
   " ( n -- flag )"
@@ -602,12 +602,12 @@
   "Push the remainder N2 and quotient N3 onto the data stack"
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
-    (if (zerop n1)
-        (forth-exception :divide-by-zero)
-        (multiple-value-bind (quotient remainder)
-            (floor d n1)
-          (stack-push data-stack (cell-signed remainder))
-          (stack-push data-stack (cell-signed quotient))))))
+    (when (zerop n1)
+      (forth-exception :divide-by-zero))
+    (multiple-value-bind (quotient remainder)
+        (floor d n1)
+      (stack-push data-stack (cell-signed remainder))
+      (stack-push data-stack (cell-signed quotient)))))
 
 (define-word here (:word "HERE")
   "( -- a-addr )"
@@ -726,11 +726,11 @@
   "( n1 n2 -- n3 )"
   (let ((n2 (cell-signed (stack-pop data-stack)))
         (n1 (cell-signed (stack-pop data-stack))))
-    (if (zerop n2)
-        (forth-exception :divide-by-zero)
-        ;; Lisp MOD uses FLOOR to produce its result but, as we're using symmetric division througout,
-        ;; we have to use REM which uses TRUNCATE here to preserve Forth semantics.
-        (stack-push data-stack (cell-signed (rem n1 n2))))))
+    (when (zerop n2)
+      (forth-exception :divide-by-zero))
+    ;; Lisp MOD uses FLOOR to produce its result but, as we're using symmetric division througout,
+    ;; we have to use REM which uses TRUNCATE here to preserve Forth semantics.
+    (stack-push data-stack (cell-signed (rem n1 n2)))))
 
 (define-word move-memory (:word "MOVE")
   "( addr1 addr2 u -- )"
@@ -836,12 +836,12 @@
   "Push the remainder N2 and quotient N3 onto the data stack"
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
-    (if (zerop n1)
-        (forth-exception :divide-by-zero)
-        (multiple-value-bind (quotient remainder)
-            (truncate d n1)
-          (stack-push data-stack (cell-signed remainder))
-          (stack-push data-stack (cell-signed quotient))))))
+    (when (zerop n1)
+      (forth-exception :divide-by-zero))
+    (multiple-value-bind (quotient remainder)
+        (truncate d n1)
+      (stack-push data-stack (cell-signed remainder))
+      (stack-push data-stack (cell-signed quotient)))))
 
 (define-word source (:word "SOURCE")
   "( -- c-addr u )"
@@ -918,12 +918,12 @@
   "Push the unsigned remainder U2 and unsigned quotient U3 onto the data stack"
   (let ((u1 (cell-unsigned (stack-pop data-stack)))
         (ud (stack-pop-double-unsigned data-stack)))
-    (if (zerop u1)
-        (forth-exception :divide-by-zero)
-        (multiple-value-bind (quotient remainder)
-            (truncate ud u1)
-          (stack-push data-stack (cell-unsigned remainder))
-          (stack-push data-stack (cell-unsigned quotient))))))
+    (when (zerop u1)
+      (forth-exception :divide-by-zero))
+    (multiple-value-bind (quotient remainder)
+        (truncate ud u1)
+      (stack-push data-stack (cell-unsigned remainder))
+      (stack-push data-stack (cell-unsigned quotient)))))
 
 (define-word unloop (:word "UNLOOP" :immediate? t :compile-only? t)
   "Discard the loop parameters for the current nesting level. This word is not needed when a DO ... LOOP completes normally,"

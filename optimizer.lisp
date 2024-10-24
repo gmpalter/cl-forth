@@ -255,6 +255,19 @@
                append (optimize-form optimizer form vars))
        ,@(empty-optimizer-data-stack optimizer))))
 
+(define-optimizer if (optimizer form vars)
+  (destructuring-bind (word test then &optional else) form
+    (if (or (and (listp then) (eq (first then) 'stack-push) (eq (second then) 'data-stack))
+            (and (listp else) (eq (first else) 'stack-push) (eq (second else) 'data-stack)))
+        ;; If either clause of the IF pushes something onto the data stack, we have to
+        ;; flush the optimizer stack as we don't know which clause will be executed.
+        ;; Consequently, we can't know the state of the data stack after the IF executes.
+        (punt)
+        `((,word ,(optimize-expr optimizer test vars)
+                 ,@(optimize-form optimizer then vars)
+                 ,@(when else
+                     `(optimize-form optimizer else vars)))))))
+
 
 ;;; Forth stack operations optimizers
 
@@ -635,6 +648,33 @@
                         nil
                       (stack-snip (optimizer-data-stack optimizer) n))))))
           ;; Don't have to special case the RETURN-STACK as this operation doesn't change stack depth
+          (t
+           (punt-if-data-stack-pop (third form))))))
+
+(define-optimizer stack-ndrop (optimizer form vars)
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (let ((n (third form)))
+             (cond ((not (constantp n))
+                    (punt))
+                   ((explicit-pops?)
+                    (punt))
+                   ((< (stack-depth (optimizer-data-stack optimizer)) n)
+                    (punt))
+                   ((loop for i below n
+                            thereis (stack-pop? (stack-cell (optimizer-data-stack optimizer) i)))
+                    (punt))
+                   (t
+                    (prog1
+                        nil
+                      (stack-ndrop (optimizer-data-stack optimizer) n))))))
+          ((eq stack 'return-stack)
+           (let ((n (third form)))
+             (when (constantp n)
+               (if (> n (optimizer-return-stack-depth optimizer))
+                   (decf (optimizer-return-stack-depth optimizer) n)
+                   (setf (optimizer-return-stack-depth optimizer) 0)))))
+           (punt-if-data-stack-pop (third form)))
           (t
            (punt-if-data-stack-pop (third form))))))
 

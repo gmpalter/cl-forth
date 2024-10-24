@@ -128,9 +128,9 @@
   (with-float-exceptions ()
     (let ((r2 (stack-pop float-stack))
           (r1 (stack-pop float-stack)))
-      (if (zerop r2)
-          (forth-exception :floating-divide-by-zero)
-          (stack-push float-stack (/ r1 r2))))))
+      (when (zerop r2)
+        (forth-exception :floating-divide-by-zero))
+      (stack-push float-stack (/ r1 r2)))))
 
 (define-word float-minusp (:word "F0<")
   "( -- flag ) (F: r -- )"

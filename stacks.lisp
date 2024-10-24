@@ -202,6 +202,12 @@
   (shiftf (stack-cell stack 1) (stack-cell stack 3) (stack-cell stack 1))
   nil)
 
+(define-stack-fun stack-ndrop (stack n)
+  "( xn x(n-1) ... x1 n -- )"
+  (declare (fixnum n))
+  (stack-underflow-check stack n)
+  (setf (stack-depth stack) (the fixnum (- (stack-depth stack) n))))
+
 ;;; Control flow stack manipulation
 
 (define-stack-fun stack-find-if (predicate stack)
