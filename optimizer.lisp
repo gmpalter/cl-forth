@@ -266,7 +266,7 @@
         `((,word ,(optimize-expr optimizer test vars)
                  ,@(optimize-form optimizer then vars)
                  ,@(when else
-                     `(optimize-form optimizer else vars)))))))
+                     (optimize-form optimizer else vars)))))))
 
 
 ;;; Forth stack operations optimizers
