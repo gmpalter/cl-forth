@@ -652,6 +652,7 @@
            (punt-if-data-stack-pop (third form))))))
 
 (define-optimizer stack-ndrop (optimizer form vars)
+  (declare (ignore vars))
   (let ((stack (second form)))
     (cond ((eq stack 'data-stack)
            (let ((n (third form)))
@@ -673,7 +674,7 @@
              (when (constantp n)
                (if (> n (optimizer-return-stack-depth optimizer))
                    (decf (optimizer-return-stack-depth optimizer) n)
-                   (setf (optimizer-return-stack-depth optimizer) 0)))))
+                   (setf (optimizer-return-stack-depth optimizer) 0))))
            (punt-if-data-stack-pop (third form)))
           (t
            (punt-if-data-stack-pop (third form))))))
