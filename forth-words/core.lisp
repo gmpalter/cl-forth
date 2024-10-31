@@ -895,8 +895,7 @@
 (define-word print-tos-unsigned (:word "U.")
   "( u -- )"
   "Display the top cell of the data stack as an unsigned integer in the current base"
-  (let ((value (cell-unsigned (stack-pop data-stack))))
-    (format t "~VR " base value)))
+  (format t "~VR " base (cell-unsigned (stack-pop data-stack))))
 
 (define-word less-than-unsigned (:word "U<")
   " ( u1 u2 -- flag )"
