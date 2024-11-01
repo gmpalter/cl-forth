@@ -88,6 +88,7 @@
                             (let ((*standard-input* (make-concatenated-stream text *standard-input*))
                                   (fs (symbol-call '#:forth '#:make-forth-system))
                                   (phrases `("WARNING OFF"
+                                             "SHOW-BACKTRACES ON"
                                              ,@(when optimized? '("OPTIMIZER ON"))
                                              "S\" runtests.fth\" INCLUDED"
                                              "BYE")))
