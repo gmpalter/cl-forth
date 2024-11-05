@@ -311,26 +311,27 @@
           (test (optimize-expr optimizer test bindings)))
       (flet ((check? (value)
                (if invert? (not value) value))
-             (doit ()
+             (full ()
+               `((,word ,test
+                        ,@(loop for form in body
+                                append (optimize-form optimizer form bindings t)))))
+             (test-passes ()
                (loop for form in body
                      append (optimize-form optimizer form bindings t))))
         (cond ((atom test)
-               (when (check? test)
-                 (doit)))
+               (full))
               ((and (member (first test) '(plusp minusp zerop))
                     (numberp (second test)))
                (let ((predicate (first test))
                      (value (second test)))
                  (when (check? (funcall predicate value))
-                   (doit))))
+                   (test-passes))))
               ((and (equal test '(pictured-buffer-active? (memory-pictured-buffer memory)))
                     (not (eq (optimizer-pictured-buffer-active? optimizer) :unknown)))
                (when (check? (optimizer-pictured-buffer-active? optimizer))
-                 (doit)))
+                 (test-passes)))
               (t
-               `((,word ,test
-                        ,@(loop for form in body
-                                append (optimize-form optimizer form bindings t))))))))))
+               (full)))))))
 
 (define-optimizer declare (optimizer form bindings)
   (declare (ignore optimizer bindings))
