@@ -241,8 +241,8 @@
 ;;; Optimizer support
 
 ;;; Marker to instruct the optimizer to flush its knowledge of the stack contents
-(defmacro flush-optimizer-stack (&key count contains)
-  (declare (ignore count contains))
+(defmacro flush-optimizer-stack (&key contains depth)
+  (declare (ignore contains depth))
   nil)
 
 (define-stack-fun stack-roll-down (stack n)

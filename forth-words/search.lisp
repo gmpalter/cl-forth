@@ -44,7 +44,7 @@
   "Return WID, the identifier of the compilation word list"
   (stack-push data-stack (dictionary-wid (word-lists-compilation-word-list word-lists))))
 
-(define-word get-order (:word "GET-ORDER")
+(define-word get-order (:word "GET-ORDER" :inlineable? nil)
   "( -- widn ... wid1 n )"
   "Returns the number of word lists N in the search order and the word list identifiers WIDn . . . WID1 identifying these"
   "word lists. WID1 identifies the word list that is searched first, and WIDn the word list that is searched last"
@@ -81,7 +81,7 @@
   (let ((wl (lookup-wid word-lists (stack-pop data-stack))))
     (setf (word-lists-compilation-word-list word-lists) wl)))
 
-(define-word set-order (:word "SET-ORDER")
+(define-word set-order (:word "SET-ORDER" :inlineable? nil)
   "( widn ... wid1 n -- )"
   "Set the search order to the word lists identified by WIDn . . . WID1."
   "Subsequently, word list WID1 will be searched first, and word list WIDn searched last."

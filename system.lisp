@@ -438,12 +438,12 @@
                         (:in-progress
                          (forth-exception :unterminated-locals-block))
                         (:complete
-                         `(;; (flush-optimizer-stack)
-                           (let (,@(loop for local in (reverse (locals-locals locals))
+                         `((let (,@(loop for local in (reverse (locals-locals locals))
                                          collect `(,(local-symbol local)
-                                                   ,(if (local-initialize? local)
-                                                        `(stack-pop data-stack)
-                                                        0))))
+                                                   (invisible-binding
+                                                    ,(if (local-initialize? local)
+                                                         `(stack-pop data-stack)
+                                                         0)))))
                              (declare (ignorable ,@(reverse (loop for local in (locals-locals locals)
                                                                   collect (local-symbol local)))))
                              (tagbody

@@ -169,10 +169,12 @@
   "( i*n +n -- ) (R: -- j*x +n )"
   "Remove N+1 items from the data stack and store them for later retrieval by NR>."
   "The return stack may be used to store the data"
-  ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
-  ;; we're using a loop to pop the values off the data stack to be saved in the vector on the return stack.
-  (flush-optimizer-stack)
   (let ((n (stack-pop data-stack)))
+    ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
+    ;; we're using a loop to pop the values off the data stack to be saved in the vector on the return stack.
+    ;; The alternative of making this word and NR> not inlineable will not work as the vector would be pushed
+    ;; above the return PC and would then be popped off when N>R returns, resulting in an "out of sync" exception
+    (flush-optimizer-stack)
     (when (minusp n)
       (forth-exception :invalid-numeric-argument "N>R count can't be negative"))
     (let ((vector (make-array n :initial-element 0)))

@@ -23,7 +23,6 @@
   "Convert N to external form and add the resulting character to the beginning of the pictured numeric output string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use # outside <# ... #>"))
-  (flush-optimizer-stack)
   (let ((ud1 (stack-pop-double-unsigned data-stack)))
     (multiple-value-bind (ud2 digit)
         (floor ud1 base)
@@ -36,7 +35,6 @@
   "C-ADDR and U specify the resulting character string"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "#> without matching <#"))
-  (flush-optimizer-stack)
   (stack-pop-double data-stack)
   (multiple-value-bind (c-addr u)
       (finish-pictured-buffer (memory-pictured-buffer memory))
@@ -48,8 +46,7 @@
   "Convert one digit of UD1 according to the rule for #. Continue conversion until the quotient is zero. UD2 is zero"
   (unless (pictured-buffer-active? (memory-pictured-buffer memory))
     (forth-exception :no-pictured-output "Can't use #S outside <# ... #>"))
-  (flush-optimizer-stack)
-  (let ((ud1 (stack-pop-double-unsigned data-stack)))
+  (let ((ud1 (invisible-binding (stack-pop-double-unsigned data-stack))))
     (loop do (multiple-value-bind (ud2 digit)
                  (floor ud1 base)
                (add-to-pictured-buffer (memory-pictured-buffer memory) (forth-char (digit-char digit base)))
@@ -269,7 +266,6 @@
 
 (define-word start-pictured (:word "<#")
   "Initialize the pictured numeric output conversion process"
-  (flush-optimizer-stack)
   (start-pictured-buffer (memory-pictured-buffer memory)))
 
 (define-word equal (:word "=")
@@ -350,7 +346,7 @@
       (forth-exception :invalid-numeric-argument "ACCEPT buffer size must be positive"))
     ;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
     ;;       until we either get a Newline or fill the buffer. (Sigh)
-    (let ((nread 0))
+    (let ((nread (invisible-binding 0)))
       (declare (type fixnum nread))
       (loop for i fixnum below count
             for char = (read-char nil nil :eof)
@@ -1211,7 +1207,7 @@
   (verify-control-structure fs :case)
   (let ((branch (stack-pop control-flow-stack)))
     (add-to-definition fs
-      `(flush-optimizer-stack)
+      `(flush-optimizer-stack :contains (stack-pop data-stack) :depth 2)
       `(stack-drop data-stack))
     (resolve-branch fs branch)))
 
@@ -1303,9 +1299,8 @@
   (let ((branch (make-branch-reference :case)))
     ;; This will be used to branch past the matching ENDOF
     (stack-push control-flow-stack branch)
-    ;;#+TODO
     (add-to-definition fs
-      '(flush-optimizer-stack))
+      '(flush-optimizer-stack :contains (stack-pop data-stack) :depth 2))
     (execute-branch-when fs branch
       (not (= (stack-pop data-stack) (stack-cell data-stack 0))))
     (add-to-definition fs
