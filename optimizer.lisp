@@ -28,7 +28,7 @@
            (decf (optimizer-explicit-pops optimizer))))
         (t
          (stack-pop (optimizer-data-stack optimizer)))))
-  
+
 (defun empty-optimizer-data-stack (optimizer &key contains depth conditional?)
   (let* ((optimizer-stack (optimizer-data-stack optimizer))
          (stack-depth (stack-depth optimizer-stack))
@@ -242,23 +242,6 @@
 
 
 ;;; Various CL forms optimizers
-
-#+TODO ;;---*** TODO: Doesn't work as the unoptimized SETF won't have STATE-SLOT-ADDRESS
-(define-optimizer setf (optimizer form bindings)
-  (destructuring-bind (word &rest places&values) form
-    (declare (ignore word))
-    (let ((slots (loop for place in places&values by #'cddr
-                       when (and (listp place)
-                                 (eq (first place) 'memory-cell)
-                                 ;; (eq (second place) 'memory)
-                                 (listp (third place))
-                                 (eq (first (third place)) 'state-slot-address))
-                         collect (third place))))
-      (if slots
-          (append (empty-optimizer-data-stack optimizer :contains slots) (list form))
-          `((setf ,@(loop for (place value) on places&values by #'cddr
-                          collect (optimize-expr optimizer place bindings)
-                          collect (optimize-expr optimizer value bindings))))))))
 
 (defmacro invisible-binding (form)
   form)
@@ -575,11 +558,28 @@
           (t
            (list form)))))
 
-;;;---*** TODO: Can we do better?
 (define-optimizer stack-?dup (optimizer form bindings)
   (declare (ignore bindings))
   (if (eq (second form) 'data-stack)
-      (punt)
+      (flet ((try ()
+               (let ((value (stack-cell (optimizer-data-stack optimizer) 0)))
+                 (if (numberp value)
+                     (prog1
+                         nil
+                       (stack-?dup (optimizer-data-stack optimizer)))
+                     (punt)))))
+        (cond ((explicit-pops?)
+               (if (plusp (optimizer-pushed-after-explicit-pops optimizer))
+                   (let ((depth (stack-depth (optimizer-data-stack optimizer))))
+                     (prog1
+                         (try)
+                       (when (> (stack-depth (optimizer-data-stack optimizer)) depth)
+                         (incf (optimizer-pushed-after-explicit-pops optimizer)))))
+                   (punt)))
+              ((zerop (stack-depth (optimizer-data-stack optimizer)))
+               (list form))
+              (t
+               (try))))
       (list form)))
   
 (define-optimizer stack-nip (optimizer form bindings)
@@ -751,8 +751,37 @@
   (let ((stack (second form)))
     (cond ((eq stack 'data-stack)
            (cond ((explicit-pops?)
-                  ;;---*** TODO: Can do a bit better here (see stack-drop optimizer)
-                  (punt))
+                  (let ((count 2)
+                        (forms nil))
+                    (when (plusp (optimizer-pushed-after-explicit-pops optimizer))
+                      (cond ((>= (optimizer-pushed-after-explicit-pops optimizer) 2)
+                             (stack-2drop (optimizer-data-stack optimizer))
+                             (decf (optimizer-pushed-after-explicit-pops optimizer) 2)
+                             (decf count 2))
+                            (t
+                             ;; Only one push after explicit pops
+                             (stack-drop (optimizer-data-stack optimizer))
+                             (decf (optimizer-pushed-after-explicit-pops optimizer))
+                             (decf count))))
+                    (when (and (plusp count) (plusp (optimizer-explicit-pops optimizer)))
+                      (let ((n (min count (optimizer-explicit-pops optimizer))))
+                        (if (= n 2)
+                            (push form forms)
+                            (push '(stack-drop data-stack) forms))
+                        (decf (optimizer-explicit-pops optimizer) n)
+                        (decf count n)))
+                    (when (plusp count)
+                      (cond ((>= (stack-depth (optimizer-data-stack optimizer)) count)
+                             (if (= count 2)
+                                 (stack-2drop (optimizer-data-stack optimizer))
+                                 (stack-drop (optimizer-data-stack optimizer))))
+                            ((zerop (stack-depth (optimizer-data-stack optimizer)))
+                             (push form forms))
+                            (t
+                             ;; count was 2 and optimizer stack depth was 1
+                             (stack-drop (optimizer-data-stack optimizer))
+                             (push '(stack-drop data-stack) forms))))
+                    (reverse forms)))
                  ((< (stack-depth (optimizer-data-stack optimizer)) 2)
                   (punt))
                  ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
@@ -764,7 +793,9 @@
                     (stack-2drop (optimizer-data-stack optimizer))))))
           ((eq stack 'return-stack)
            (when (plusp (optimizer-return-stack-depth optimizer))
-             (decf (optimizer-return-stack-depth optimizer) 2))
+             (decf (optimizer-return-stack-depth optimizer) 2)
+             (when (minusp (optimizer-return-stack-depth optimizer))
+               (setf (optimizer-return-stack-depth optimizer) 0)))
            (list form))
           (t
            (list form)))))
@@ -790,8 +821,50 @@
           (t
            (list form)))))
 
-;;;---*** TODO: stack-2over
-;;;---*** TODO: stack-2rot
+(define-optimizer stack-2over (optimizer form bindings)
+  (declare (ignore bindings))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (cond ((explicit-pops?)
+                  (punt))
+                 ((< (stack-depth (optimizer-data-stack optimizer)) 4)
+                  (punt))
+                 ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 2))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 3)))
+                  (punt))
+                 (t
+                  (prog1
+                      nil
+                    (stack-2over (optimizer-data-stack optimizer))))))
+          ((eq stack 'return-stack)
+           (incf (optimizer-return-stack-depth optimizer) 2)
+           (list form))
+          (t
+           (list form)))))
+
+(define-optimizer stack-2rot (optimizer form bindings)
+  (declare (ignore bindings))
+  (let ((stack (second form)))
+    (cond ((eq stack 'data-stack)
+           (cond ((explicit-pops?)
+                  (punt))
+                 ((< (stack-depth (optimizer-data-stack optimizer)) 6)
+                  (punt))
+                 ((or (stack-pop? (stack-cell (optimizer-data-stack optimizer) 0))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 1))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 2))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 3))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 4))
+                      (stack-pop? (stack-cell (optimizer-data-stack optimizer) 5)))
+                  (punt))
+                 (t
+                  (prog1
+                      nil
+                    (stack-2rot (optimizer-data-stack optimizer))))))
+          (t
+           (list form)))))
 
 (define-optimizer stack-2swap (optimizer form bindings)
   (declare (ignore bindings))
