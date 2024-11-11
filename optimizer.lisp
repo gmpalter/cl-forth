@@ -243,38 +243,38 @@
 
 ;;; Various CL forms optimizers
 
-(defmacro invisible-binding (form)
+(defmacro mutable-binding (form)
   form)
 
 (define-optimizer (let let*) (optimizer form bindings)
   (destructuring-bind (word (&rest newbindings) &body body) form
-    (multiple-value-bind (newvars newexprs invisibles?)
+    (multiple-value-bind (newvars newexprs mutables?)
         (loop for (var expr) in newbindings
               collect var into vars
-              if (and (listp expr) (eq (first expr) 'invisible-binding))
+              if (and (listp expr) (eq (first expr) 'mutable-binding))
                 collect (optimize-expr optimizer (second expr) bindings) into exprs
-                and collect t into invisibles?
+                and collect t into mutables?
               else
                 collect (optimize-expr optimizer expr bindings) into exprs
-                and collect nil into invisibles?
-              finally (return (values vars exprs invisibles?)))
+                and collect nil into mutables?
+              finally (return (values vars exprs mutables?)))
       `((,word (,@(loop for var in newvars
                         for expr in newexprs
                         collect `(,var ,expr)))
                (declare (ignorable ,@newvars))
-               ,@(loop with bindings = (append (mapcan #'(lambda (var expr invisible?)
-                                                           (if invisible?
-                                                               ;; If a variable is marked as an invisible-binding, don't
+               ,@(loop with bindings = (append (mapcan #'(lambda (var expr mutable?)
+                                                           (if mutable?
+                                                               ;; If a variable is marked as a mutable-binding, don't
                                                                ;; record its value to avoid optimizing references to that
                                                                ;; variable as the variable is going to be modified in
                                                                ;; the body. E.g., optimizing (from ACCEPT's definition)
                                                                ;;   (setf nread (the fixnum (1+ nread)))
                                                                ;; to
                                                                ;;   (setf 0 (the fixnum (1+ 0)))
-                                                               ;; NOTE: All Forth LOCALs are marked as invisible
+                                                               ;; NOTE: All Forth LOCALs are marked as mutable
                                                                `((,var ,+unknown-value+))
                                                                `((,var ,expr))))
-                                                       newvars newexprs invisibles?)
+                                                       newvars newexprs mutables?)
                                                bindings)
                        for form in body
                        append (optimize-form optimizer form bindings))

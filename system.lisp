@@ -440,7 +440,7 @@
                         (:complete
                          `((let (,@(loop for local in (reverse (locals-locals locals))
                                          collect `(,(local-symbol local)
-                                                   (invisible-binding
+                                                   (mutable-binding
                                                     ,(if (local-initialize? local)
                                                          `(stack-pop data-stack)
                                                          0)))))
