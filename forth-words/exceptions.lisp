@@ -20,6 +20,7 @@
   "of THROW) pop the exception frame and return zero on top of the data stack, above whatever stack items would have been"
   "returned by XT EXECUTE. Otherwise, the remainder of the execution semantics are given by THROW"
   (let ((token (stack-pop data-stack)))
+    (flush-optimizer-stack)
     (stack-push exception-stack (make-exception-frame fs))
     (handler-case
         (progn

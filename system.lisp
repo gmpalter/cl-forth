@@ -12,7 +12,7 @@
 
 (defparameter *forth-package* (find-package '#:forth))
 
-(defconstant +maximum-locals+ 16)
+(defconstant +maximum-locals+ 32)
 
 (deftype forth-boolean () `(member ,+false+ ,+true+))
 
@@ -70,6 +70,7 @@
   (show-redefinition-warnings? +true+ :type forth-boolean)
   (reset-redefinition-warnings? nil :type boolean)
   (show-definition-code? +false+ :type forth-boolean)
+  (%optimize-definitions? +false+ :type forth-boolean)
   (show-backtraces-on-error? +false+ :type forth-boolean)
   (current-frame nil)
   ;; If non-NIL, called after an exception, including ABORT and ABORT\", to perform additional processing
@@ -94,19 +95,21 @@
                               float-stack definitions-stack word-lists files execution-tokens ffi
                               replacements base float-precision %state definition compiling-paused?
                               show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                              %optimize-definitions?
                               show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
                               announce-addendum prompt-string extensions)
                             '(fs-memory fs-data-stack fs-return-stack fs-control-flow-stack fs-exception-stack fs-loop-stack
                               fs-float-stack fs-definitions-stack fs-word-lists fs-files fs-execution-tokens fs-ffi
                               fs-replacements fs-base fs-float-precision fs-%state fs-definition fs-compiling-paused?
                               fs-show-redefinition-warnings? fs-reset-redefinition-warnings? fs-show-definition-code?
+                              fs-%optimize-definitions?
                               fs-show-backtraces-on-error? fs-current-frame fs-exception-hook fs-exception-prefix fs-exit-hook
                               fs-announce-addendum fs-prompt-string fs-extensions)))
      #+LispWorks
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack
                          float-stack definitions-stack word-lists files execution-tokens ffi
                          replacements base float-precision %state definition compiling-paused?
-                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
+                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? optimize-definitions?
                          show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
                          announce-addendum prompt-string extensions))
      ,@body))
@@ -151,6 +154,15 @@
   (setf (fs-%state fs) (ecase value
                          (:interpreting 0)
                          (:compiling 1)))
+  value)
+
+(defun optimize-definitions? (fs)
+  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (truep (fs-%optimize-definitions? fs)))
+
+(defun (setf optimize-definitions?) (value fs)
+  (declare (type forth-system fs) (type boolean value) (optimize (speed 3) (safety 0)))
+  (setf (fs-%optimize-definitions? fs) (if value +true+ +false+))
   value)
 
 (define-forth-function reset-interpreter/compiler (fs)
@@ -295,10 +307,12 @@
                           (cond ((word-immediate? value)
                                  (forth-call fs value *interpreter-psuedo-pc*))
                                 ((word-inlineable? value)
-                                 (if (word-created-word? value)
-                                     ;; See REWRITE-TAGS, below, for an explanation
-                                     (apply #'add-forms-to-definition fs (reverse (rewrite-tags (word-inline-forms value))))
-                                     (apply #'add-forms-to-definition fs (reverse (word-inline-forms value)))))
+                                 ;; See REWRITE-TAGS, below, for an explanation
+                                 (multiple-value-bind (forms exit-tag)
+                                     (rewrite-tags (word-inline-forms value))
+                                   (apply #'add-forms-to-definition fs (reverse (update-psuedo-pcs forms definition)))
+                                   (when exit-tag
+                                     (add-forms-to-definition fs exit-tag))))
                                 (t
                                  (add-forms-to-definition fs `(forth-call fs ,value ,(next-psuedo-pc definition))))))
                          (:single
@@ -426,27 +440,32 @@
                         (:complete
                          `((let (,@(loop for local in (reverse (locals-locals locals))
                                          collect `(,(local-symbol local)
-                                                   ,(if (local-initialize? local)
-                                                        `(stack-pop data-stack)
-                                                        0))))
+                                                   (mutable-binding
+                                                    ,(if (local-initialize? local)
+                                                         `(stack-pop data-stack)
+                                                         0)))))
                              (declare (ignorable ,@(reverse (loop for local in (locals-locals locals)
                                                                   collect (local-symbol local)))))
                              (tagbody
                                 ,@(reverse (locals-forms locals)))))))))
+                  (body `(,@(reverse (word-inline-forms word))
+                          ,@locals-block))
+                  (optimized-body (if (optimize-definitions? fs)
+                                      (optimize-definition body)
+                                      body))
                   (thunk `(named-lambda ,name (fs parameters)
                             (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
                                      (optimize (speed 3) (safety 0)))
                             (with-forth-system (fs)
                               (tagbody
-                                 ,@(reverse (word-inline-forms word))
-                                 ,@locals-block
+                                 ,@optimized-body
                                  ,(branch-reference-tag (definition-exit-branch definition)))))))
              (setf (word-code word) (compile nil (eval thunk)))
              (note-object-code-size word-lists word)
-             ;; Keep the forms for subsequent inlining and also for SEE
-             (when locals-block
-               ;; Ensure subsequent inlining of this definition will include the locals block
-               (push (car locals-block) (word-inline-forms (definition-word definition))))
+             ;; Keep the original forms for inlining to allow additional optimizations
+             ;; and keep the optimized forms for SEE
+             (setf (word-inline-forms (definition-word definition)) (reverse body)
+                   (word-optimized-forms (definition-word definition)) (or (reverse optimized-body) '(nil)))
              (when (truep show-definition-code?)
                (show-definition fs word))
              (setf (word-smudge? word) nil
@@ -501,25 +520,67 @@
     ;; inline forms), add the DOES> word's inline forms to the word being defined.
     (when (word-inline-forms word)
       (if (word-inline-forms does>-word)
-          (apply #'add-forms-to-definition fs (reverse (word-inline-forms does>-word)))
+          (progn
+            (apply #'add-forms-to-definition fs (reverse (word-inline-forms does>-word)))
+            (when (optimize-definitions? fs)
+              (setf (word-optimized-forms word) (reverse (optimize-definition (reverse (word-inline-forms word)))))))
           (add-forms-to-definition fs `(funcall (word-code ,does>-word) fs ,(word-parameters word)))))
     (setf (word-does> word) does>-word)))
 
-;;; If a word was created by a definition that modifies said word using DOES>, the word's inline forms will include
-;;; the DOES> word's inline forms. If said word is used multiple times in another definition, its forms will appear
-;;; multiple times in the calling definition. If the DOES> word uses any flow control constructs (e.g., IF/THEN/ELSE),
-;;; the DOES> word's forms will include tags. In this case, we must rewrite the tags to avoid ending up with
-;;; duplicate tags in the calling definition.
+;;; When a word is defined as inlineable, its forms will be inserted into any calling words at the call site.
+;;; If the inlined word uses any flow control constructs (e.g., IF/THEN/ELSE), the word's forms will include tags.
+;;; In this case, we must rewrite the tags to avoid ending up with duplicate tags in the calling word if the
+;;; inlined word is called more than once in the calling word.
+;;; Additionally, if the inlined word uses EXIT, we'll need to add an unique EXIT label after the word's forms so that
+;;; if the inlined word executes the EXIT, it will transfer control to the calling word immediately after the call site.
+;;; Note: Rewriting tags also applies to any word defined by a creating word with DOES> as the DOES> forms will
+;;; be included in the forms of the created word.
 (defun rewrite-tags (forms)
   (let ((tags (loop for form in forms
                     when (atom form)
-                      collect form)))
-    (if tags
+                      collect form))
+        (exit
+          (labels ((exit? (tag)
+                     (let ((tag-name (symbol-name tag)))
+                       (equal (subseq tag-name 0 (position-if #'digit-char-p tag-name)) "EXIT")))
+                   (goto-exit? (form)
+                     (cond ((atom form) nil)
+                           ((and (eq (first form) 'go) (exit? (second form)))
+                            (second form))
+                           ((or (goto-exit? (car form)) (goto-exit? (cdr form)))))))
+            (loop for form in forms
+                  thereis (goto-exit? form)))))
+    (if (or tags exit)
         (let ((substitutions (loop for tag in tags
                                    for tag-name = (symbol-name tag)
                                    collect `(,tag
                                              . ,(gensym (subseq tag-name 0 (position-if #'digit-char-p tag-name)))))))
-          (sublis substitutions forms))
+          (if (and exit (null (assoc exit substitutions)))
+              (push `(,exit . ,(gensym "EXIT")) substitutions)
+              (setf exit nil))
+          (values (sublis substitutions forms) (cdr (assoc exit substitutions))))
+        forms)))
+
+;;; When inlining a word into an outer word, we must update any FORTH-CALLs or EXECUTEs in the inner word
+;;; to use PSUEDO-PCs that reference the outer word. Otherwise, backtraces will make little sense.
+(defun update-psuedo-pcs (forms definition)
+  (labels ((update-psuedo-pc? (form fixup?)
+             (cond ((atom form) nil)
+                   ((eq (first form) 'forth-call)
+                    (when fixup?
+                      (setf (fourth form) (next-psuedo-pc definition)))
+                    t)
+                   ((and (eq (first form) 'execute) (= (length form) 5))
+                    (when fixup?
+                      (setf (fifth form) (next-psuedo-pc definition)))
+                    t)
+                   ((or (update-psuedo-pc? (car form) fixup?) (update-psuedo-pc? (cdr form) fixup?))))))
+    (if (loop for form in forms
+                thereis (update-psuedo-pc? form nil))
+        (let ((forms (copy-tree forms)))
+          (loop for form in forms
+                do (update-psuedo-pc? form t))
+          forms)
         forms)))
 
 (defun execute-compile-token (fs parameters)
@@ -551,16 +612,17 @@
                (format t "~&;;; ~A" line))
              (when add-newline?
                (terpri)))))
-    (cond ((word-inline-forms word)
+    (cond ((or (word-optimized-forms word) (word-inline-forms word))
            (let ((thunk `(defun ,(intern (string-upcase (word-name word)) *forth-words-package*) (fs parameters)
                            (declare (ignorable parameters))
                            (with-forth-system (fs)
                              (tagbody
-                                ,@(reverse (word-inline-forms word))
+                                ,@(reverse (or (word-optimized-forms word) (word-inline-forms word)))
                               :exit)))))
              (format t "~&Source code for ~A:" (word-name word))
              (show-documentation nil)
-             (let ((*package* *forth-package*))
+             (let ((*package* *forth-package*)
+                   (*print-right-margin* 95))
                (pprint thunk)
                (terpri))))
           ((word-code word)

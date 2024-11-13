@@ -22,15 +22,16 @@
   "the word lists in the search order, return C-ADDR and zero."
   "If the definition is found, return its execution token XT. If the definition is immediate, also return one (1),"
   "otherwise also return minus-one (-1)"
-  (multiple-value-bind (forth-memory offset)
-      (memory-decode-address memory (stack-cell data-stack 0) (1+ +longest-counted-string+))
-    (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
-      (cond (word
-             (stack-pop data-stack)
-             (stack-push data-stack (xt-token (word-execution-token word)))
-             (stack-push data-stack (if (word-immediate? word) 1 -1)))
-            (t
-             (stack-push data-stack 0))))))
+  (let ((string (stack-pop data-stack)))
+    (multiple-value-bind (forth-memory offset)
+        (memory-decode-address memory string (1+ +longest-counted-string+))
+      (let ((word (lookup word-lists (forth-counted-string-to-native forth-memory offset))))
+        (cond (word
+               (stack-push data-stack (xt-token (word-execution-token word)))
+               (stack-push data-stack (if (word-immediate? word) 1 -1)))
+              (t
+               (stack-push data-stack string)
+               (stack-push data-stack 0)))))))
 
 (define-word forth-wordlist (:word "FORTH-WORDLIST")
   "( -- wid)"
@@ -43,7 +44,7 @@
   "Return WID, the identifier of the compilation word list"
   (stack-push data-stack (dictionary-wid (word-lists-compilation-word-list word-lists))))
 
-(define-word get-order (:word "GET-ORDER")
+(define-word get-order (:word "GET-ORDER" :inlineable? nil)
   "( -- widn ... wid1 n )"
   "Returns the number of word lists N in the search order and the word list identifiers WIDn . . . WID1 identifying these"
   "word lists. WID1 identifies the word list that is searched first, and WIDn the word list that is searched last"
@@ -80,7 +81,7 @@
   (let ((wl (lookup-wid word-lists (stack-pop data-stack))))
     (setf (word-lists-compilation-word-list word-lists) wl)))
 
-(define-word set-order (:word "SET-ORDER")
+(define-word set-order (:word "SET-ORDER" :inlineable? nil)
   "( widn ... wid1 n -- )"
   "Set the search order to the word lists identified by WIDn . . . WID1."
   "Subsequently, word list WID1 will be searched first, and word list WIDn searched last."

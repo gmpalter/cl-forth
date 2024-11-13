@@ -128,9 +128,9 @@
   (with-float-exceptions ()
     (let ((r2 (stack-pop float-stack))
           (r1 (stack-pop float-stack)))
-      (if (zerop r2)
-          (forth-exception :floating-divide-by-zero)
-          (stack-push float-stack (/ r1 r2))))))
+      (when (zerop r2)
+        (forth-exception :floating-divide-by-zero))
+      (stack-push float-stack (/ r1 r2)))))
 
 (define-word float-minusp (:word "F0<")
   "( -- flag ) (F: r -- )"
@@ -613,6 +613,8 @@
     (let* ((address (allocate-memory memory +native-float-cell-size+))
            (word (make-word name #'push-value :parameters (make-parameters address :fvalue) :created-word? t)))
       (setf (memory-native-float memory address) value)
+      (setf (word-inline-forms word) `((stack-push float-stack (memory-native-float memory ,address)))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word float-proximate (:word "F~")

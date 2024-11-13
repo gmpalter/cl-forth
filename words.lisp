@@ -36,6 +36,7 @@
   (deferring-word? nil :type boolean)
   (code nil)
   (inline-forms nil)
+  (optimized-forms nil)
   (parameters (%make-parameters) :type parameters)
   (documentation nil)
   (does> nil :type (or word null))
@@ -324,7 +325,7 @@
 (define-wls-function lookup-wid (wls wid)
   (declare (type integer wid))
   (or (gethash wid (word-lists-wid-to-word-list-map wls))
-      (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid)))
+      (forth-exception :unknown-word-list "$~16,'0X is not a wordlist id" wid)))
 
 (define-wls-function lookup (wls token)
   (declare (type string token))
@@ -338,7 +339,7 @@
 (define-wls-function lookup-nt (wls nt)
   (declare (type integer nt))
   (or (gethash nt (word-lists-nt-to-word-map wls))
-      (forth-exception :not-a-name-token "~14,'0X is not a name token" nt)))
+      (forth-exception :not-a-name-token "$~16,'0X is not a name token" nt)))
         
 (define-wls-function also (wls)
   (push (first (word-lists-search-order wls)) (word-lists-search-order wls)))
@@ -371,7 +372,7 @@
   (let ((word-list (gethash wid (word-lists-wid-to-word-list-map wls))))
     (if word-list
         (replace-top-of-search-order wls word-list)
-        (forth-exception :unknown-word-list "~14,'0X is not a wordlist id" wid))))
+        (forth-exception :unknown-word-list "$~16,'0X is not a wordlist id" wid))))
 
 (define-wls-function note-object-code-size (wls word)
   (declare (type word word))
@@ -425,6 +426,7 @@
     `(define-word ,slot (:word-list ,word-list :word ,forth-name :immediate? ,immediate? :compile-only? ,compile-only?)
        "( -- a-addr )"
        ,description
+       (flush-optimizer-stack :contains (state-slot-address memory ',slot))
        (stack-push data-stack (state-slot-address memory ',slot)))))
 
 (defun make-word (name code &key smudge? immediate? compile-only? created-word? deferring-word? parameters)

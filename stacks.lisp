@@ -99,11 +99,10 @@
       (double-cell-unsigned (stack-cell stack 1) (stack-cell stack 0))
     (setf (stack-depth stack) (the fixnum (-  (stack-depth stack) 2)))))
 
-(define-stack-fun stack-drop (stack &optional (n 1))
-  "( x(n) ... x(1) -- )"
-  (declare (fixnum n))
-  (stack-underflow-check stack n)
-  (setf (stack-depth stack) (the fixnum (-  (stack-depth stack) n))))
+(define-stack-fun stack-drop (stack)
+  "( x1 -- )"
+  (stack-underflow-check stack)
+  (setf (stack-depth stack) (the fixnum (1- (stack-depth stack)))))
 
 (define-stack-fun stack-dup (stack)
   "( x -- x x )"
@@ -149,6 +148,12 @@
   (shiftf (stack-cell stack 2) (stack-cell stack 1) (stack-cell stack 0) (stack-cell stack 2))
   nil)
   
+(define-stack-fun stack-rot-down (stack)
+  "( x1 x2 x3 -- x3 x1 x2 )"
+  (stack-underflow-check stack 3)
+  (shiftf (stack-cell stack 2) (stack-cell stack 0) (stack-cell stack 1) (stack-cell stack 2))
+  nil)
+
 (define-stack-fun stack-swap (stack)
   "( x1 x2 -- x2 x1 )"
   (stack-underflow-check stack 2)
@@ -165,7 +170,7 @@
 (define-stack-fun stack-2drop (stack)
   "( x1 x2 -- )"
   (stack-underflow-check stack 2)
-  (setf (stack-depth stack) (the fixnum (-  (stack-depth stack) 2))))
+  (setf (stack-depth stack) (the fixnum (- (stack-depth stack) 2))))
 
 (define-stack-fun stack-2dup (stack)
   "( x1 x2 -- x1 x2 x1 x2 )"
@@ -197,6 +202,12 @@
   (shiftf (stack-cell stack 1) (stack-cell stack 3) (stack-cell stack 1))
   nil)
 
+(define-stack-fun stack-ndrop (stack n)
+  "( xn x(n-1) ... x1 n -- )"
+  (declare (fixnum n))
+  (stack-underflow-check stack n)
+  (setf (stack-depth stack) (the fixnum (- (stack-depth stack) n))))
+
 ;;; Control flow stack manipulation
 
 (define-stack-fun stack-find-if (predicate stack)
@@ -226,6 +237,23 @@
     (replace (stack-cells stack) contents :end1 depth)
     (setf (stack-depth stack) depth))
   contents)
+
+;;; Optimizer support
+
+;;; Marker to instruct the optimizer to flush its knowledge of the stack contents
+(defmacro flush-optimizer-stack (&key contains depth)
+  (declare (ignore contains depth))
+  nil)
+
+(define-stack-fun stack-roll-down (stack n)
+  "( xn ... x1 x0 -- x0 xn ... x1 )"
+  (declare (fixnum n))
+  (let ((depth (stack-depth stack))
+        (cell (stack-cell stack 0)))
+    (replace (stack-cells stack) (stack-cells stack) :start1 (- depth n) :end1 depth
+                                                     :start2 (- depth n 1) :end2 (1- depth))
+    (setf (stack-cell stack n) cell)))
+
 
 ;;; Display stack contents
 

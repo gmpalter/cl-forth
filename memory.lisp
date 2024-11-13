@@ -602,7 +602,7 @@
 (defun null-space-error (address why)
   (if (zerop address)
       (forth-exception :null-pointer-reference)
-      (forth-exception :invalid-memory "Attempt to ~A #x~16,'0X" why address)))
+      (forth-exception :invalid-memory "Attempt to ~A $~16,'0X" why address)))
       
 (defmethod cell-at ((sp null-space) address)
   (null-space-error address "read from"))

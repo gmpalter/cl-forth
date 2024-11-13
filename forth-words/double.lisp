@@ -50,9 +50,8 @@
 
 (define-word subtract-double (:word "D-")
   "( d1 d2 -- d3 )"
-  (let ((d2 (stack-pop-double data-stack))
-        (d1 (stack-pop-double data-stack)))
-    (stack-push-double data-stack (- d1 d2))))
+  ;; As the first value popped off the stack is D2, we'll compute (- (- d2 d1)) which is equivalent to (- d1 d2).
+  (stack-push-double data-stack (- (- (stack-pop-double data-stack) (stack-pop-double data-stack)))))
 
 (define-word print-double-tos (:word "D.")
   "( d -- )"
@@ -158,6 +157,8 @@
     (let* ((address (allocate-memory memory (* 2 +cell-size+)))
            (word (make-word name #'push-value :parameters (make-parameters address :2value) :created-word? t)))
       (setf (memory-double-cell memory address) value)
+      (setf (word-inline-forms word) `((stack-push-double data-stack (memory-double-cell memory ,address)))
+            (word-inlineable? word) t)
       (add-and-register-word fs word address))))
 
 (define-word less-than-double-unsigned (:word "DU<")

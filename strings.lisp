@@ -22,6 +22,11 @@
   (ldb (byte 8 0) value))
 )
 
+(define-compiler-macro extract-char (&whole form &environment env value)
+  (if (constantp value env)
+      (extract-char value)
+      form))
+
 ;;;--- TODO: Do we need to error check here?
 (declaim (inline forth-char))
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -30,10 +35,20 @@
   (extract-char (char-code native-char)))
 )
 
+(define-compiler-macro forth-char (&whole form &environment env native-char)
+  (if (constantp native-char env)
+      (forth-char native-char)
+      form))
+
 (declaim (inline native-char))
 (defun native-char (forth-char)
   (declare (type (integer 0 255) forth-char) (optimize (speed 3) (safety 0)))
   (code-char forth-char))
+
+(define-compiler-macro native-char (&whole form &environment env forth-char)
+  (if (constantp forth-char env)
+      (native-char forth-char)
+      form))
 
 (defconstant +forth-char-space+ #.(forth-char #\Space))
 

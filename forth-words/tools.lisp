@@ -29,8 +29,7 @@
          (address (stack-pop data-stack))
          (end-address (+ address count)))
     (loop while (plusp count)
-          ;; Addresses in MEMORY are 56 bits
-          do (format t "~&~14,'0X: " address)
+          do (format t "~&$~16,'0X: " address)
              (loop with byte-address = address
                    ;; Four "cells" at a time
                    for i from 0 below 4
@@ -165,12 +164,17 @@
 
 ;;; NOTE: This word pushes a vector of values onto the return stack rather than individual items.
 ;;;  A Forth program will crash if it doesn't maintain proper return stack discipline. But, that's true
-;;;  anyway as the return "address" pushed/popped by a call is actually a CONS.
+;;;  anyway as the return "address" pushed/popped by a call is actually a structure (PSUEDO-PC).
 (define-word save-values (:word "N>R")
   "( i*n +n -- ) (R: -- j*x +n )"
   "Remove N+1 items from the data stack and store them for later retrieval by NR>."
   "The return stack may be used to store the data"
   (let ((n (stack-pop data-stack)))
+    ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
+    ;; we're using a loop to pop the values off the data stack to be saved in the vector on the return stack.
+    ;; The alternative of making this word and NR> not inlineable will not work as the vector would be pushed
+    ;; above the return PC and would then be popped off when N>R returns, resulting in an "out of sync" exception
+    (flush-optimizer-stack)
     (when (minusp n)
       (forth-exception :invalid-numeric-argument "N>R count can't be negative"))
     (let ((vector (make-array n :initial-element 0)))
@@ -213,6 +217,9 @@
 (define-word retrieve-values (:word "NR>")
   "( -- i*x +n) (R: j*x +n -- )"
   "Retrieve the items previously stored by an invocation of N>R. N is the number of items placed on the data stack."
+  ;; We have to flush the optimizer stack here as the optimizer can't track the data stack contents as
+  ;; we're using a loop to push the saved values back onto the data stack.
+  (flush-optimizer-stack)
   (let ((vector (stack-pop return-stack)))
     (unless (vectorp vector)
       (forth-exception :type-mismatch "Return stack out of sync"))

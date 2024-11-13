@@ -15,6 +15,7 @@
 (define-word allocate-counted-string (:word ",\"")
   ",\" <text>\""
   "Compile TEXT as a counted string. User is responsible for keeping track of its address in data space"
+  (flush-optimizer-stack :contains (data-space-high-water-mark memory))
   (let* ((text (parse files #\"))
          (text-size (* (length text) +char-size+))
          ;; Length of a counted string is always a single byte regardless of character size
@@ -67,9 +68,9 @@
   "Divide the double D by the single N1, producing the single quotient N2"
   (let ((n1 (cell-signed (stack-pop data-stack)))
         (d (stack-pop-double data-stack)))
-    (if (zerop n1)
-        (forth-exception :divide-by-zero)
-        (stack-push data-stack (cell-signed (truncate d n1))))))
+    (when (zerop n1)
+      (forth-exception :divide-by-zero))
+    (stack-push data-stack (cell-signed (truncate d n1)))))
 
 (define-word not (:word "NOT")
   "( n -- flag )"
@@ -211,7 +212,8 @@
 
 (define-word break (:word "BREAK")
   "Enter a Lisp debug break loop"
-  (break "Debug Break"))
+  (let ((*package* *forth-package*))
+    (break "Debug Break")))
 
 (define-word show-definition-code (:word "SHOW-CODE")
   "( -- addr )"
@@ -284,3 +286,29 @@
   "Report some useful statistics about this Forth session"
   (unless (report-statistics fs)
     (write-line "Nothing to report.")))
+
+(define-word optimizer (:word "OPTIMIZER")
+  "( -- addr )"
+  "Return the address of the flag that controls whether definitions are optimized when compiled"
+  (stack-push data-stack (state-slot-address memory '%optimize-definitions?)))
+
+(define-word print-tos-as-pointer (:word "P.")
+  "( n -- )"
+  "Display the top cell of the data stack as a pointer"
+  (format t "$~16,'0X " (cell-unsigned (stack-pop data-stack))))
+
+(define-word set-inlineable (:word "SETINLINEABLE")
+  "( flag -- )" "SETINLINEABLE <name>"
+  "Change the inlineable attribute of the word NAME to the value of FLAG"
+  (let ((flag (stack-pop data-stack))
+        (name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (when (null word)
+        (forth-exception :undefined-word "~A is not defined" name))
+      (if (falsep flag)
+          (setf (word-inlineable? word) nil)
+          ;; Don't enable INLINEABLE for a word that has no inline forms to actually inline
+          (when (word-inline-forms word)
+            (setf (word-inlineable? word) t))))))
