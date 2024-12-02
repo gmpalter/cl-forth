@@ -155,7 +155,7 @@
 (define-word print-tos (:word ".")
   "( n -- )"
   "Display the top cell of the data stack as a signed integer in the current base"
-  (format t "~VR " base (cell-signed (stack-pop data-stack))))
+  (write-integer (cell-signed (stack-pop data-stack)) base))
 
 (define-word type-string (:word ".\"" :immediate? t :inlineable? nil)
   ".\" <text>\""
@@ -346,16 +346,24 @@
       (forth-exception :invalid-numeric-argument "ACCEPT buffer size must be positive"))
     ;; NOTE: In order to comply with the Forth standard, we have to read one character at a time
     ;;       until we either get a Newline or fill the buffer. (Sigh)
-    (let ((nread (mutable-binding 0)))
-      (declare (type fixnum nread))
-      (loop for i fixnum below count
-            for char = (read-char nil nil :eof)
-            if (or (eq char :eof) (eql (the character char) #\Newline))
-              do (loop-finish)
-            else
-              do (setf (memory-char memory (the fixnum (+ address i))) (forth-char (the character char))
-                       nread (the fixnum (1+ nread))))
-      (stack-push data-stack nread))))
+    (let ((data (make-array count :element-type '(unsigned-byte 8) :initial-element 0)))
+      (declare (type (simple-array (unsigned-byte 8) (*)) data))
+      (let ((nread (mutable-binding 0)))
+        (declare (type fixnum nread))
+        (loop for i fixnum below count
+              for char = (read-char nil nil :eof)
+              if (or (eq char :eof) (eql (the character char) #\Newline))
+                do (loop-finish)
+              else
+                do (setf (aref data i) (forth-char (the character char))
+                         nread (the fixnum (1+ nread))))
+        ;; Put what we just read into memory --
+        ;;  Using memcpy handles ADDRESS being a foreign address as well as a native address.
+        (cffi:foreign-funcall "memcpy"
+                              :pointer (foreign-pointer memory address)
+                              :pointer (address-pointer (%address-of data))
+                              :size (min nread count))
+        (stack-push data-stack nread)))))
 
 (define-word align (:word "ALIGN")
   "( -- )"
@@ -891,7 +899,7 @@
 (define-word print-tos-unsigned (:word "U.")
   "( u -- )"
   "Display the top cell of the data stack as an unsigned integer in the current base"
-  (format t "~VR " base (cell-unsigned (stack-pop data-stack))))
+  (write-integer (cell-unsigned (stack-pop data-stack)) base))
 
 (define-word less-than-unsigned (:word "U<")
   " ( u1 u2 -- flag )"

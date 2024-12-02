@@ -97,7 +97,7 @@
 (defgeneric byte-at (mspace address))
 (defgeneric (setf byte-at) (value mspace address))
 
-(defgeneric space-decode-address (mspace address &optional size-hint))
+(defgeneric space-decode-address (mspace address size-hint))
 (defgeneric space-native-address (mspace foreign-address)
   (:method ((sp mspace) foreign-address)
     (declare (ignore foreign-address))
@@ -289,7 +289,7 @@
       (forth-exception :invalid-memory))
     (setf (aref data address) (ldb (byte 8 0) value))))
 
-(defmethod space-decode-address ((sp data-space) address &optional size-hint)
+(defmethod space-decode-address ((sp data-space) address size-hint)
   (declare (ignore size-hint))
   (with-slots (data size) sp
     (values data address size)))
@@ -561,7 +561,7 @@
       (forth-exception :invalid-memory))
     (setf (slot-value parent (aref slots (ash address +byte-to-cell-shift+))) value)))
 
-(defmethod space-decode-address ((sp state-space) address &optional size-hint)
+(defmethod space-decode-address ((sp state-space) address size-hint)
   (declare (ignore address size-hint))
   (forth-exception :invalid-memory))
 
@@ -639,7 +639,7 @@
   (declare (ignore value))
   (null-space-error address "write to"))
 
-(defmethod space-decode-address ((sp null-space) address &optional size-hint)
+(defmethod space-decode-address ((sp null-space) address size-hint)
   (declare (ignore address size-hint))
   (forth-exception :null-pointer-reference))
 
@@ -985,7 +985,7 @@
 
 ;;;
 
-(define-memory-fun memory-decode-address (memory address &optional size-hint)
+(define-memory-fun memory-decode-address (memory address size-hint)
   (let* ((space (address-space memory address))
          (address (address-address address)))
     (space-decode-address space address size-hint)))

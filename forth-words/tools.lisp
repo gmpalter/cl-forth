@@ -20,7 +20,7 @@
 (define-word print-tos (:word "?")
   "( a-addr -- )"
   "Display the value stored at A-ADDR"
-  (format t "~VR " base (cell-signed (memory-cell memory (stack-pop data-stack)))))
+  (write-integer (cell-signed (memory-cell memory (stack-pop data-stack))) base))
 
 (define-word dump-memory (:word "DUMP" :inlineable? nil)
   "( a-addr u -- )"

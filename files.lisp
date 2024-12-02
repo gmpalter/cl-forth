@@ -37,7 +37,7 @@
   (declare (ignore boundary))
   nil)
 
-(defmethod space-decode-address :before ((sp source-data-space) address &optional size-hint)
+(defmethod space-decode-address :before ((sp source-data-space) address size-hint)
   (declare (ignore address size-hint))
   (with-slots (is-valid?) sp
     (unless is-valid?

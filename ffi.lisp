@@ -70,13 +70,11 @@
 (defmethod (setf byte-at) (value (sp foreign-space) address)
   (setf (cffi:mem-ref (address-pointer address) :uint8) value))
 
-(defmethod space-decode-address ((sp foreign-space) address &optional size-hint)
-  (let* ((offset (mod address +cell-size+))
-         (address (- address offset))
-         (pointer (cffi:make-pointer address))
-         (size (+ (or size-hint (expt 2 15)) offset)))
+(defmethod space-decode-address ((sp foreign-space) address size-hint)
+  (let* ((pointer (cffi:make-pointer address))
+         (size (or size-hint (expt 2 15))))
     (values (cffi:foreign-array-to-lisp pointer `(:array :uint8 ,size) :element-type '(unsigned-byte 8))
-            offset
+            0
             size)))
 
 (defmethod space-native-address ((sp foreign-space) foreign-address)

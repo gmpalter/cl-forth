@@ -56,7 +56,7 @@
 (define-word print-double-tos (:word "D.")
   "( d -- )"
   "Display the top two cells of the data stack as a signed double in the current base"
-  (format t "~VR " base (stack-pop-double data-stack)))
+  (write-integer (stack-pop-double data-stack) base))
 
 (define-word print-double-tos-in-field (:word "D.R")
   "( d +n -- )"

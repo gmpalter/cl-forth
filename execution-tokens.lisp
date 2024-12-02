@@ -170,7 +170,7 @@
   (declare (ignore value address))
   (forth-exception :write-to-read-only-memory))
 
-(defmethod space-decode-address ((xts execution-tokens) address &optional size-hint)
+(defmethod space-decode-address ((xts execution-tokens) address size-hint)
   (declare (ignore address size-hint))
   (forth-exception :invalid-memory))
 

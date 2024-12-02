@@ -10,6 +10,45 @@
 
 (in-package #:forth)
 
+;;; Fast integer printing
+
+(define-constant +digits+ "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defconstant +max-width+ 130)
+
+(defun write-integer (value base)
+  (declare (type integer value) (fixnum base)
+           (optimize (speed 3) (safety 0)))
+  (let ((text (make-string +max-width+ :element-type 'base-char))
+        (start (1- +max-width+))
+        (negative? (minusp value))
+        (rem 0))
+    (declare (fixnum start rem)
+             (dynamic-extent text))
+    (when negative?
+      (setf value (- value)))
+    (if (fixnump value)
+        (locally (declare (fixnum value))
+          (loop
+            (multiple-value-setq (value rem) (truncate value base))
+            (setf (schar text start) (schar +digits+ rem))
+            (when (zerop value)
+              (return))
+            (setf start (the fixnum (1- start)))))
+        (loop
+          (multiple-value-setq (value rem) (truncate value base))
+          (setf (schar text start) (schar +digits+ rem))
+          (when (zerop value)
+            (return))
+          (setf start (the fixnum (1- start)))))
+    (when negative?
+      (setf start (the fixnum (1- start)))
+      (setf (schar text start) #\-))
+    (write-string text *standard-output* :start start :end +max-width+)
+    (write-char #\Space)
+    nil))
+
+
 ;;; Functions used as the code for some of the words defined by Forth 2012
 
 (defun push-parameter-as-cell (fs parameters)
