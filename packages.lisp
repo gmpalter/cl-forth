@@ -41,6 +41,11 @@
                             #:slot-definition-name)
   #+LispWorks (:import-from #:mp
                             #:process-wait)
+  #+ECL (:import-from #:ext
+                      #:fixnump)
+  #+ECL (:import-from #:clos
+                      #:class-direct-slots
+                      #:slot-definition-name)
   (:export #:forth-system
            #:forth-toplevel
            #:announce-forth

@@ -109,14 +109,14 @@
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack
                          float-stack definitions-stack word-lists files execution-tokens ffi
                          replacements base float-precision %state definition compiling-paused?
-                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? optimize-definitions?
+                         show-redefinition-warnings? reset-redefinition-warnings? show-definition-code? %optimize-definitions?
                          show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
                          announce-addendum prompt-string extensions))
      ,@body))
 
 (defmacro define-forth-function (name (fs &rest args) &body body)
   (multiple-value-bind (body declarations doc)
-      (uiop:parse-body body)
+      (parse-body body)
     (declare (ignore doc))
     `(defun ,name (,fs ,@args)
        (declare (optimize (speed 3) (safety 0))

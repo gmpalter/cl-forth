@@ -167,7 +167,7 @@
 
 (defmacro define-wls-function (name (wls &rest args) &body body)
   (multiple-value-bind (body declarations doc)
-      (uiop:parse-body body)
+      (parse-body body)
     (declare (ignore doc))
     `(defun ,name (,wls ,@args)
        (declare (optimize (speed 3) (safety 0))
@@ -399,27 +399,25 @@
                                   immediate? compile-only? (inlineable? (not compile-only?)))
                        &body body)
   (let* ((word (gensym))
-         (key (format nil "~A.~A" word-list forth-name))
-         (documentation nil)
-         (body (loop with forms = (copy-list body)
-                     while (stringp (car forms))
-                     do (push (pop forms) documentation)
-                     finally (return forms)))
-         (thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs parameters)
-                   (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
-                            (optimize (speed 3) (safety 0)))
-                   (with-forth-system (fs)
-                     ,@body))))
-    `(eval-when (:load-toplevel :execute)
-       (let ((,word (%make-word :name ,forth-name
-                                :immediate? ,immediate?
-                                :compile-only? ,compile-only?
-                                :inlineable? ,inlineable?
-                                :code ,thunk
-                                :inline-forms ',(when inlineable?
-                                                  (reverse body))
-                                :documentation (reverse ',documentation))))
-         (setf (gethash ,key *predefined-words*) (cons ,word-list ,word))))))
+         (key (format nil "~A.~A" word-list forth-name)))
+    (multiple-value-bind (body declarations documentation)
+        (parse-body body :documentation :multiple)
+      (let ((thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs parameters)
+                      (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
+                               (optimize (speed 3) (safety 0)))
+                      ,@declarations
+                      (with-forth-system (fs)
+                        ,@body))))
+        `(eval-when (:load-toplevel :execute)
+           (let ((,word (%make-word :name ,forth-name
+                                    :immediate? ,immediate?
+                                    :compile-only? ,compile-only?
+                                    :inlineable? ,inlineable?
+                                    :code ,thunk
+                                    :inline-forms ',(when inlineable?
+                                                      (reverse body))
+                                    :documentation ',documentation)))
+             (setf (gethash ,key *predefined-words*) (cons ,word-list ,word))))))))
 
 (defmacro define-state-word (slot &key (word-list "FORTH") ((:word forth-name) (symbol-name slot)) immediate? compile-only?)
   (let ((description (format nil "Place the address of ~A on the stack" forth-name)))

@@ -10,7 +10,7 @@
 
 (in-package #:forth)
 
-;;; CCL, SBCL, and LispWorks have some minor differences which are resolved here
+;;; Resolve minor differences between supported Lisp implementations
 
 ;;; SBCL's DEFCONSTANT will complain when the constant is a bytespec (i.e., (BYTE ...)) as it represents bytespecs
 ;;; as a CONS which are not EQL when the load-time value tries to replace the compile-time value. (SBCL is strictly
@@ -31,6 +31,7 @@
   `(defconstant ,name ,value ,@(when docstring (list docstring))))
 
 
+;;; ----------------------------------------------------------------------------
 ;;; NAMED-LAMBDA
 
 #+CCL
@@ -45,7 +46,12 @@
      (declare (hcl:lambda-name ,name))
      ,@body))
 
+#+ECL
+(defmacro named-lambda (name arglist &body body)
+  `(ext:lambda-block ,name ,arglist ,@body))
 
+
+;;; ----------------------------------------------------------------------------
 ;;; WHITESPACEP
 
 ;;; CCL provides WHITESPACEP natively
@@ -59,19 +65,31 @@
 #+LispWorks
 (defun whitespacep (ch) (lw:whitespace-char-p ch))
 
+#+ECL
+(defun whitespacep (ch) (or (eql ch #\Space) (eql ch #\Tab)))
 
+
+;;; ----------------------------------------------------------------------------
 ;;; SET-STREAM-LENGTH
 
 #+CCL
 (defun set-stream-length (stream new-length)
   (ccl::stream-length stream new-length))
 
-#+(or SBCL LispWorks)
+#+SBCL
+(defun set-stream-length (stream new-length)
+  (if (sb-sys:fd-stream-p stream)
+      (let ((fd (sb-sys:fd-stream-fd stream)))
+        (sb-posix:ftruncate fd new-length))
+      (error 'file-error :pathname (pathname stream))))
+
+#+(or LispWorks ECL)
 (defun set-stream-length (stream new-length)
   (declare (ignore new-length))
   (error 'file-error :pathname (pathname stream)))
 
 
+;;; ----------------------------------------------------------------------------
 ;;; MAKE-PIPED-STREAMS
 
 #+CCL
@@ -156,7 +174,19 @@
     (values (make-in-memory-character-input-stream buffer name)
             (make-in-memory-character-output-stream buffer name))))
 
+#+ECL
+(defun make-piped-streams (&key name (element-type 'character) (external-format :default))
+  (declare (ignore name))
+  (assert (eq element-type 'character) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :element-type 'character element-type)
+  (assert (eq external-format :default) () "~S only supports ~S ~S, not ~S"
+          'make-piped-streams :external-format :default external-format)
+  (let ((pipe (ext:make-pipe)))
+    (values (two-way-steram-input-stream pipe)
+            (two-way-steram-output-stream pipe))))
 
+
+;;; ----------------------------------------------------------------------------
 ;;; PROCESS-RUN-FUNCTION, PROCESS-WAIT
 
 ;;; CCL provides PROCESS-RUN-FUNCTION and PROCESS-WAIT natively
@@ -188,22 +218,39 @@
 
 ;;; LispWorks provides PROCESS-WAIT natively
 
+#+ECL
+(defun process-run-function (name-or-keywords function &rest args)
+  (let ((name (if (listp name-or-keywords)
+                  (destructuring-bind (&key (name "Anonymous") &allow-other-keys)
+                      name-or-keywords
+                    name)
+                  name-or-keywords)))
+    (apply #'mp:process-run-function name function args)))
 
+#+ECL
+(defun process-wait (whostate function &rest args)
+  (declare (dynamic-extent args) (ignore whostate))
+  (loop until (apply function args)
+        do (sleep 0.001)))
+
+
+;;; ----------------------------------------------------------------------------
 ;;; ADD/REMOVE-AUTO-FLUSH-STREAM
 
 ;;; CCL provides ADD/REMOVE-AUTO-FLUSH-STREAM natively
 
-#+(or SBCL LispWorks)
+#-CCL
 (defun add-auto-flush-stream (stream)
   (declare (ignore stream))
   nil)
 
-#+(or SBCL LispWorks)
+#-CCL
 (defun remove-auto-flush-stream (stream)
   (declare (ignore stream))
   nil)
 
 
+;;; ----------------------------------------------------------------------------
 ;;; ADDRESS-POINTER, POINTER-ADDRESS, NULL-POINTER-P, %ADDRESS-OF
 
 (declaim (inline address-pointer pointer-address null-pointer-p null-pointer %address-of))
@@ -232,10 +279,18 @@
 
 #+LispWorks
 (defun %address-of (object)
-  (cerror "Continue anyway" "NYI: ~S" '%address-of)
-  object)
+  ;; The OBJECT should be a (SIMPLE-ARRAY (UNSIGNED-BYTE 8) (*)) as that's how CL-Forth represents memory
+  ;; LispWorks returns the address of the object's header word, skip to the actual data
+  (+ (system:object-address object) 8))
+
+#+ECL
+(defun %address-of (object)
+  ;; The OBJECT should be a (SIMPLE-ARRAY (UNSIGNED-BYTE 8) (*)) as that's how CL-Forth represents memory
+  ;; ECL array objects contain a pointer to the actual data and SI:MAKE-FOREIGN-DATA-FROM-ARRAY extracts that pointer
+  (pointer-address (si:make-foreign-data-from-array object)))
 
 
+;;; ----------------------------------------------------------------------------
 ;;; OBJECT-SIZE
 
 (declaim (inline object-size))
@@ -251,3 +306,36 @@
 #+LispWorks
 (defun object-size (object)
   (hcl:find-object-size object))
+
+#+ECL
+(defun object-size (object)
+  (declare (ignore object))
+  0)
+
+
+;;; ----------------------------------------------------------------------------
+;;; PARSE-BODY
+
+(defun parse-body (body &key documentation whole) ;; from alexandria
+  "Parses BODY into (values remaining-forms declarations doc-string).
+Documentation strings are recognized only if DOCUMENTATION is true.
+Syntax errors in body are signalled and WHOLE is used in the signal
+arguments when given."
+  (let ((doc nil)
+        (decls nil)
+        (current nil))
+    (tagbody
+     :declarations
+       (setf current (car body))
+       (when (and documentation (stringp current) (cdr body))
+         (cond ((eq documentation :multiple)
+                (push (pop body) doc))
+               (doc
+                (error "Too many documentation strings in ~S." (or whole body)))
+               (t
+                (setf doc (pop body))))
+         (go :declarations))
+       (when (and (listp current) (eql (first current) 'declare))
+         (push (pop body) decls)
+         (go :declarations)))
+    (values body (nreverse decls) (if (eq documentation :multiple) (nreverse doc) doc))))

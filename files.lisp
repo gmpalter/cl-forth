@@ -289,7 +289,7 @@
   '((#\a #\Bel)
     (#\b #\Backspace)
     (#\e #\Escape)
-    (#\f #\Formfeed)
+    (#\f #\Page)
     (#\l #\Linefeed)
     (#\m (#\Return #\Linefeed))
     (#\n #\Newline)
@@ -556,7 +556,7 @@
 (defmethod forth-delete-file ((f files) pathname)
   (handler-case
       (progn
-        (delete-file pathname)
+        (delete-file pathname #+LispWorks :error)
         +file-operation-success+)
     ((or file-error stream-error) () +file-operation-failure+)))
 

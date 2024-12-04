@@ -80,7 +80,7 @@
              (clear-counters)
              ;; Find the deepest entry that references one of the contained forms and
              ;; pop it and everything after it from the stack.
-             (let ((count (loop for i from (if depth (- stack-depth depth) 0) below stack-depth
+             (let ((count (loop for i from (if depth (max (- stack-depth depth) 0) 0) below stack-depth
                                 for cell = (stack-cell optimizer-stack (- stack-depth i 1))
                                 when (references? cell)
                                   return (- stack-depth i)
@@ -209,7 +209,7 @@
 
 (defmacro define-optimizer (name (optimizer form bindings) &body body)
   (multiple-value-bind (body declarations doc)
-      (uiop:parse-body body)
+      (parse-body body)
     (declare (ignore doc))
     (flet ((define (name)
              (let ((optimizer-fun (intern (format nil "OPTIMIZE-~A" name))))
