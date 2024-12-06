@@ -42,6 +42,15 @@ to only run tests for those word sets implemented by CL-Forth.
 git clone https://github.com/gmpalter/cl-forth.git --recurse-submodules
 ```
 
+[QuickLisp](https://www.quicklisp.org/) is probably the simplest way to fetch the CFFI and trivial-gray-streams
+libraries. Follow the instructions on the QuickLisp webpage to download, install, and add QuickLisp to your Lisp's init
+file. To install the libraries, evaluate the following forms. (You only have to do this one time.)
+
+``` lisp
+(ql:quickload '#:cffi)
+(ql:quickload '#:trivial-gray-streams)
+```
+
 To load CL-Forth into Lisp
 
 ``` lisp
@@ -107,7 +116,7 @@ In this session:
   240 bytes of object code generated
 ```
 
-The application  recognizes these command line arguments
+The application recognizes these command line arguments
 
 | | |
 | --- | --- |
