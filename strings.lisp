@@ -24,7 +24,7 @@
 
 (define-compiler-macro extract-char (&whole form &environment env value)
   (if (constantp value env)
-      (extract-char value)
+      (extract-char (eval value))
       form))
 
 ;;;--- TODO: Do we need to error check here?
@@ -37,7 +37,7 @@
 
 (define-compiler-macro forth-char (&whole form &environment env native-char)
   (if (constantp native-char env)
-      (forth-char native-char)
+      (forth-char (eval native-char))
       form))
 
 (declaim (inline native-char))
@@ -47,7 +47,7 @@
 
 (define-compiler-macro native-char (&whole form &environment env forth-char)
   (if (constantp forth-char env)
-      (native-char forth-char)
+      (native-char (eval forth-char))
       form))
 
 (defconstant +forth-char-space+ #.(forth-char #\Space))

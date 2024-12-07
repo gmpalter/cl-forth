@@ -100,7 +100,7 @@
 
 (define-compiler-macro cell-signed (&whole form &environment env cell)
   (if (constantp cell env)
-      (cell-signed cell)
+      (cell-signed (eval cell))
       form))
 
 (declaim (inline cell-unsigned))
@@ -109,7 +109,7 @@
 
 (define-compiler-macro cell-unsigned (&whole form &environment env cell)
   (if (constantp cell env)
-      (cell-unsigned cell)
+      (cell-unsigned (eval cell))
       form))
 
 (declaim (inline double-components))
@@ -128,7 +128,7 @@
 
 (define-compiler-macro double-cell-signed (&whole form &environment env low-cell high-cell)
   (if (and (constantp low-cell env) (constantp high-cell env))
-      (double-cell-signed low-cell high-cell)
+      (double-cell-signed (eval low-cell) (eval high-cell))
       form))
 
 (declaim (inline double-cell-unsigned))
@@ -137,7 +137,7 @@
 
 (define-compiler-macro double-cell-unsigned (&whole form &environment env low-cell high-cell)
   (if (and (constantp low-cell env) (constantp high-cell env))
-      (double-cell-unsigned low-cell high-cell)
+      (double-cell-unsigned (eval low-cell) (eval high-cell))
       form))
 
 (declaim (inline quad-byte-signed))
@@ -149,7 +149,7 @@
 
 (define-compiler-macro quad-byte-signed (&whole form &environment env value)
   (if (constantp value env)
-      (quad-byte-signed value)
+      (quad-byte-signed (eval value))
       form))
 
 (declaim (inline quad-byte-unsigned))
@@ -158,7 +158,7 @@
 
 (define-compiler-macro quad-byte-unsigned (&whole form &environment env value)
   (if (constantp value env)
-      (quad-byte-unsigned value)
+      (quad-byte-unsigned (eval value))
       form))
 
 (declaim (inline double-byte-signed))
@@ -170,7 +170,7 @@
 
 (define-compiler-macro double-byte-signed (&whole form &environment env value)
   (if (constantp value env)
-      (double-byte-signed value)
+      (double-byte-signed (eval value))
       form))
 
 (declaim (inline double-byte-unsigned))
@@ -179,7 +179,7 @@
 
 (define-compiler-macro double-byte-unsigned (&whole form &environment env value)
   (if (constantp value env)
-      (double-byte-unsigned value)
+      (double-byte-unsigned (eval value))
       form))
 
 
