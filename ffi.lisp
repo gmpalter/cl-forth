@@ -183,17 +183,26 @@
                    (declare (ignore name))
                    (push callback saved-callbacks))
                callbacks)
+      (loop for library across libraries
+            unless (eq (library-ffi-library library) :default)
+              do (cffi:close-foreign-library (library-ffi-library library)))
       (list (copy-seq libraries) saved-ffi-calls saved-callbacks))))
 
 (defmethod load-from-template ((ffi ffi) template fs)
   (with-slots (word-lists) fs
-    (with-slots (libraries ffi-calls callbacks) ffi
+    (with-slots (libraries current-library ffi-calls callbacks) ffi
       (setf (fill-pointer libraries) 0)
       (clrhash ffi-calls)
       (clrhash callbacks)
       (destructuring-bind (saved-libraries saved-ffi-calls saved-callbacks) template
         (loop for library across saved-libraries
-              do (vector-push-extend library libraries))
+              do (vector-push-extend library libraries)
+                 (if (eq (library-ffi-library library) :default)
+                     (setf current-library library)
+                     (ignore-errors
+                      ;; If REGISTER-FOREIGN-LIBRARY were exported, I'd use it instead to avoid using EVAL
+                      (eval `(cffi:define-foreign-library ,(library-ffi-library library) (t ,(library-name library))))
+                      (cffi:load-foreign-library (library-ffi-library library)))))
         (dolist (ffi-call saved-ffi-calls)
           (setf (gethash (ffi-call-name ffi-call) ffi-calls) ffi-call))
         (dolist (callback saved-callbacks)
