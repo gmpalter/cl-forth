@@ -87,6 +87,7 @@
       (forth-exception :divide-by-zero))
     (multiple-value-bind (quotient remainder)
         (truncate (* n1 n2) n3)
+      (declare (integer quotient remainder))
       (stack-push data-stack (cell-signed remainder))
       (stack-push data-stack (cell-signed quotient)))))
 
@@ -184,6 +185,7 @@
       (forth-exception :divide-by-zero))
     (multiple-value-bind (quotient remainder)
         (truncate n1 n2)
+      (declare (integer quotient remainder))
       (stack-push data-stack (cell-signed remainder))
       (stack-push data-stack (cell-signed quotient)))))
 
@@ -610,6 +612,7 @@
       (forth-exception :divide-by-zero))
     (multiple-value-bind (quotient remainder)
         (floor d n1)
+      (declare (integer quotient remainder))
       (stack-push data-stack (cell-signed remainder))
       (stack-push data-stack (cell-signed quotient)))))
 
@@ -734,7 +737,7 @@
       (forth-exception :divide-by-zero))
     ;; Lisp MOD uses FLOOR to produce its result but, as we're using symmetric division througout,
     ;; we have to use REM which uses TRUNCATE here to preserve Forth semantics.
-    (stack-push data-stack (cell-signed (rem n1 n2)))))
+    (stack-push data-stack (cell-signed (the integer (rem n1 n2))))))
 
 (define-word move-memory (:word "MOVE")
   "( addr1 addr2 u -- )"
@@ -844,6 +847,7 @@
       (forth-exception :divide-by-zero))
     (multiple-value-bind (quotient remainder)
         (truncate d n1)
+      (declare (integer quotient remainder))
       (stack-push data-stack (cell-signed remainder))
       (stack-push data-stack (cell-signed quotient)))))
 
@@ -925,6 +929,7 @@
       (forth-exception :divide-by-zero))
     (multiple-value-bind (quotient remainder)
         (truncate ud u1)
+      (declare (integer quotient remainder))
       (stack-push data-stack (cell-unsigned remainder))
       (stack-push data-stack (cell-unsigned quotient)))))
 
