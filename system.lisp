@@ -230,12 +230,14 @@
      ;; Suppress any errors if *standard-output* is closed prematurely
      (report-statistics fs))
     ;; Return T if the interpreter loop exited cleanly. Return NIL on a fatal error, usually detected by an exception hook
-    (if fatal?
-        nil
-        (prog1
-            t
-          (when exit-hook
-            (funcall exit-hook fs))))))
+    (prog1
+        (if fatal?
+            nil
+            (prog1
+                t
+              (when exit-hook
+                (funcall exit-hook fs))))
+      (release-memory memory))))
 
 (define-forth-function report-statistics (fs)
   (let ((words-created (word-lists-words-created word-lists))

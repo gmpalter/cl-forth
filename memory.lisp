@@ -56,6 +56,9 @@
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "prefix=~2,'0X, hwm=~D" prefix high-water-mark))))
 
+(defgeneric space-release-memory (mspace)
+  (:method ((sp mspace)) nil))
+
 (defgeneric space-reset (mspace))
 (defgeneric save-space-state (mspace))
 
@@ -146,12 +149,21 @@
 (defmethod initialize-instance :after ((sp data-space) &key &allow-other-keys)
   (with-slots (data size) sp
     (assert (and (numberp size) (plusp size)) (size) "~S ~S must be a positive integer" 'data-space :size)
-    (setf data (make-array size :element-type '(unsigned-byte 8) :initial-element 0))))
+    (setf data #+CCL (ccl:make-heap-ivector size '(unsigned-byte 8))
+               #-CCL (make-array size :element-type '(unsigned-byte 8) :initial-element 0))))
 
 (defmethod print-object ((sp data-space) stream)
   (with-slots (prefix size high-water-mark) sp
     (print-unreadable-object (sp stream :type t :identity t)
       (format stream "prefix=~2,'0X, size=~D, hwm=~D" prefix size high-water-mark))))
+
+(defmethod space-release-memory ((sp data-space))
+  #+CCL
+  (with-slots (data) sp
+    (ccl:dispose-heap-ivector data)
+    (setf data nil))
+  #-CCL
+  nil)
 
 (defmethod space-reset ((sp data-space))
   (with-slots (data high-water-mark saved-high-water-mark saved-data) sp
@@ -835,6 +847,10 @@
       (when ,space
         ,@body))))
   
+(define-memory-fun release-memory (memory)
+  (do-all-spaces memory space
+    (space-release-memory space)))
+
 (define-memory-fun reset-memory (memory)
   (do-all-spaces memory space
     (space-reset space)))
