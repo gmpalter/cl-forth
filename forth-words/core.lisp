@@ -360,11 +360,17 @@
                 do (setf (aref data i) (forth-char (the character char))
                          nread (the fixnum (1+ nread))))
         ;; Put what we just read into memory --
-        ;;  Using memcpy handles ADDRESS being a foreign address as well as a native address.
-        (cffi:foreign-funcall "memcpy"
-                              :pointer (foreign-pointer memory address)
-                              :pointer (address-pointer (%address-of data))
-                              :size (min nread count))
+        (let ((copy-count (min nread count)))
+          (if (address-is-foreign? memory address)
+              ;; Use memcpy when the buffer is actually in foreign memory
+              (cffi:foreign-funcall "memcpy"
+                                    :pointer (foreign-pointer memory address)
+                                    :pointer (address-pointer (%address-of data))
+                                    :size copy-count)
+              (multiple-value-bind (data-space data-space-offset)
+                  (memory-decode-address memory address copy-count)
+                (replace data-space data :start1 data-space-offset :end1 (+ data-space-offset copy-count)
+                                         :start2 0 :end2 copy-count))))
         (stack-push data-stack nread)))))
 
 (define-word align (:word "ALIGN")
