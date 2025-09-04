@@ -18,7 +18,7 @@
 (declaim (inline extract-char))
 (eval-when (:compile-toplevel :load-toplevel :execute)
 (defun extract-char (value)
-  (declare (fixnum value) (optimize (speed 3) (safety 0)))
+  (declare (integer value) (optimize (speed 3) (safety 0)))
   (ldb (byte 8 0) value))
 )
 
