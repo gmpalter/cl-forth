@@ -142,6 +142,7 @@
   (:duplicate-optional-clauses -310 "[OPTIONAL] appears more than once in a definition")
   (:optimizer-stack-overflow -311 "Expression too complex for optimizer")
   (:optimizer-stack-underflow -312 "Optimizer stack underflow")
+  (:missing-endcode -313 "Missing ;ENDCODE marker to terminate native \"assembler\" definition")
   )
 
 (define-condition forth-exception (error)
