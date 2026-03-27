@@ -11,7 +11,9 @@ CL-Forth is fully supported by SBCL 2.1.0 or later.
 CL-Forth supports LispWorks 8.0.1 or later. However, at present, the word `RESIZE-FILE` will always return an error indication,
 resulting in 7 failures in the File-Access word set tests.
 
-CL-Forth compiles under ECL 24.5.10 but crashes running the Forth test suite.
+CL-Forth supports ECL 26.3.27 or later. However, at present, the word `RESIZE-FILE` will alway return an error indication,
+resulting in 7 failures in the File-Access word set tests. There are also two failing tests in the String word set tests which
+are not yet understood.
 
 
 ## Supported Operating Systems
