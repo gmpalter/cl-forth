@@ -83,10 +83,19 @@
         (sb-posix:ftruncate fd new-length))
       (error 'file-error :pathname (pathname stream))))
 
-#+(or LispWorks ECL)
+#+LispWorks
 (defun set-stream-length (stream new-length)
-  (declare (ignore new-length))
-  (error 'file-error :pathname (pathname stream)))
+  (let ((fd (stream::pathname-designator-file-handle stream)))
+    (if fd
+        (cffi:foreign-funcall "ftruncate" :int fd :size new-length)
+        (error 'file-error :pathname (pathname stream)))))
+
+#+ECL
+(defun set-stream-length (stream new-length)
+  (if (typep stream 'file-stream)
+      (let ((fd (ext:file-stream-fd stream)))
+        (cffi:foreign-funcall "ftruncate" :int fd :size new-length))
+      (error 'file-error :pathname (pathname stream))))
 
 
 ;;; ----------------------------------------------------------------------------
