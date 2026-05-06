@@ -71,11 +71,11 @@
   (setf (cffi:mem-ref (address-pointer address) :uint8) value))
 
 (defmethod space-decode-address ((sp foreign-space) address size-hint)
-  (let* ((pointer (cffi:make-pointer address))
-         (size (or size-hint (expt 2 15))))
-    (values (cffi:foreign-array-to-lisp pointer `(:array :uint8 ,size) :element-type '(unsigned-byte 8))
-            0
-            size)))
+  (let* ((pointer (address-pointer address))
+         (size (or size-hint (expt 2 15)))
+         (data (make-array size :element-type '(unsigned-byte 8) :initial-element 0)))
+    (cffi:foreign-funcall "memcpy" :pointer (address-pointer (%address-of data)) :pointer pointer :size size :pointer)
+    (values data 0 size)))
 
 (defmethod space-native-address ((sp foreign-space) foreign-address)
   ;;---*** TODO: What if the FOREIGN-ADDRESS has a non-zero PREFIX?

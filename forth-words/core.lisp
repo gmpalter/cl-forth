@@ -366,7 +366,7 @@
               (cffi:foreign-funcall "memcpy"
                                     :pointer (foreign-pointer memory address)
                                     :pointer (address-pointer (%address-of data))
-                                    :size copy-count)
+                                    :size copy-count :pointer)
               (multiple-value-bind (data-space data-space-offset)
                   (memory-decode-address memory address copy-count)
                 (replace data-space data :start1 data-space-offset :end1 (+ data-space-offset copy-count)
