@@ -1,4 +1,4 @@
-;;; -*- SYNTAX : Common-Lisp; Base: 10 -*-
+;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
 ;;; Copyright (c) 2024 Gary Palter
 ;;;
