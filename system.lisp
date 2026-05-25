@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -119,15 +119,15 @@
       (parse-body body)
     (declare (ignore doc))
     `(defun ,name (,fs ,@args)
-       (declare (optimize (speed 3) (safety 0))
-                (type forth-system ,fs))
+       (declare (type forth-system ,fs)
+                #.+forth-optimize-settings+)
        ,@declarations
        (with-forth-system (,fs)
          ,@body))))
 
 (defun make-forth-system (&key template)
   (let ((fs (%make-forth-system)))
-    (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+    (declare (type forth-system fs) #.+forth-optimize-settings+)
     (with-forth-system (fs)
       (add-state-space memory fs)
       (add-state-space memory word-lists)
@@ -144,24 +144,24 @@
     fs))
 
 (defun state (fs)
-  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (declare (type forth-system fs) #.+forth-optimize-settings+)
   (if (zerop (fs-%state fs))
       :interpreting
       :compiling))
 
 (defun (setf state) (value fs)
-  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (declare (type forth-system fs) #.+forth-optimize-settings+)
   (setf (fs-%state fs) (ecase value
                          (:interpreting 0)
                          (:compiling 1)))
   value)
 
 (defun optimize-definitions? (fs)
-  (declare (type forth-system fs) (optimize (speed 3) (safety 0)))
+  (declare (type forth-system fs) #.+forth-optimize-settings+)
   (truep (fs-%optimize-definitions? fs)))
 
 (defun (setf optimize-definitions?) (value fs)
-  (declare (type forth-system fs) (type boolean value) (optimize (speed 3) (safety 0)))
+  (declare (type forth-system fs) (type boolean value) #.+forth-optimize-settings+)
   (setf (fs-%optimize-definitions? fs) (if value +true+ +false+))
   value)
 
@@ -341,7 +341,7 @@
 
 (defun forth-call (fs word psuedo-pc)
   (declare (type forth-system fs) (type word word)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push return-stack psuedo-pc)
     (setf current-frame (make-psuedo-pc word -1))
@@ -457,7 +457,7 @@
                                       body))
                   (thunk `(named-lambda ,name (fs parameters)
                             (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
-                                     (optimize (speed 3) (safety 0)))
+                                     #.+forth-optimize-settings+)
                             (with-forth-system (fs)
                               (tagbody
                                  ,@optimized-body
@@ -587,7 +587,7 @@
 
 (defun execute-compile-token (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-pop data-stack)
     (let ((word (parameters-p1 parameters)))

@@ -1,6 +1,6 @@
 \ -*- Syntax: Forth -*-
 \ 
-\ Copyright (c) 2024 Gary Palter
+\ Copyright (c) 2024-2026 Gary Palter
 \ 
 \ Licensed under the MIT License;
 \ you may not use this file except in compliance with the License.

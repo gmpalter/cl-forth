@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@
 
 (defun native-into-forth-string (native-string forth-memory offset)
   (declare (type string native-string) (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (loop with length fixnum = (the fixnum (length native-string))
         for i fixnum below length
         do (setf (aref forth-memory (the fixnum (+ offset i))) (forth-char (aref native-string i))))
@@ -65,7 +65,7 @@
 
 (defun native-into-forth-counted-string (native-string forth-memory offset)
   (declare (type string native-string) (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (unless (<= (length native-string) +longest-counted-string+)
     (forth-exception :parse-string-overflow))
   ;; Length of a counted string is always a single byte regardless of character size
@@ -74,7 +74,7 @@
 
 (defun forth-string-to-native (forth-memory offset length)
   (declare (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset) (fixnum length)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (let ((string (make-string length)))
     (declare (type simple-string string))
     (loop for i fixnum below length
@@ -83,7 +83,7 @@
 
 (defun forth-counted-string-to-native (forth-memory offset)
   (declare (type (simple-array (unsigned-byte 8) (*)) forth-memory) (fixnum offset)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   ;; Length of a counted string is always a single byte regardless of character size
   (forth-string-to-native forth-memory (the fixnum (1+ offset)) (aref forth-memory offset)))
 

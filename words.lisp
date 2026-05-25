@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -76,34 +76,32 @@
   (%make-dictionary :name name :wid wid :parent parent))
 
 (defun add-word (dict word &key override silent)
-  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
-  (with-slots (last-ordinal words parent) dict
-    (let ((old (gethash (word-name word) words)))
-      (when old
-        (unless silent
-          (format t "~A isn't unique. " (word-name word)))
-        (unless override
-          (setf (word-previous word) old)))
-      ;; Don't change the word's ordinal if it already has one
-      (if (= (word-ordinal word) -1)
-          (setf (word-ordinal word) (incf last-ordinal))
-          (setf last-ordinal (max last-ordinal (word-ordinal word))))
-      (note-new-word parent dict word)
-      (setf (gethash (word-name word) words) word))))
+  (declare (type dictionary dict) (type word word) #.+forth-optimize-settings+)
+  (let ((old (gethash (word-name word) (dictionary-words dict))))
+    (when old
+      (unless silent
+        (format t "~A isn't unique. " (word-name word)))
+      (unless override
+        (setf (word-previous word) old)))
+    ;; Don't change the word's ordinal if it already has one
+    (if (= (word-ordinal word) -1)
+        (setf (word-ordinal word) (incf (dictionary-last-ordinal dict)))
+        (setf (dictionary-last-ordinal dict) (max (dictionary-last-ordinal dict) (word-ordinal word))))
+    (note-new-word (dictionary-parent dict) dict word)
+    (setf (gethash (word-name word) (dictionary-words dict)) word)))
 
 (defun delete-word (dict xts word)
-  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
-  (with-slots (words) dict
-    (let ((name (word-name word))
-          (old (word-previous word)))
-      (delete-execution-token xts word)
-      (cond (old
-             (if (eq (word-parent old) dict)
-                 (setf (gethash name words) old)
-                 (remhash name words))
-             (reregister-execution-token xts (word-execution-token word)))
-            (t
-             (remhash name words))))))
+  (declare (type dictionary dict) (type word word) #.+forth-optimize-settings+)
+  (let ((name (word-name word))
+        (old (word-previous word)))
+    (delete-execution-token xts word)
+    (cond (old
+           (if (eq (word-parent old) dict)
+               (setf (gethash name (dictionary-words dict)) old)
+               (remhash name (dictionary-words dict)))
+           (reregister-execution-token xts (word-execution-token word)))
+          (t
+           (remhash name (dictionary-words dict))))))
 
 (defun show-words (dict)
   (let* ((words (dictionary-words dict))
@@ -128,11 +126,11 @@
                (terpri)))))
 
 (defun search-dictionary (dict name)
-  (declare (type dictionary dict) (optimize (speed 3) (safety 0)))
+  (declare (type dictionary dict) #.+forth-optimize-settings+)
   (gethash name (dictionary-words dict)))
 
 (defun traverse-wordlist (dict function)
-  (declare (type dictionary dict) (optimize (speed 3) (safety 0)))
+  (declare (type dictionary dict) #.+forth-optimize-settings+)
   (maphash #'(lambda (name word)
                (declare (ignore name) (type word word))
                (if (funcall function (word-name-token word))
@@ -145,7 +143,7 @@
            (dictionary-words dict)))
 
 (defun forget-word (dict xts word)
-  (declare (type dictionary dict) (type word word) (optimize (speed 3) (safety 0)))
+  (declare (type dictionary dict) (type word word) #.+forth-optimize-settings+)
   (let ((ordinal (word-ordinal word)))
     (maphash #'(lambda (key a-word)
                  (declare (ignore key))
@@ -160,18 +158,17 @@
 (defvar *predefined-words* (make-hash-table :test #'equalp))
 
 (defun  %print-word-lists (wls stream depth)
-  (declare (ignore depth))
-  (with-slots (all-word-lists) wls
-    (print-unreadable-object (wls stream :type t :identity t)
-      (format stream "~D word list~:P" (hash-table-count all-word-lists)))))
+  (declare (type word-lists wls) (ignore depth))
+  (print-unreadable-object (wls stream :type t :identity t)
+    (format stream "~D word list~:P" (hash-table-count (word-lists-all-word-lists wls)))))
 
 (defmacro define-wls-function (name (wls &rest args) &body body)
   (multiple-value-bind (body declarations doc)
       (parse-body body)
     (declare (ignore doc))
     `(defun ,name (,wls ,@args)
-       (declare (optimize (speed 3) (safety 0))
-                (type word-lists ,wls))
+       (declare (type word-lists ,wls)
+                #.+forth-optimize-settings+)
        ,@declarations
        ,@body)))
 
@@ -239,69 +236,65 @@
         (word-lists-saved-compilation-word-list wls) (dictionary-name (word-lists-compilation-word-list wls))))
 
 (defmethod save-to-template ((wls word-lists))
-  (with-slots (all-word-lists search-order compilation-word-list markers) wls
-    (let ((template-word-lists nil)
-          (template-words nil)
-          (template-search-order nil)
-          (template-compilation-word-list nil)
-          (template-markers (make-array (fill-pointer markers))))
-      (maphash #'(lambda (name dictionary)
-                   (push (cons name (dictionary-wid dictionary)) template-word-lists))
-               all-word-lists)
-      (maphash #'(lambda (name dictionary)
-                   (declare (ignore name))
-                   (let ((words nil))
-                     (maphash #'(lambda (word-name word)
-                                  (declare (ignore word-name))
-                                  (push word words)
-                                  (loop for old-word = (word-previous word) then (word-previous old-word)
-                                        while old-word
-                                        do (push old-word words)))
-                              (dictionary-words dictionary))
-                     (setf words (sort words #'< :key #'word-ordinal))
-                     (push (cons (dictionary-wid dictionary) words) template-words)))
-               all-word-lists)
-      (setf template-words (sort template-words #'< :key #'car))
-      (setf template-search-order (map 'list #'dictionary-name search-order))
-      (setf template-compilation-word-list (dictionary-name compilation-word-list))
-      (dotimes (i (fill-pointer markers))
-        (setf (aref template-markers i) (save-marker-to-template wls (aref markers i))))
-      (list template-word-lists template-words template-search-order template-compilation-word-list template-markers))))
+  (let ((template-word-lists nil)
+        (template-words nil)
+        (template-search-order nil)
+        (template-compilation-word-list nil)
+        (template-markers (make-array (fill-pointer (word-lists-markers wls)))))
+    (maphash #'(lambda (name dictionary)
+                 (push (cons name (dictionary-wid dictionary)) template-word-lists))
+             (word-lists-all-word-lists wls))
+    (maphash #'(lambda (name dictionary)
+                 (declare (ignore name))
+                 (let ((words nil))
+                   (maphash #'(lambda (word-name word)
+                                (declare (ignore word-name))
+                                (push word words)
+                                (loop for old-word = (word-previous word) then (word-previous old-word)
+                                      while old-word
+                                      do (push old-word words)))
+                            (dictionary-words dictionary))
+                   (setf words (sort words #'< :key #'word-ordinal))
+                   (push (cons (dictionary-wid dictionary) words) template-words)))
+             (word-lists-all-word-lists wls))
+    (setf template-words (sort template-words #'< :key #'car))
+    (setf template-search-order (map 'list #'dictionary-name (word-lists-search-order wls)))
+    (setf template-compilation-word-list (dictionary-name (word-lists-compilation-word-list wls)))
+    (dotimes (i (fill-pointer (word-lists-markers wls)))
+      (setf (aref template-markers i) (save-marker-to-template wls (aref (word-lists-markers wls) i))))
+    (list template-word-lists template-words template-search-order template-compilation-word-list template-markers)))
 
 (defmethod load-from-template ((wls word-lists) template fs)
   (declare (ignore fs))
-  (with-slots (all-word-lists forth-word-list search-order compilation-word-list wid-to-word-list-map nt-to-word-map
-               markers words-created)
-      wls
-    (clrhash all-word-lists)
-    (clrhash wid-to-word-list-map)
-    (clrhash nt-to-word-map)
-    (clrhash *predefined-words*)
-    (destructuring-bind (template-word-lists template-words template-search-order template-compilation-word-list
-                         template-markers)
-        template
-      (dolist (name-and-wid template-word-lists)
-        (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid)))
-      (dolist (wid-and-words template-words)
-        (let* ((wid (car wid-and-words))
-               (wl (lookup-wid wls wid))
-               (wl-name (dictionary-name wl))
-               (words (cdr wid-and-words)))
-          (dolist (word words)
-            (let* ((word-name (word-name word))
-                   (key (format nil "~A.~A" wl-name word-name)))
-              (add-word wl word :silent t)
-              (setf (gethash key *predefined-words*) (cons wl-name word))))))
-      (setf forth-word-list (word-list wls "FORTH"))
-      (setf search-order (loop for wl in template-search-order
-                               collect (word-list wls wl)))
-      (setf compilation-word-list (word-list wls template-compilation-word-list))
-      (let ((n-markers (length template-markers)))
-        (setf markers (make-array n-markers :fill-pointer n-markers :adjustable t))
-        (dotimes (i n-markers)
-          (setf (aref markers i) (load-marker-from-template wls (aref template-markers i)))))
-      (setf words-created 0)
-      (update-psuedo-state-variables wls)))
+  (clrhash (word-lists-all-word-lists wls))
+  (clrhash (word-lists-wid-to-word-list-map wls))
+  (clrhash (word-lists-nt-to-word-map wls))
+  (clrhash *predefined-words*)
+  (destructuring-bind (template-word-lists template-words template-search-order template-compilation-word-list
+                       template-markers)
+      template
+    (dolist (name-and-wid template-word-lists)
+      (word-list wls (car name-and-wid) :if-not-found :create :saved-wid (cdr name-and-wid)))
+    (dolist (wid-and-words template-words)
+      (let* ((wid (car wid-and-words))
+             (wl (lookup-wid wls wid))
+             (wl-name (dictionary-name wl))
+             (words (cdr wid-and-words)))
+        (dolist (word words)
+          (let* ((word-name (word-name word))
+                 (key (format nil "~A.~A" wl-name word-name)))
+            (add-word wl word :silent t)
+            (setf (gethash key *predefined-words*) (cons wl-name word))))))
+    (setf (word-lists-forth-word-list wls) (word-list wls "FORTH"))
+    (setf (word-lists-search-order wls) (loop for wl in template-search-order
+                                              collect (word-list wls wl)))
+    (setf (word-lists-compilation-word-list wls) (word-list wls template-compilation-word-list))
+    (let ((n-markers (length template-markers)))
+      (setf (word-lists-markers wls) (make-array n-markers :fill-pointer n-markers :adjustable t))
+      (dotimes (i n-markers)
+        (setf (aref (word-lists-markers wls) i) (load-marker-from-template wls (aref template-markers i)))))
+    (setf (word-lists-words-created wls) 0)
+    (update-psuedo-state-variables wls))
   nil)
 
 (define-wls-function word-list (wls name &key (if-not-found :error) (saved-wid nil))
@@ -404,7 +397,7 @@
         (parse-body body :documentation :multiple)
       (let ((thunk `(named-lambda ,(intern forth-name *forth-words-package*) (fs parameters)
                       (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
-                               (optimize (speed 3) (safety 0)))
+                               #.+forth-optimize-settings+)
                       ,@declarations
                       (with-forth-system (fs)
                         ,@body))))
@@ -438,7 +431,7 @@
               :parameters (or parameters (make-parameters))))
 
 (defun forget (word xts)
-  (declare (type word word) (optimize (speed 3) (safety 0)))
+  (declare (type word word) #.+forth-optimize-settings+)
   (forget-word (word-parent word) xts word))
 
 

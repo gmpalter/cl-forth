@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@
             with address = (when forth-values?
                              (multiple-value-bind (address count)
                                  (access-source-buffer f)
-                               (declare (ignore count))
+                               (declare (type forth-address address) (ignore count))
                                (make-address (address-prefix address) (+ (address-address address)
                                                                          (* starting->in +char-size+)))))
             for buffer-len = (length buffer)
@@ -231,7 +231,7 @@
                  (let* ((count (- end >in))
                         (word-start (fill-pointer word))
                         (word-end (+ word-start count)))
-                   (adjust-array word word-end :fill-pointer word-end)
+                   (setf word (adjust-array word word-end :fill-pointer word-end))
                    (replace word buffer :start1 word-start :end1 word-end :start2 >in :end2 end)))
             do (setf >in end)
             if (< >in buffer-len)
@@ -256,7 +256,7 @@
             with address = (when forth-values?
                              (multiple-value-bind (address count)
                                  (access-source-buffer f)
-                               (declare (ignore count))
+                               (declare (type forth-address address) (ignore count))
                                (make-address (address-prefix address) (+ (address-address address)
                                                                          (* starting->in +char-size+)))))
             for buffer-len = (length buffer)

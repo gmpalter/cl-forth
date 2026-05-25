@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@
       (parse-body body)
     (declare (ignore doc))
     `(defun ,name (,@arglist)
-       (declare (optimize (speed 3) (safety 0))
-                (type stack stack))
+       (declare (type stack stack)
+                #.+forth-optimize-settings+)
        ,@declarations
        ,@body)))
 

@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 (defun write-integer (value base)
   (declare (type integer value) (fixnum base)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (let ((text (make-string +max-width+ :element-type 'base-char))
         (start (1- +max-width+))
         (negative? (minusp value))
@@ -53,19 +53,19 @@
 
 (defun push-parameter-as-cell (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push data-stack (parameters-p1 parameters))))
 
 (defun push-parameter-as-double-cell (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push-double data-stack (parameters-p1 parameters))))
 
 (defun push-value (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (let ((address (parameters-p1 parameters))
           (type (parameters-p2 parameters)))
@@ -79,13 +79,13 @@
 
 (defun push-parameter-as-float (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push float-stack (parameters-p1 parameters))))
 
 (defun execute-parameter (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (when (null (parameters-p1 parameters))
       (forth-exception :defer-not-set))
@@ -93,13 +93,13 @@
 
 (defun do-marker (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (execute-marker word-lists execution-tokens files (parameters-p1 parameters))))
 
 (defun replace-top-of-search-order-with-parameter (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (replace-top-of-search-order word-lists (parameters-p1 parameters))))
 
@@ -132,13 +132,13 @@
 
 (defun push-structure-size-from-parameter (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push data-stack (fs-size (parameters-p1 parameters)))))
 
 (defun push-field-address-from-parameter (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push data-stack (+ (stack-pop data-stack) (parameters-p1 parameters)))))
 
@@ -147,7 +147,7 @@
 
 (defun push-parameter-as-global-pointer (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (let* ((name (parameters-p1 parameters))
            (forth-name (parameters-p2 parameters))
@@ -160,6 +160,6 @@
 
 (defun push-parameter-as-callback-ptr (fs parameters)
   (declare (type forth-system fs) (type parameters parameters)
-           (optimize (speed 3) (safety 0)))
+           #.+forth-optimize-settings+)
   (with-forth-system (fs)
     (stack-push data-stack (native-address memory (cffi:get-callback (parameters-p1 parameters))))))

@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -74,13 +74,19 @@
   (let* ((pointer (address-pointer address))
          (size (or size-hint (expt 2 15)))
          (data (make-array size :element-type '(unsigned-byte 8) :initial-element 0)))
-    (cffi:foreign-funcall "memcpy" :pointer (address-pointer (%address-of data)) :pointer pointer :size size :pointer)
-    (values data 0 size)))
+    (declare (type (simple-array (unsigned-byte 8)) data)
+             #.+forth-optimize-settings+)
+    (dotimes (i size (values data 0 size))
+      (setf (aref data i) (cffi:mem-ref pointer :uint8 i)))))
 
 (defmethod space-native-address ((sp foreign-space) foreign-address)
-  ;;---*** TODO: What if the FOREIGN-ADDRESS has a non-zero PREFIX?
-  (with-slots (prefix) sp
-    (make-address prefix foreign-address)))
+  ;; CL-Forth's addresses are always fixnums. If a foreign address isn't a fixnum (i.e., high order bits are
+  ;; non-zero) or has non-zero bits in the address prefix field, we can't represent it as a CL-Forth address.
+  ;; To avoid possibly writing to the wrong areas of memory, don't map the address here which will result
+  ;; in our caller generating an exception.
+  (when (and (fixnump foreign-address) (zerop (address-prefix foreign-address)))
+    (with-slots (prefix) sp
+      (make-address prefix foreign-address))))
 
 (defmethod space-foreign-address ((sp foreign-space) native-address)
   native-address)
@@ -104,23 +110,28 @@
 (defmethod space-copy ((ssp foreign-space) source-address (dsp mspace) destination-address count)
   (multiple-value-bind (destination-data destination-address destination-size)
       (space-decode-address dsp destination-address count)
+    (declare (type forth-address destination-address)
+             (type forth-memory destination-data)
+             #.+forth-optimize-settings+)
     (unless (<= (+ destination-address count) destination-size)
       (forth-exception :invalid-memory))
-    (cffi:foreign-funcall "memcpy" :pointer (cffi:inc-pointer (address-pointer (%address-of destination-data))
-                                                              destination-address)
-                                   :pointer (address-pointer source-address)
-                                   :size count :pointer)
+    (let ((source-pointer (address-pointer source-address)))
+      (dotimes (i count)
+        (setf (aref destination-data (the fixnum (+ destination-address i))) (cffi:mem-ref source-pointer :uint8 i))))
     nil))
 
 ;;; NOTE: We have no way to bounds check the foreign space in this operation ...
 (defmethod space-copy ((ssp mspace) source-address (dsp foreign-space) destination-address count)
   (multiple-value-bind (source-data source-address source-size)
       (space-decode-address ssp source-address count)
+    (declare (type forth-address source-address)
+             (type forth-memory source-data)
+             #.+forth-optimize-settings+)
     (unless (<= (+ source-address count) source-size)
       (forth-exception :invalid-memory))
-    (cffi:foreign-funcall "memcpy" :pointer (address-pointer destination-address)
-                                   :pointer (cffi:inc-pointer (address-pointer (%address-of source-data)) source-address)
-                                   :size count :pointer)
+    (let ((destination-pointer (address-pointer destination-address)))
+      (dotimes (i count)
+        (setf (cffi:mem-ref destination-pointer :uint8 i) (aref source-data (the fixnum (+ source-address i))))))
     nil))
 
 
@@ -294,7 +305,7 @@
                       ,@return-form)))
            (thunk `(named-lambda ,lambda-name (fs parameters)
                      (declare (type forth-system fs) (type parameters parameters) (ignorable fs parameters)
-                              (optimize (speed 3) (safety 0)))
+                              #.+forth-optimize-settings+)
                      (with-forth-system (fs)
                        ,@forms))))
       (values (compile nil (eval thunk)) (reverse forms)))))
@@ -312,7 +323,7 @@
                                                            for parameter-symbol in parameter-symbols
                                                            collect `(,parameter-symbol ,parameter)))
           (funcall #'(lambda (fs xt)
-                       (declare (optimize (speed 3) (safety 0)))
+                       (declare #.+forth-optimize-settings+)
                        (with-forth-system (fs)
                          (let ((,saved-data-stack (stack-contents data-stack))
                                (,saved-float-stack (stack-contents float-stack)))

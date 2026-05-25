@@ -1,6 +1,6 @@
 ;;; -*- Syntax: Common-Lisp; Base: 10 -*-
 ;;;
-;;; Copyright (c) 2024 Gary Palter
+;;; Copyright (c) 2024-2026 Gary Palter
 ;;;
 ;;; Licensed under the MIT License;
 ;;; you may not use this file except in compliance with the License.
@@ -11,6 +11,16 @@
 (in-package #:forth)
 
 ;;; Resolve minor differences between supported Lisp implementations
+
+;;; Optimization settings
+;;;---*** TODO: Fine tune settings for each implementation
+
+(defparameter +forth-optimize-settings+
+  #+CCL '(optimize (speed 3) (safety 1))
+  #+SBCL '(optimize (speed 3) (safety 1))
+  #+LispWorks '(optimize (speed 3) (safety 1))
+  #+ECL '(optimize (speed 3) (safety 1)))
+
 
 ;;; SBCL's DEFCONSTANT will complain when the constant is a bytespec (i.e., (BYTE ...)) as it represents bytespecs
 ;;; as a CONS which are not EQL when the load-time value tries to replace the compile-time value. (SBCL is strictly
@@ -191,8 +201,8 @@
   (assert (eq external-format :default) () "~S only supports ~S ~S, not ~S"
           'make-piped-streams :external-format :default external-format)
   (let ((pipe (ext:make-pipe)))
-    (values (two-way-steram-input-stream pipe)
-            (two-way-steram-output-stream pipe))))
+    (values (two-way-stream-input-stream pipe)
+            (two-way-stream-output-stream pipe))))
 
 
 ;;; ----------------------------------------------------------------------------
