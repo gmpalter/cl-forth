@@ -194,38 +194,42 @@
          (source-push files :evaluate line)))))
   (let ((fatal?
           (catch 'bye
-            (loop
-              (restart-case
-                  (handler-case
-                      (interpreter/compiler fs)
-                    (forth-exception (e)
-                      (unless (member (forth-exception-key e) '(:abort :quit))
-                        (when exception-prefix
-                          (write-string exception-prefix))
-                        (write-line (forth-exception-phrase e)))
-                      (when (truep show-backtraces-on-error?)
-                        (show-backtrace fs))
-                      (clear-input)
-                      (reset-interpreter/compiler fs)
-                      (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
-                        (funcall exception-hook fs))
-                      (force-output))
-                    ;; Intercept Ctrl-C and return to top level
-                    #+(or CCL SBCL)
-                    (#+CCL ccl:interrupt-signal-condition #+CCL ()
-                     #+SBCL sb-sys:interactive-interrupt #+SBCL ()
-                      (when exception-prefix
-                        (write-string exception-prefix))
-                      (write-line "Forced ABORT")
-                      (when (truep show-backtraces-on-error?)
-                        (show-backtrace fs))
-                      (clear-input)
-                      (reset-interpreter/compiler fs)
-                      (when exception-hook
-                        (funcall exception-hook fs))
-                      (force-output)))
-                (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
-                  (reset-interpreter/compiler fs)))))))
+            (handler-bind ((stream-error #'(lambda (e)
+                                             (when (eq (stream-error-stream e) *standard-output*)
+                                               ;; Probably ought to be fatal but we want the exit hook (if any) to run
+                                               (throw 'bye nil)))))
+              (loop
+                (restart-case
+                    (handler-case
+                        (interpreter/compiler fs)
+                      (forth-exception (e)
+                        (unless (member (forth-exception-key e) '(:abort :quit))
+                          (when exception-prefix
+                            (write-string exception-prefix))
+                          (write-line (forth-exception-phrase e)))
+                        (when (truep show-backtraces-on-error?)
+                          (show-backtrace fs))
+                        (clear-input)
+                        (reset-interpreter/compiler fs)
+                        (when (and exception-hook (not (eq (forth-exception-key e) :quit)))
+                          (funcall exception-hook fs))
+                        (force-output))
+                      ;; Intercept Ctrl-C and return to top level
+                      #+(or CCL SBCL)
+                      (#+CCL ccl:interrupt-signal-condition #+CCL ()
+                       #+SBCL sb-sys:interactive-interrupt #+SBCL ()
+                       (when exception-prefix
+                         (write-string exception-prefix))
+                        (write-line "Forced ABORT")
+                        (when (truep show-backtraces-on-error?)
+                          (show-backtrace fs))
+                        (clear-input)
+                        (reset-interpreter/compiler fs)
+                        (when exception-hook
+                          (funcall exception-hook fs))
+                        (force-output)))
+                  (abort () :report (lambda (stream) (write-string "Return to FORTH toplevel" stream))
+                    (reset-interpreter/compiler fs))))))))
     (ignore-errors
      ;; Suppress any errors if *standard-output* is closed prematurely
      (report-statistics fs))
@@ -236,7 +240,9 @@
             (prog1
                 t
               (when exit-hook
-                (funcall exit-hook fs))))
+                (ignore-errors
+                 ;; Suppress any errors that the exit hook might trigger
+                 (funcall exit-hook fs)))))
       (release-memory memory))))
 
 (define-forth-function report-statistics (fs)
