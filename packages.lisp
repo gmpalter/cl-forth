@@ -95,4 +95,5 @@
                        #:exit
                        #:save-lisp-and-die)
   (:export #:forth-application
-           #:save-application))
+           #:save-application
+           #:template))
