@@ -15,8 +15,15 @@
   (require '#:prefixed-stream)
   (require '#:timestamped-stream))
 
+(defpackage #:forth-words
+  (:use))
+
+(defpackage #:forth-ffi-symbols
+  (:use))
+
 (defpackage #:forth
   (:use #:common-lisp)
+  (:local-nicknames (#:locals #:forth-words))
   #+CCL (:import-from #:ccl
                       #:fixnump
                       #:whitespacep
@@ -56,12 +63,6 @@
            #:*exit-hook*
            #:run-forth-process
            #:run))
-
-(defpackage #:forth-words
-  (:use))
-
-(defpackage #:forth-ffi-symbols
-  (:use))
 
 (defpackage #:forth-application
   (:nicknames #:forth-app)

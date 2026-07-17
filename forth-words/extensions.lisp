@@ -312,3 +312,27 @@
           ;; Don't enable INLINEABLE for a word that has no inline forms to actually inline
           (when (word-inline-forms word)
             (setf (word-inlineable? word) t))))))
+
+(define-word inline-code (:word ";INLINE" :immediate? t :compile-only? t)
+  "Add Lisp code to the current definition."
+  "Reads Lisp forms and adds them to the current in-process definition, refilling the input buffer as needed,"
+  "until encountering \";ENDCODE\". Local variables, as defined by \"{: ... :}\" are available to the Lisp code"
+  "as internal symbols in the package LOCALS. (I.e., use \"locals::\", not \"locals:\" to reference them.)"
+  (assemble-native-code fs nil))
+
+(define-word show-documentation (:word "ABOUT" :inlineable? nil)
+  "ABOUT <name>"
+  "Displays the documentation, if any, for the word <name>"
+  (let ((name (word files #\Space)))
+    (when (null name)
+      (forth-exception :zero-length-name))
+    (let ((word (lookup word-lists name)))
+      (if word
+          (let ((documentation (word-documentation word)))
+            (cond (documentation
+                   (format t "~&Documentation for ~A:" (word-name word))
+                   (dolist (line (word-documentation word))
+                     (format t "~&;;; ~A" line))
+                   (terpri))
+                  (t
+                   (format t "~&No documentation available for ~A.~%" (word-name word)))))))))

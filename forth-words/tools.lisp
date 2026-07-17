@@ -64,7 +64,7 @@
 
 ;;; Programming-Tools extension words as defined in Section 15 of the Forth 2012 specification
 
-(define-forth-function assemble-native-code (fs)
+(define-forth-function assemble-native-code (fs finish-compilation?)
   (let ((forms (with-output-to-string (forms)
                  (loop do
                    (multiple-value-bind (buffer >in)
@@ -82,8 +82,9 @@
               (eof '#:eof))
           (loop for form = (read forms nil eof)
                 until (eq form eof)
-                do (push form (word-inline-forms (definition-word definition)))))))
-    (finish-compilation fs)))
+                do (add-forms-to-definition fs form)))))
+    (when finish-compilation?
+      (finish-compilation fs))))
 
 (define-word native-code-does> (:word ";CODE" :immediate? t :compile-only? t)
   "Compilation:  (C: colon-sys -- )"
@@ -98,7 +99,7 @@
   "NAME Execution: ( i*x -- j*x )"
   "Execute the machine code sequence that was generated following ;CODE."
   (compile-does> fs)
-  (assemble-native-code fs))
+  (assemble-native-code fs t))
 
 (define-word ahead (:word "AHEAD" :immediate? t :compile-only? t)
   "(C: — orig )"
@@ -130,7 +131,7 @@
     (when (null name)
       (forth-exception :zero-length-name))
     (begin-compilation fs name)
-    (assemble-native-code fs)))
+    (assemble-native-code fs t)))
 
 (define-word cs-pick (:word "CS-PICK")
   "(S: u -- ) (C: xu ... x0 -- xu ... x0 xu ) "
