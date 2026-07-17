@@ -270,7 +270,7 @@ These words are specific to CL-Forth.
 | `ALL-WORDS` | Display all words in all word lists in the search order |
 | `BREAK` | Enter a Lisp break loop |
 | `INLINEABLE` | Mark that the most recent definition's code may be inlined |
-| `;INLINE` | Adds Lisp code to the current definition. Local variables ({: ... :} are available in the LOCALS package |
+| `;INLINE` | Adds Lisp code to the current definition. Local variables (i.e., {: ... :} are available in the LOCALS package |
 | `NOTINTERPRETED` | Mark that the most recent definition must only appear in definitions |
 | `OPTIMIZER` | Return the address of the flag that controls whether generated code is optimized (**EXPERIMENTAL**) |
 | `P.` | Display the top cell of the data stack as a pointer (i.e., 16 hex digits) ||
