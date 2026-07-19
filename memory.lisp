@@ -365,7 +365,7 @@
 (defmethod space-decode-address ((sp data-space) address size-hint)
   (declare (ignore size-hint))
   (with-slots (data size) sp
-    (values data address size)))
+    (values data address (- size address))))
 
 (defmethod space-native-address ((sp data-space) foreign-address)
   (with-slots (prefix data size data-foreign-address) sp
