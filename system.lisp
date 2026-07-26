@@ -82,6 +82,7 @@
   ;; If non-NIL, a string that's displayed after Forth's initial announcement
   (announce-addendum nil :type (or string null))
   (prompt-string #.(format nil "OK.~%") :type string)
+  (recording-transcript? nil :type boolean)
   (extensions nil))
 
 (defun %print-forth-system (fs stream depth)
@@ -97,14 +98,14 @@
                               show-redefinition-warnings? reset-redefinition-warnings? show-definition-code?
                               %optimize-definitions?
                               show-backtraces-on-error? current-frame exception-hook exception-prefix exit-hook
-                              announce-addendum prompt-string extensions)
+                              announce-addendum prompt-string recording-transcript? extensions)
                             '(fs-memory fs-data-stack fs-return-stack fs-control-flow-stack fs-exception-stack fs-loop-stack
                               fs-float-stack fs-definitions-stack fs-word-lists fs-files fs-execution-tokens fs-ffi
                               fs-replacements fs-base fs-float-precision fs-%state fs-definition fs-compiling-paused?
                               fs-show-redefinition-warnings? fs-reset-redefinition-warnings? fs-show-definition-code?
                               fs-%optimize-definitions?
                               fs-show-backtraces-on-error? fs-current-frame fs-exception-hook fs-exception-prefix fs-exit-hook
-                              fs-announce-addendum fs-prompt-string fs-extensions)))
+                              fs-announce-addendum fs-prompt-string fs-recording-transcript? fs-extensions)))
      #+LispWorks
      (declare (ignorable memory data-stack return-stack control-flow-stack exception-stack loop-stack
                          float-stack definitions-stack word-lists files execution-tokens ffi

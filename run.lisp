@@ -28,6 +28,7 @@
 
 (defun run (&key (asdf-system '#:cl-forth) template interpret transcript-file)
   (let ((fs (make-forth-system :template template)))
+    (setf (fs-recording-transcript? fs) (not (null transcript-file)))
     (flet ((runner ()
              (announce-forth fs asdf-system)
              (forth-toplevel fs :interpret interpret)))
