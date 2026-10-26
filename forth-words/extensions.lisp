@@ -195,12 +195,12 @@
 (define-word set-flag (:word "ON")
   "( addr -- )"
   "Set the flag at ADDR to true"
-  (setf (memory-byte memory (stack-pop data-stack)) +true+))
+  (setf (memory-cell memory (stack-pop data-stack)) +true+))
 
 (define-word clear-flag (:word "OFF")
   "( addr -- )"
   "Set the flag at ADDR to false"
-  (setf (memory-byte memory (stack-pop data-stack)) +false+))
+  (setf (memory-cell memory (stack-pop data-stack)) +false+))
 
 (define-word suppress-one-redefinition-warning (:word "-?")
   "Suppress redefinition warnings for the next definition only"
